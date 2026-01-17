@@ -1,26 +1,44 @@
-"""Rich console utilities for consistent terminal output."""
+"""Rich console utilities for consistent terminal output.
 
+This module provides a shared Rich Console instance and helper functions
+for displaying formatted terminal output with consistent styling.
+"""
+
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 from rich.console import Console
 
-# Shared console instance for consistent output across the application
+logger = logging.getLogger(__name__)
+
 console = Console()
 
 
 def print_success(message: str) -> None:
-    """Print a success message with a green checkmark."""
+    """Print a success message with a green checkmark.
+
+    Args:
+        message: The success message to display.
+    """
     console.print(f"[bold green]✓[/bold green] {message}")
 
 
 def print_error(message: str) -> None:
-    """Print an error message with a red X."""
+    """Print an error message with a red X.
+
+    Args:
+        message: The error message to display.
+    """
     console.print(f"[bold red]✗[/bold red] {message}")
 
 
 def print_warning(message: str) -> None:
-    """Print a warning message with a yellow warning sign."""
+    """Print a warning message with a yellow warning sign.
+
+    Args:
+        message: The warning message to display.
+    """
     console.print(f"[bold yellow]⚠[/bold yellow] {message}")
 
 

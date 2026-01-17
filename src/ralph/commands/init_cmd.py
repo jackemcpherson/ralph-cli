@@ -1,11 +1,18 @@
-"""Ralph init command - scaffold a project for Ralph workflow."""
+"""Ralph init command - scaffold a project for Ralph workflow.
 
+This module implements the 'ralph init' command which creates
+the plans directory structure and configuration files.
+"""
+
+import logging
 from pathlib import Path
 
 import typer
 
 from ralph.services import ClaudeService, ProjectType, ScaffoldService
 from ralph.utils import console, print_success, print_warning
+
+logger = logging.getLogger(__name__)
 
 
 def init(
@@ -24,7 +31,6 @@ def init(
     """
     project_root = Path.cwd()
 
-    # Check if Ralph files already exist
     existing_files = _check_existing_files(project_root)
     if existing_files and not force:
         print_warning("Ralph workflow files already exist:")
@@ -34,17 +40,14 @@ def init(
         console.print("Use [bold]--force[/bold] to overwrite existing files.")
         raise typer.Exit(1)
 
-    # Create scaffold service and detect project type
     scaffold = ScaffoldService(project_root=project_root)
     project_type = scaffold.detect_project_type()
 
-    # Show project type detection result
     if project_type != ProjectType.UNKNOWN:
         console.print(f"Detected project type: [bold cyan]{project_type.value}[/bold cyan]")
     else:
         print_warning("Could not detect project type. Using generic template.")
 
-    # Create all Ralph workflow files
     console.print()
     console.print("[bold]Creating Ralph workflow files...[/bold]")
 
@@ -55,7 +58,6 @@ def init(
             relative_path = path.relative_to(project_root)
             print_success(f"Created {relative_path}")
 
-    # Optionally invoke Claude Code /init to enhance files
     if not skip_claude:
         console.print()
         console.print("[bold]Invoking Claude Code /init to enhance project files...[/bold]")
@@ -73,7 +75,6 @@ def init(
             print_warning(f"Failed to run Claude Code /init: {e}")
             console.print("[dim]You can run 'claude /init' manually later.[/dim]")
 
-    # Display success message and next steps
     console.print()
     print_success("[bold]Ralph workflow initialized![/bold]")
     console.print()

@@ -1,5 +1,10 @@
-"""Ralph once command - execute a single iteration."""
+"""Ralph once command - execute a single iteration.
 
+This module implements the 'ralph once' command which picks the
+highest-priority incomplete story, implements it, and commits on success.
+"""
+
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,7 +14,8 @@ from ralph.models import TasksFile, UserStory, load_tasks
 from ralph.services import ClaudeError, ClaudeService
 from ralph.utils import append_file, console, file_exists, print_error, print_success, print_warning
 
-# Iteration prompt template - tells Claude how to implement a single story
+logger = logging.getLogger(__name__)
+
 ITERATION_PROMPT = """You are an autonomous coding agent working on a software project \
 using the Ralph workflow.
 
@@ -233,12 +239,10 @@ def once(
     tasks_path = project_root / "plans" / "TASKS.json"
     progress_path = project_root / "plans" / "PROGRESS.txt"
 
-    # Check for TASKS.json
     if not file_exists(tasks_path):
         print_error("No plans/TASKS.json found. Run 'ralph init' or 'ralph tasks' first.")
         raise typer.Exit(1)
 
-    # Load tasks
     try:
         tasks = load_tasks(tasks_path)
     except FileNotFoundError:
@@ -248,7 +252,6 @@ def once(
         print_error(f"Error parsing TASKS.json: {e}")
         raise typer.Exit(1)
 
-    # Find the next story to work on (highest priority with passes=false)
     next_story = _find_next_story(tasks)
 
     if next_story is None:
@@ -257,7 +260,6 @@ def once(
         console.print("[dim]No more stories to implement.[/dim]")
         raise typer.Exit(0)
 
-    # Display iteration info
     console.print("[bold]Ralph Iteration[/bold]")
     console.print()
     console.print(f"[dim]Project:[/dim] {tasks.project}")
@@ -268,21 +270,17 @@ def once(
     console.print(f"  [dim]{next_story.description}[/dim]")
     console.print()
 
-    # Display acceptance criteria
     console.print("[bold]Acceptance Criteria:[/bold]")
     for criterion in next_story.acceptance_criteria:
         console.print(f"  • {criterion}")
     console.print()
 
-    # Count remaining stories
     incomplete_count = sum(1 for s in tasks.user_stories if not s.passes)
     console.print(f"[dim]Stories remaining: {incomplete_count}[/dim]")
     console.print()
 
-    # Build the iteration prompt
     prompt = _build_iteration_prompt(next_story, max_fix_attempts)
 
-    # Run Claude
     console.print("[bold]Running Claude Code...[/bold]")
     console.print()
 
@@ -299,10 +297,8 @@ def once(
 
     console.print()
 
-    # Check for completion signal
     all_complete = "<ralph>COMPLETE</ralph>" in output_text
 
-    # Re-load tasks to check if the story was marked as passing
     updated_tasks: TasksFile | None = None
     updated_story: UserStory | None = None
     story_passed = False
@@ -312,10 +308,8 @@ def once(
         updated_story = next((s for s in updated_tasks.user_stories if s.id == next_story.id), None)
         story_passed = updated_story is not None and updated_story.passes
     except Exception:
-        # If we can't reload, assume based on exit code
         story_passed = exit_code == 0
 
-    # Display summary
     console.print("[bold]Iteration Summary[/bold]")
     console.print()
 
@@ -332,17 +326,13 @@ def once(
         print_success("All stories are now complete!")
         console.print("[dim]Feature implementation finished.[/dim]")
     elif updated_tasks is not None:
-        # Count remaining
         remaining = sum(1 for s in updated_tasks.user_stories if not s.passes)
         console.print()
         console.print(f"[dim]Stories remaining: {remaining}[/dim]")
 
-    # Append a CLI-level summary to progress if the story passed
-    # (Claude should have already appended detailed progress)
     if story_passed:
         _append_cli_summary(progress_path, next_story.id, next_story.title, all_complete)
 
-    # Exit with appropriate code
     if story_passed:
         raise typer.Exit(0)
     else:
@@ -362,7 +352,6 @@ def _find_next_story(tasks: TasksFile) -> UserStory | None:
     if not incomplete:
         return None
 
-    # Sort by priority (lower = higher priority)
     incomplete.sort(key=lambda s: s.priority)
     return incomplete[0]
 
@@ -377,7 +366,6 @@ def _build_iteration_prompt(story: UserStory, max_fix_attempts: int) -> str:
     Returns:
         The formatted prompt string.
     """
-    # Format acceptance criteria
     criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
 
     return ITERATION_PROMPT.format(
@@ -413,5 +401,4 @@ def _append_cli_summary(
     try:
         append_file(progress_path, summary)
     except Exception:
-        # Don't fail the command if we can't append
         pass

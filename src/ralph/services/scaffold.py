@@ -1,5 +1,10 @@
-"""Project scaffolding service for Ralph CLI."""
+"""Project scaffolding service for Ralph CLI.
 
+This module provides services for scaffolding Ralph workflow files
+including plans directory, CLAUDE.md, AGENTS.md, and related files.
+"""
+
+import logging
 from enum import Enum
 from pathlib import Path
 
@@ -7,9 +12,21 @@ from pydantic import BaseModel, ConfigDict
 
 from ralph.utils import ensure_dir, write_file
 
+logger = logging.getLogger(__name__)
+
 
 class ProjectType(Enum):
-    """Detected project type."""
+    """Detected project type based on marker files.
+
+    Used to determine which quality check template to generate.
+
+    Attributes:
+        PYTHON: Python project (pyproject.toml, setup.py, requirements.txt).
+        NODEJS: Node.js project (package.json).
+        GO: Go project (go.mod).
+        RUST: Rust project (Cargo.toml).
+        UNKNOWN: No recognized project markers found.
+    """
 
     PYTHON = "python"
     NODEJS = "nodejs"
@@ -327,8 +344,8 @@ This project uses the Ralph autonomous iteration pattern.
         Returns:
             YAML block with appropriate quality checks.
         """
-        if project_type == ProjectType.PYTHON:
-            return """<!-- RALPH:CHECKS:START -->
+        checks_by_type = {
+            ProjectType.PYTHON: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: typecheck
@@ -344,10 +361,8 @@ checks:
     command: uv run pytest
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.NODEJS:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.NODEJS: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: typecheck
@@ -363,10 +378,8 @@ checks:
     command: npm test
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.GO:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.GO: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: build
@@ -382,10 +395,8 @@ checks:
     command: go test ./...
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.RUST:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.RUST: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: build
@@ -401,10 +412,10 @@ checks:
     command: cargo test
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
+<!-- RALPH:CHECKS:END -->""",
+        }
 
-        # Unknown project type - generic template
-        return """<!-- RALPH:CHECKS:START -->
+        default_checks = """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: lint
@@ -415,3 +426,5 @@ checks:
     required: true
 ```
 <!-- RALPH:CHECKS:END -->"""
+
+        return checks_by_type.get(project_type, default_checks)

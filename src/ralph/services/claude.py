@@ -1,5 +1,10 @@
-"""Claude Code CLI wrapper service."""
+"""Claude Code CLI wrapper service.
 
+This module provides a service for invoking the Claude Code CLI
+with support for interactive and print modes.
+"""
+
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -7,11 +12,14 @@ from typing import TextIO
 
 from pydantic import BaseModel, ConfigDict, Field
 
+logger = logging.getLogger(__name__)
+
 
 class ClaudeError(Exception):
-    """Exception raised for Claude Code operation failures."""
+    """Exception raised for Claude Code operation failures.
 
-    pass
+    Raised when Claude Code is not installed or a command fails.
+    """
 
 
 class ClaudeService(BaseModel):
@@ -44,14 +52,12 @@ class ClaudeService(BaseModel):
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
-        # Stream stdout
         if process.stdout:
             for line in process.stdout:
                 stdout_lines.append(line)
                 self.stdout.write(line)
                 self.stdout.flush()
 
-        # Collect any stderr
         if process.stderr:
             stderr_content = process.stderr.read()
             if stderr_content:
@@ -74,6 +80,46 @@ class ClaudeService(BaseModel):
 
         return args
 
+    def _run_process(self, args: list[str], stream: bool) -> tuple[str, int]:
+        """Run a Claude CLI process and capture output.
+
+        Args:
+            args: Command arguments to run.
+            stream: Whether to stream output to terminal.
+
+        Returns:
+            Tuple of (output_text, exit_code).
+
+        Raises:
+            ClaudeError: If Claude Code is not installed or command fails.
+        """
+        try:
+            process = subprocess.Popen(
+                args,
+                cwd=self.working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            if stream:
+                stdout_content, _ = self._stream_output(process)
+            else:
+                stdout_content, stderr_content = process.communicate()
+                if stderr_content:
+                    self.stderr.write(stderr_content)
+                    self.stderr.flush()
+
+            return_code = process.wait()
+            return stdout_content, return_code
+
+        except FileNotFoundError as e:
+            msg = "Claude Code CLI not found. "
+            msg += f"Ensure '{self.claude_command}' is installed and in PATH."
+            raise ClaudeError(msg) from e
+        except subprocess.SubprocessError as e:
+            raise ClaudeError(f"Failed to run Claude Code: {e}") from e
+
     def run_interactive(self, prompt: str | None = None) -> int:
         """Run Claude Code in interactive mode.
 
@@ -95,7 +141,6 @@ class ClaudeService(BaseModel):
             args.append(prompt)
 
         try:
-            # Run interactively - don't capture output, let it flow naturally
             result = subprocess.run(
                 args,
                 cwd=self.working_dir,
@@ -154,32 +199,7 @@ class ClaudeService(BaseModel):
             for tool in allowed_tools:
                 args.extend(["--allowedTools", tool])
 
-        try:
-            process = subprocess.Popen(
-                args,
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            if stream:
-                stdout_content, _ = self._stream_output(process)
-            else:
-                stdout_content, stderr_content = process.communicate()
-                if stderr_content:
-                    self.stderr.write(stderr_content)
-                    self.stderr.flush()
-
-            return_code = process.wait()
-            return stdout_content, return_code
-
-        except FileNotFoundError as e:
-            msg = "Claude Code CLI not found. "
-            msg += f"Ensure '{self.claude_command}' is installed and in PATH."
-            raise ClaudeError(msg) from e
-        except subprocess.SubprocessError as e:
-            raise ClaudeError(f"Failed to run Claude Code: {e}") from e
+        return self._run_process(args, stream)
 
     def run_with_output_format(
         self,
@@ -215,29 +235,4 @@ class ClaudeService(BaseModel):
         if max_turns is not None:
             args.extend(["--max-turns", str(max_turns)])
 
-        try:
-            process = subprocess.Popen(
-                args,
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            if stream:
-                stdout_content, _ = self._stream_output(process)
-            else:
-                stdout_content, stderr_content = process.communicate()
-                if stderr_content:
-                    self.stderr.write(stderr_content)
-                    self.stderr.flush()
-
-            return_code = process.wait()
-            return stdout_content, return_code
-
-        except FileNotFoundError as e:
-            msg = "Claude Code CLI not found. "
-            msg += f"Ensure '{self.claude_command}' is installed and in PATH."
-            raise ClaudeError(msg) from e
-        except subprocess.SubprocessError as e:
-            raise ClaudeError(f"Failed to run Claude Code: {e}") from e
+        return self._run_process(args, stream)

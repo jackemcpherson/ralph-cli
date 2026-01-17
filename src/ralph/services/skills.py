@@ -1,5 +1,10 @@
-"""Skills sync service for Ralph CLI."""
+"""Skills sync service for Ralph CLI.
 
+This module provides services for managing and syncing Claude Code skills
+from a local skills directory to the global ~/.claude/skills/ directory.
+"""
+
+import logging
 import re
 import shutil
 from enum import Enum
@@ -7,9 +12,20 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+logger = logging.getLogger(__name__)
+
 
 class SyncStatus(Enum):
-    """Status of a skill sync operation."""
+    """Status of a skill sync operation.
+
+    Indicates the outcome of attempting to sync a single skill.
+
+    Attributes:
+        CREATED: Skill was newly created in the target directory.
+        UPDATED: Existing skill was updated with new content.
+        SKIPPED: Skill sync was skipped due to an error.
+        INVALID: Skill was invalid (missing required frontmatter).
+    """
 
     CREATED = "created"
     UPDATED = "updated"
@@ -18,7 +34,15 @@ class SyncStatus(Enum):
 
 
 class SkillInfo(BaseModel):
-    """Information about a skill."""
+    """Information about a validated skill.
+
+    Contains metadata extracted from a skill's SKILL.md frontmatter.
+
+    Attributes:
+        name: The skill name from frontmatter.
+        description: The skill description from frontmatter.
+        path: Path to the skill directory.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -28,7 +52,17 @@ class SkillInfo(BaseModel):
 
 
 class SkillSyncResult(BaseModel):
-    """Result of a skill sync operation."""
+    """Result of a skill sync operation.
+
+    Contains the outcome and details of syncing a single skill.
+
+    Attributes:
+        skill_name: Name of the skill that was synced.
+        status: The sync status outcome.
+        source_path: Path to the source skill directory.
+        target_path: Path to the target skill directory (if synced).
+        error: Error message if sync failed.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -49,10 +83,7 @@ class SkillsService(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     skills_dir: Path
-    """Path to the local skills directory (e.g., project_root/skills/)."""
-
     target_dir: Path = Path.home() / ".claude" / "skills"
-    """Path to the global Claude skills directory."""
 
     def list_local_skills(self) -> list[Path]:
         """Find all skill directories in the local skills/ directory.
@@ -196,7 +227,6 @@ class SkillsService(BaseModel):
             Dictionary of frontmatter key-value pairs, or None if no
             valid frontmatter found.
         """
-        # Match frontmatter between --- delimiters at the start
         pattern = r"^---\s*\n(.*?)\n---"
         match = re.match(pattern, content, re.DOTALL)
 
@@ -211,12 +241,10 @@ class SkillsService(BaseModel):
             if not line or ":" not in line:
                 continue
 
-            # Split on first colon only
             key, value = line.split(":", 1)
             key = key.strip()
             value = value.strip()
 
-            # Remove surrounding quotes if present
             if value and value[0] in ('"', "'") and value[-1] == value[0]:
                 value = value[1:-1]
 
