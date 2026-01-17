@@ -11,37 +11,16 @@ from ralph.cli import app
 
 
 @pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory with project marker.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    # Create a project marker so get_project_root() can find it
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test-project'\n")
-    return tmp_path
-
-
-@pytest.fixture
-def skills_dir(temp_project: Path) -> Path:
+def skills_dir(python_project: Path) -> Path:
     """Create a skills directory in the temporary project.
 
     Args:
-        temp_project: Temporary project directory.
+        python_project: Temporary Python project directory.
 
     Returns:
         Path to the skills directory.
     """
-    skills_path = temp_project / "skills"
+    skills_path = python_project / "skills"
     skills_path.mkdir()
     return skills_path
 
@@ -99,12 +78,12 @@ class TestSyncCommand:
     """Tests for the sync command."""
 
     def test_sync_shows_warning_when_no_skills_dir(
-        self, runner: CliRunner, temp_project: Path
+        self, runner: CliRunner, python_project: Path
     ) -> None:
         """Test that sync shows helpful message when skills/ doesn't exist."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             result = runner.invoke(app, ["sync"])
 
@@ -115,12 +94,12 @@ class TestSyncCommand:
             os.chdir(original_cwd)
 
     def test_sync_shows_warning_when_no_skills_found(
-        self, runner: CliRunner, temp_project: Path, skills_dir: Path
+        self, runner: CliRunner, python_project: Path, skills_dir: Path
     ) -> None:
         """Test that sync shows message when skills/ exists but is empty."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             result = runner.invoke(app, ["sync"])
 
@@ -132,14 +111,14 @@ class TestSyncCommand:
     def test_sync_syncs_valid_skill(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         valid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync copies valid skills to target directory."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             # Mock the target directory in SkillsService
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
@@ -170,14 +149,14 @@ class TestSyncCommand:
     def test_sync_shows_updated_status(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         valid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync shows 'updated' for existing skills."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
@@ -204,14 +183,14 @@ class TestSyncCommand:
     def test_sync_shows_invalid_skill_warning(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         invalid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync shows warning for invalid skills."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
@@ -275,14 +254,14 @@ class TestSyncCommand:
     def test_sync_fails_on_error(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         valid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync fails with non-zero exit on sync error."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
@@ -309,14 +288,14 @@ class TestSyncCommand:
     def test_sync_displays_source_and_target(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         valid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync displays source and target directories."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
@@ -344,14 +323,14 @@ class TestSyncCommand:
     def test_sync_multiple_skills(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         skills_dir: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync handles multiple skills correctly."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             # Create multiple skills
             skill1 = skills_dir / "skill-one"
@@ -403,14 +382,14 @@ class TestSyncCommand:
     def test_sync_shows_no_skills_synced_when_all_invalid(
         self,
         runner: CliRunner,
-        temp_project: Path,
+        python_project: Path,
         invalid_skill: Path,
         mock_target_dir: Path,
     ) -> None:
         """Test that sync shows message when no valid skills exist."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
@@ -439,12 +418,12 @@ class TestSyncIntegration:
     """Integration tests for sync command without mocking SkillsService."""
 
     def test_sync_actually_copies_skill(
-        self, runner: CliRunner, temp_project: Path, valid_skill: Path, tmp_path: Path
+        self, runner: CliRunner, python_project: Path, valid_skill: Path, tmp_path: Path
     ) -> None:
         """Test that sync actually copies skill files to target directory."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_project)
+            os.chdir(python_project)
 
             # Create a custom target directory for testing
             target_dir = tmp_path / "target_skills"
@@ -453,7 +432,7 @@ class TestSyncIntegration:
             from ralph.services import SkillsService
 
             service = SkillsService(
-                skills_dir=temp_project / "skills",
+                skills_dir=python_project / "skills",
                 target_dir=target_dir,
             )
 

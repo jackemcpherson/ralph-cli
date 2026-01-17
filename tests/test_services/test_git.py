@@ -243,7 +243,7 @@ class TestCommit:
     def test_creates_commit_with_message(
         self, git_service: GitService, temp_git_repo: Path
     ) -> None:
-        """commit creates a commit with the specified message."""
+        """Commit creates a commit with the specified message."""
         # Create a new file
         test_file = temp_git_repo / "new_file.txt"
         test_file.write_text("new content")
@@ -268,7 +268,7 @@ class TestCommit:
     def test_creates_commit_with_add_all(
         self, git_service: GitService, temp_git_repo: Path
     ) -> None:
-        """commit with add_all=True stages all changes automatically."""
+        """Commit with add_all=True stages all changes automatically."""
         # Create multiple new files
         (temp_git_repo / "file1.txt").write_text("content 1")
         (temp_git_repo / "file2.txt").write_text("content 2")
@@ -291,14 +291,14 @@ class TestCommit:
         assert "file2.txt" in result.stdout
 
     def test_raises_git_error_when_nothing_to_commit(self, git_service: GitService) -> None:
-        """commit raises GitError when there are no changes to commit."""
+        """Commit raises GitError when there are no changes to commit."""
         with pytest.raises(GitError):
             git_service.commit("Empty commit")
 
     def test_commit_message_format_with_special_characters(
         self, git_service: GitService, temp_git_repo: Path
     ) -> None:
-        """commit handles messages with special characters."""
+        """Commit handles messages with special characters."""
         test_file = temp_git_repo / "test.txt"
         test_file.write_text("test")
         git_service.stage_files(["test.txt"])
