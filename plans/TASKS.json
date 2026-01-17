@@ -197,8 +197,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Displays informational message with tips before launching Claude. Supports --output and --verbose flags. Includes PRD structure prompt."
     },
     {
       "id": "US-013",
