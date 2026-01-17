@@ -486,3 +486,42 @@
 - The `<ralph>COMPLETE</ralph>` signal indicates all stories are complete
 
 ---
+
+## 2026-01-17 - US-015
+
+**Story:** Implement ralph loop command
+
+### What was implemented
+- Full `ralph loop` command implementation in `src/ralph/commands/loop.py`
+- `LoopStopReason` class with constants: ALL_COMPLETE, MAX_ITERATIONS, PERSISTENT_FAILURE, TRANSIENT_FAILURE, NO_TASKS, BRANCH_MISMATCH
+- `_setup_branch()` helper to check/create feature branch from TASKS.json branchName
+- `_find_next_story()` helper (reused pattern from once.py)
+- `_build_iteration_prompt()` helper (reuses ITERATION_PROMPT from once.py)
+- `_append_loop_progress()` helper for PROGRESS.txt updates
+- Branch setup: checks current branch, warns about uncommitted changes, creates/switches as needed
+- Iteration tracking: displays `[N/M] StoryID: Title` counter using print_step()
+- Stop conditions: all complete, max iterations, persistent failure (same story fails 2x), transient failure (Claude error)
+- Summary display: stories completed, total progress, remaining count, stop reason
+- Supports `--verbose` and `--max-fix-attempts` flags
+
+### Tests written
+- `tests/test_commands/test_loop.py` with 27 tests:
+  - `TestLoopCommand` class (15 tests): requires TASKS.json, displays project info, handles all complete, runs multiple iterations, stops on all complete signal, stops on max iterations, stops on persistent failure, handles Claude error, verbose flag, custom iterations, iteration counter, summary on completion, invalid TASKS.json, branch setup failure
+  - `TestSetupBranch` class (6 tests): on correct branch, switches branch, creates new branch, warns uncommitted changes, handles git error, handles checkout error
+  - `TestFindNextStory` class (3 tests): returns highest priority incomplete, returns None when all complete, handles unsorted priorities
+  - `TestBuildIterationPrompt` class (3 tests): includes story details, acceptance criteria, max fix attempts
+  - `TestLoopStopReason` class (1 test): stop reason constants exist
+
+### Files changed
+- src/ralph/commands/loop.py (modified - full implementation)
+- tests/test_commands/test_loop.py (new)
+- plans/TASKS.json (updated)
+
+### Learnings for future iterations
+- Reuse constants/prompts from related modules (ITERATION_PROMPT from once.py) to maintain consistency
+- Use a dedicated class for stop reason constants to improve code clarity
+- Branch switching should warn about uncommitted changes but still attempt the operation
+- Persistent failure detection requires tracking consecutive failures on the same story ID
+- The `_setup_branch` function is a good candidate for sharing between commands that need branch management
+
+---

@@ -254,8 +254,8 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Full loop implementation with branch setup, iteration tracking, LoopStopReason class. Reuses ITERATION_PROMPT from once.py. 27 tests added."
     },
     {
       "id": "US-016",
