@@ -20,93 +20,6 @@ from ralph.models import TasksFile, UserStory
 from ralph.services import ClaudeError, GitError, GitService
 
 
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory."""
-    return tmp_path
-
-
-@pytest.fixture
-def sample_tasks_json() -> dict:
-    """Return sample TASKS.json content."""
-    return {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "First story",
-                "description": "As a user, I want feature A",
-                "acceptanceCriteria": ["Criterion A1", "Typecheck passes"],
-                "priority": 1,
-                "passes": True,
-                "notes": "Completed",
-            },
-            {
-                "id": "US-002",
-                "title": "Second story",
-                "description": "As a user, I want feature B",
-                "acceptanceCriteria": ["Criterion B1", "Criterion B2"],
-                "priority": 2,
-                "passes": False,
-                "notes": "",
-            },
-            {
-                "id": "US-003",
-                "title": "Third story",
-                "description": "As a user, I want feature C",
-                "acceptanceCriteria": ["Criterion C1"],
-                "priority": 3,
-                "passes": False,
-                "notes": "",
-            },
-        ],
-    }
-
-
-@pytest.fixture
-def all_complete_tasks_json() -> dict:
-    """Return TASKS.json content with all stories complete."""
-    return {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "First story",
-                "description": "As a user, I want feature A",
-                "acceptanceCriteria": ["Criterion A1"],
-                "priority": 1,
-                "passes": True,
-                "notes": "",
-            },
-        ],
-    }
-
-
-@pytest.fixture
-def initialized_project(temp_project: Path, sample_tasks_json: dict) -> Path:
-    """Create a temporary project with plans/TASKS.json."""
-    plans_dir = temp_project / "plans"
-    plans_dir.mkdir()
-
-    tasks_file = plans_dir / "TASKS.json"
-    tasks_file.write_text(json.dumps(sample_tasks_json, indent=2))
-
-    progress_file = plans_dir / "PROGRESS.txt"
-    progress_file.write_text("# Progress Log\n\n")
-
-    return temp_project
-
-
 class TestLoopCommand:
     """Tests for the loop command."""
 
@@ -767,3 +680,72 @@ class TestLoopStopReason:
         assert LoopStopReason.TRANSIENT_FAILURE == "transient_failure"
         assert LoopStopReason.NO_TASKS == "no_tasks"
         assert LoopStopReason.BRANCH_MISMATCH == "branch_mismatch"
+
+
+class TestLoopBoundaryConditions:
+    """Boundary condition tests for the loop command."""
+
+    def test_loop_with_zero_iterations(self, runner: CliRunner, initialized_project: Path) -> None:
+        """Test that loop with zero iterations exits with failure when incomplete stories exist."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with (
+                patch("ralph.commands.loop.ClaudeService") as mock_claude,
+                patch("ralph.commands.loop._setup_branch") as mock_setup,
+            ):
+                mock_setup.return_value = True
+                mock_instance = MagicMock()
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["loop", "0"])
+
+            # With 0 iterations, Claude should never be called
+            mock_instance.run_print_mode.assert_not_called()
+            # Exit code 1 because no stories were completed and stories remain
+            assert result.exit_code == 1
+            assert "Reached maximum of 0 iterations" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_with_high_iteration_count(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that loop accepts a high iteration count."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with (
+                patch("ralph.commands.loop.ClaudeService") as mock_claude,
+                patch("ralph.commands.loop._setup_branch") as mock_setup,
+            ):
+                mock_setup.return_value = True
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (
+                    "<ralph>COMPLETE</ralph>",
+                    0,
+                )
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["loop", "100"])
+
+            # Should show the max iterations value
+            assert "100" in result.output
+            assert result.exit_code == 0
+        finally:
+            os.chdir(original_cwd)
+
+    def test_find_next_story_with_empty_stories(self) -> None:
+        """Test that _find_next_story handles empty userStories array."""
+        tasks = TasksFile(
+            project="EmptyTest",
+            branch_name="ralph/empty",
+            description="Empty stories test",
+            user_stories=[],
+        )
+
+        result = _find_next_story(tasks)
+
+        assert result is None

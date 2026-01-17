@@ -13,64 +13,18 @@ from ralph.commands.tasks import _build_tasks_prompt, _extract_json, _is_valid_j
 from ralph.services import ClaudeError
 
 
+# Alias for the shared fixture (tasks tests use "initialized_project_with_spec")
 @pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
+def initialized_project(initialized_project_with_spec: Path) -> Path:
+    """Alias for initialized_project_with_spec fixture for backward compatibility."""
+    return initialized_project_with_spec
 
 
+# Alias for the shared fixture (tasks tests use "valid_tasks_json" as a string)
 @pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    return tmp_path
-
-
-@pytest.fixture
-def initialized_project(temp_project: Path) -> Path:
-    """Create a temporary project with plans/ directory and SPEC.md.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the initialized project directory.
-    """
-    plans_dir = temp_project / "plans"
-    plans_dir.mkdir()
-
-    spec_file = plans_dir / "SPEC.md"
-    spec_file.write_text("# Feature Spec\n\nThis is a test specification.")
-
-    return temp_project
-
-
-@pytest.fixture
-def valid_tasks_json() -> str:
-    """Return a valid TASKS.json content string."""
-    tasks = {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "Test story",
-                "description": "As a user, I want to test",
-                "acceptanceCriteria": ["Criterion 1", "Typecheck passes"],
-                "priority": 1,
-                "passes": False,
-                "notes": "",
-            }
-        ],
-    }
-    return json.dumps(tasks)
+def valid_tasks_json(valid_tasks_json_str: str) -> str:
+    """Alias for valid_tasks_json_str fixture for backward compatibility."""
+    return valid_tasks_json_str
 
 
 class TestTasksCommand:

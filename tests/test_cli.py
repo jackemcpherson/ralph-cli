@@ -1,75 +1,14 @@
 """Integration tests for Ralph CLI commands."""
 
 import os
-import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from ralph import __version__
 from ralph.cli import app
-
-
-def strip_ansi(text: str) -> str:
-    """Strip ANSI escape codes from text."""
-    return re.sub(r"\x1b\[[0-9;]*m", "", text)
-
-
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    return tmp_path
-
-
-@pytest.fixture
-def python_project(temp_project: Path) -> Path:
-    """Create a temporary Python project with pyproject.toml.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the Python project directory.
-    """
-    (temp_project / "pyproject.toml").write_text("[project]\nname = 'test-project'\n")
-    return temp_project
-
-
-@pytest.fixture
-def skills_dir(temp_project: Path) -> Path:
-    """Create a skills directory with a valid skill.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the skills directory.
-    """
-    skills_path = temp_project / "skills"
-    skills_path.mkdir()
-
-    skill_path = skills_path / "test-skill"
-    skill_path.mkdir()
-    (skill_path / "SKILL.md").write_text(
-        '---\nname: "test-skill"\ndescription: "A test skill"\n---\n\n# Test Skill\n'
-    )
-
-    return skills_path
+from tests.conftest import strip_ansi
 
 
 class TestCliHelp:

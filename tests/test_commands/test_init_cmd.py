@@ -4,58 +4,10 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
 from ralph.commands.init_cmd import _check_existing_files
-
-
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    return tmp_path
-
-
-@pytest.fixture
-def python_project(temp_project: Path) -> Path:
-    """Create a temporary Python project with pyproject.toml.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the Python project directory.
-    """
-    (temp_project / "pyproject.toml").write_text("[project]\nname = 'test-project'\n")
-    return temp_project
-
-
-@pytest.fixture
-def nodejs_project(temp_project: Path) -> Path:
-    """Create a temporary Node.js project with package.json.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the Node.js project directory.
-    """
-    (temp_project / "package.json").write_text('{"name": "test-project"}\n')
-    return temp_project
 
 
 class TestInitCommand:
