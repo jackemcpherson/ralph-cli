@@ -818,3 +818,26 @@
 - Place new parameters after existing keyword-only parameters in method signatures
 
 ---
+
+## 2026-01-17 - US-002
+
+**Story:** Enable skip_permissions in ralph once command
+
+### What was implemented
+- Added `skip_permissions=True` to `run_print_mode()` call in `once.py`
+- Added info message: "Running Claude with auto-approved permissions for autonomous iteration"
+- Message is displayed before Claude starts running
+
+### Tests written
+- `test_once_passes_skip_permissions_true` - verifies `skip_permissions=True` is passed to `run_print_mode()`
+- `test_once_displays_permissions_message` - verifies the info message is displayed
+
+### Files changed
+- src/ralph/commands/once.py (modified)
+- tests/test_commands/test_once.py (modified)
+
+### Learnings for future iterations
+- The skip_permissions parameter is passed as a keyword argument to `run_print_mode()`
+- Use Rich markup `[dim]` for informational messages that shouldn't distract from main output
+
+---
