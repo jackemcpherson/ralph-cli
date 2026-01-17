@@ -17,7 +17,7 @@ Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv) package manager.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ralph-cli.git
+git clone https://github.com/jackemcpherson/ralph-cli.git
 cd ralph-cli
 
 # Install with dev dependencies
