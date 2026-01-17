@@ -1,8 +1,9 @@
 """Git service for branch management and commits."""
 
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
 
 
 class GitError(Exception):
@@ -11,13 +12,14 @@ class GitError(Exception):
     pass
 
 
-@dataclass
-class GitService:
+class GitService(BaseModel):
     """Service for Git operations.
 
     Provides methods for branch management, commits, and repository inspection.
     All operations use subprocess with proper error handling.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     working_dir: Path | None = None
 
