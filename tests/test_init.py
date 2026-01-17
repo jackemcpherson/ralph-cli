@@ -1,8 +1,11 @@
 """Basic tests for ralph package."""
 
+import re
+
 from ralph import __version__
 
 
-def test_version() -> None:
-    """Test version is defined."""
-    assert __version__ == "1.0.1"
+def test_version_is_defined() -> None:
+    """Test version is defined and follows semver."""
+    assert __version__
+    assert re.match(r"^\d+\.\d+\.\d+", __version__)
