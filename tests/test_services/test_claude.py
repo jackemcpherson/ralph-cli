@@ -162,6 +162,42 @@ class TestRunPrintMode:
             mock_run.assert_called_once()
             assert mock_run.call_args[0][1] is True
 
+    def test_includes_skip_permissions_when_true(self) -> None:
+        """Test that --dangerously-skip-permissions is included when skip_permissions=True."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+
+    def test_excludes_skip_permissions_when_false(self) -> None:
+        """Test that --dangerously-skip-permissions is NOT included when skip_permissions=False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", skip_permissions=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_default_skip_permissions_is_false(self) -> None:
+        """Test that skip_permissions defaults to False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt")
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
 
 class TestRunWithOutputFormat:
     """Tests for run_with_output_format method."""
