@@ -89,7 +89,7 @@
         "Tests verify mutual exclusivity enforcement"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py"
     },
     {
