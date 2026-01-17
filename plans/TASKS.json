@@ -137,8 +137,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Validates US-004, US-005, and US-006 work end-to-end"
+      "passes": true,
+      "notes": "Validates US-004, US-005, and US-006 work end-to-end. Added 22 integration tests."
     }
   ]
 }
