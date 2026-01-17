@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.once import _build_iteration_prompt, _find_next_story
+from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
 from ralph.models import TasksFile, UserStory
 from ralph.services import ClaudeError
 
@@ -388,6 +388,27 @@ class TestOnceCommand:
             # Verify the permissions message is displayed
             assert "auto-approved permissions" in result.output
             assert "autonomous iteration" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_passes_append_system_prompt(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that once passes PERMISSIONS_SYSTEM_PROMPT to run_print_mode."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.once.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("Output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["once"])
+
+            # Verify append_system_prompt was passed
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("append_system_prompt") == PERMISSIONS_SYSTEM_PROMPT
         finally:
             os.chdir(original_cwd)
 

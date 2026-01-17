@@ -16,6 +16,18 @@ from ralph.utils import append_file, console, file_exists, print_error, print_su
 
 logger = logging.getLogger(__name__)
 
+PERMISSIONS_SYSTEM_PROMPT = """\
+You are running in autonomous mode with full permissions pre-approved.
+
+IMPORTANT: DO NOT ask for permission to:
+- Read, write, edit, or delete files
+- Run commands or scripts
+- Make git commits
+- Modify any files in the project
+
+All operations have been pre-authorized. Proceed directly with implementation \
+without asking for confirmation or permission."""
+
 ITERATION_PROMPT = """You are an autonomous coding agent working on a software project \
 using the Ralph workflow.
 
@@ -289,7 +301,12 @@ def once(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
+        output_text, exit_code = claude.run_print_mode(
+            prompt,
+            stream=True,
+            skip_permissions=True,
+            append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
+        )
 
         if exit_code != 0:
             print_warning(f"Claude exited with code {exit_code}")
