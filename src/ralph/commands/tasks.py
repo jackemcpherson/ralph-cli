@@ -1,6 +1,11 @@
-"""Ralph tasks command - convert spec to TASKS.json."""
+"""Ralph tasks command - convert spec to TASKS.json.
+
+This module implements the 'ralph tasks' command which converts
+a specification file into a structured TASKS.json file using Claude.
+"""
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -10,6 +15,8 @@ from pydantic import ValidationError
 from ralph.models import TasksFile, save_tasks
 from ralph.services import ClaudeError, ClaudeService
 from ralph.utils import console, print_error, print_success, read_file
+
+logger = logging.getLogger(__name__)
 
 
 def tasks(
@@ -46,7 +53,6 @@ def tasks(
     project_root = Path.cwd()
     output_path = project_root / output
 
-    # Read the spec file content
     try:
         spec_content = read_file(spec_file)
     except FileNotFoundError:
@@ -60,22 +66,18 @@ def tasks(
         print_error("Spec file is empty. Please add content to your PRD first.")
         raise typer.Exit(1)
 
-    # Check if output already exists
     if output_path.exists():
         console.print(f"[bold yellow]Note:[/bold yellow] {output} already exists.")
         console.print("It will be overwritten with new tasks.\n")
 
-    # Display informational message
     console.print("[bold]Converting Spec to Tasks[/bold]")
     console.print()
     console.print(f"[dim]Reading spec from:[/dim] [cyan]{spec_file}[/cyan]")
     console.print(f"[dim]Output will be saved to:[/dim] [cyan]{output}[/cyan]")
     console.print()
 
-    # Build the prompt for task generation
     prompt = _build_tasks_prompt(spec_content, branch_name)
 
-    # Run Claude in print mode (non-streaming to capture full output)
     console.print("[bold]Running Claude to generate tasks...[/bold]")
     console.print()
 
@@ -90,17 +92,15 @@ def tasks(
                 console.print(output_text)
             raise typer.Exit(exit_code)
 
-        # Extract JSON from Claude's output
         json_content = _extract_json(output_text)
 
         if not json_content:
             print_error("Could not extract valid JSON from Claude's output.")
             console.print()
             console.print("[dim]Claude's output:[/dim]")
-            console.print(output_text[:2000])  # Show first 2000 chars
+            console.print(output_text[:2000])
             raise typer.Exit(1)
 
-        # Validate against TasksFile model
         try:
             tasks_model = TasksFile.model_validate_json(json_content)
         except ValidationError as e:
@@ -112,10 +112,8 @@ def tasks(
                 console.print(f"  • {loc}: {error['msg']}")
             raise typer.Exit(1) from e
 
-        # Save the validated tasks
         save_tasks(tasks_model, output_path)
 
-        # Display success message
         story_count = len(tasks_model.user_stories)
         console.print()
         print_success(f"Generated {story_count} user stories in {output}")
@@ -208,18 +206,15 @@ def _extract_json(text: str) -> str | None:
     """
     text = text.strip()
 
-    # Try to parse as-is first (pure JSON)
     if _is_valid_json(text):
         return text
 
-    # Try to extract from markdown code block
     code_block_pattern = r"```(?:json)?\s*([\s\S]*?)```"
     matches = re.findall(code_block_pattern, text)
     for match in matches:
         if _is_valid_json(match.strip()):
             return match.strip()
 
-    # Try to find JSON object in the text (starts with { and ends with })
     json_pattern = r"\{[\s\S]*\}"
     matches = re.findall(json_pattern, text)
     for match in matches:

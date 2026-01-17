@@ -1,11 +1,18 @@
-"""Ralph prd command - interactive PRD creation with Claude."""
+"""Ralph prd command - interactive PRD creation with Claude.
 
+This module implements the 'ralph prd' command which launches
+an interactive session with Claude to create a PRD.
+"""
+
+import logging
 from pathlib import Path
 
 import typer
 
 from ralph.services import ClaudeError, ClaudeService
 from ralph.utils import console, print_error, print_success, print_warning
+
+logger = logging.getLogger(__name__)
 
 
 def prd(
@@ -30,19 +37,16 @@ def prd(
     project_root = Path.cwd()
     output_path = project_root / output
 
-    # Check if plans directory exists
     plans_dir = project_root / "plans"
     if not plans_dir.exists():
         print_warning("plans/ directory not found.")
         console.print("Run [cyan]ralph init[/cyan] first to initialize the project.")
         raise typer.Exit(1)
 
-    # Check if SPEC.md already exists
     if output_path.exists():
         console.print(f"[bold yellow]Note:[/bold yellow] {output} already exists.")
         console.print("Claude will help you update or expand it.\n")
 
-    # Display informational message
     console.print("[bold]Interactive PRD Creation[/bold]")
     console.print()
     console.print("Claude will guide you through creating a Product Requirements Document (PRD).")
@@ -57,10 +61,8 @@ def prd(
     console.print("[bold]Starting Claude Code...[/bold]")
     console.print()
 
-    # Build the prompt to use the ralph-prd skill
     prompt = _build_prd_prompt(output_path)
 
-    # Launch Claude Code interactively
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
         exit_code = claude.run_interactive(prompt)

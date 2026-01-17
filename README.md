@@ -204,6 +204,10 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE) for details.
