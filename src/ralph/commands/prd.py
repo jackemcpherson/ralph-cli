@@ -58,6 +58,13 @@ def prd(
         console.print("Run [cyan]ralph init[/cyan] first to initialize the project.")
         raise typer.Exit(1)
 
+    # Check for mutual exclusivity of --input and --file
+    if input_text is not None and file is not None:
+        print_error("Cannot use both --input and --file at the same time.")
+        console.print("[dim]Use --input to provide a feature description directly,[/dim]")
+        console.print("[dim]or --file to read from a file, but not both.[/dim]")
+        raise typer.Exit(1)
+
     if output_path.exists():
         console.print(f"[bold yellow]Note:[/bold yellow] {output} already exists.")
         console.print("Claude will help you update or expand it.\n")

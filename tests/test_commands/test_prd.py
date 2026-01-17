@@ -706,3 +706,90 @@ class TestBuildNonInteractivePrdPrompt:
         # Non-interactive mode should NOT ask for clarifying questions
         assert "clarifying questions" not in prompt
         assert "what feature I want to build" not in prompt
+
+
+class TestPrdMutualExclusivity:
+    """Tests for mutual exclusivity of --input and --file flags."""
+
+    def test_prd_error_when_both_input_and_file_provided(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd shows error when both --input and --file are provided."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create a feature description file
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Feature from file")
+
+            result = runner.invoke(
+                app, ["prd", "--input", "Feature from input", "--file", "feature.txt"]
+            )
+
+            assert result.exit_code == 1
+            assert "Cannot use both --input and --file" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_mutual_exclusivity_error_is_actionable(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that mutual exclusivity error message is clear and actionable."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Feature from file")
+
+            result = runner.invoke(app, ["prd", "-i", "Feature from input", "-f", "feature.txt"])
+
+            # Error message should explain what to do
+            assert "--input" in result.output
+            assert "--file" in result.output
+            assert "but not both" in result.output or "at the same time" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_mutual_exclusivity_exits_nonzero(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that mutual exclusivity error exits with non-zero code."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Feature from file")
+
+            result = runner.invoke(app, ["prd", "--input", "Input text", "--file", "feature.txt"])
+
+            # Must exit with non-zero code
+            assert result.exit_code != 0
+            assert result.exit_code == 1
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_mutual_exclusivity_does_not_call_claude(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that Claude is not invoked when both flags are provided."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Feature from file")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "--input", "Input text", "--file", "feature.txt"])
+
+            # Claude should never be called
+            mock_instance.run_interactive.assert_not_called()
+            mock_instance.run_print_mode.assert_not_called()
+        finally:
+            os.chdir(original_cwd)
