@@ -525,3 +525,45 @@
 - The `_setup_branch` function is a good candidate for sharing between commands that need branch management
 
 ---
+
+## 2026-01-17 - US-016
+
+**Story:** Implement ralph sync command
+
+### What was implemented
+- Full `ralph sync` command implementation in `src/ralph/commands/sync.py`
+- Uses SkillsService to list, validate, and sync skills from skills/ directory
+- Displays source and target directories before syncing
+- Shows status for each skill: created (green checkmark), updated, invalid (yellow warning), error (red X)
+- Displays summary with counts: total synced, created, updated, invalid, errors
+- Shows helpful message when skills/ directory doesn't exist or is empty
+- Added `--skills-dir` / `-s` flag for custom skills directory
+- Exits with code 1 if any skills fail to sync (SyncStatus.SKIPPED)
+
+### Tests written
+- `tests/test_commands/test_sync.py` with 11 tests:
+  - `TestSyncCommand` class (10 tests):
+    - `test_sync_shows_warning_when_no_skills_dir` - verifies missing skills/ handling
+    - `test_sync_shows_warning_when_no_skills_found` - verifies empty skills/ handling
+    - `test_sync_syncs_valid_skill` - verifies successful sync
+    - `test_sync_shows_updated_status` - verifies updated status display
+    - `test_sync_shows_invalid_skill_warning` - verifies invalid skill handling
+    - `test_sync_with_custom_skills_dir` - verifies --skills-dir flag
+    - `test_sync_fails_on_error` - verifies exit code on errors
+    - `test_sync_displays_source_and_target` - verifies path display
+    - `test_sync_multiple_skills` - verifies multiple skill handling
+    - `test_sync_shows_no_skills_synced_when_all_invalid` - verifies all-invalid case
+  - `TestSyncIntegration` class (1 test):
+    - `test_sync_actually_copies_skill` - integration test verifying files are copied
+
+### Files changed
+- src/ralph/commands/sync.py (modified - full implementation)
+- tests/test_commands/test_sync.py (new)
+
+### Learnings for future iterations
+- SkillsService already does the heavy lifting; command just orchestrates and displays
+- Use Unicode checkmark/cross symbols for visual feedback in terminal
+- Pydantic model fields can be customized at instantiation (target_dir) for testing
+- Exit with non-zero code for errors but zero for warnings (invalid skills)
+
+---
