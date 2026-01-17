@@ -9,8 +9,6 @@ from pydantic import BaseModel, ConfigDict
 class GitError(Exception):
     """Exception raised for Git operation failures."""
 
-    pass
-
 
 class GitService(BaseModel):
     """Service for Git operations.

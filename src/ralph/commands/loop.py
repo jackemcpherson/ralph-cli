@@ -5,9 +5,8 @@ from pathlib import Path
 
 import typer
 
-# Reuse the iteration prompt from once.py
-from ralph.commands.once import ITERATION_PROMPT
-from ralph.models import TasksFile, UserStory, load_tasks
+from ralph.commands.once import _build_iteration_prompt, _find_next_story
+from ralph.models import load_tasks
 from ralph.services import ClaudeError, ClaudeService, GitError, GitService
 from ralph.utils import (
     append_file,
@@ -272,46 +271,6 @@ def _setup_branch(git: GitService, branch_name: str, project_root: Path) -> bool
     except GitError as e:
         print_error(f"Could not switch to branch '{branch_name}': {e}")
         return False
-
-
-def _find_next_story(tasks: TasksFile) -> UserStory | None:
-    """Find the highest-priority story with passes=false.
-
-    Args:
-        tasks: TasksFile model.
-
-    Returns:
-        The next UserStory to work on, or None if all complete.
-    """
-    incomplete = [s for s in tasks.user_stories if not s.passes]
-    if not incomplete:
-        return None
-
-    # Sort by priority (lower = higher priority)
-    incomplete.sort(key=lambda s: s.priority)
-    return incomplete[0]
-
-
-def _build_iteration_prompt(story: UserStory, max_fix_attempts: int) -> str:
-    """Build the iteration prompt for Claude.
-
-    Args:
-        story: UserStory to implement.
-        max_fix_attempts: Maximum fix attempts.
-
-    Returns:
-        The formatted prompt string.
-    """
-    # Format acceptance criteria
-    criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
-
-    return ITERATION_PROMPT.format(
-        max_fix_attempts=max_fix_attempts,
-        story_id=story.id,
-        story_title=story.title,
-        story_description=story.description,
-        acceptance_criteria=criteria_lines,
-    )
 
 
 def _append_loop_progress(

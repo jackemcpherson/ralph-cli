@@ -31,7 +31,6 @@ def main(
     ),
 ) -> None:
     """Ralph CLI - Autonomous iteration pattern for Claude Code."""
-    pass
 
 
 # Register commands

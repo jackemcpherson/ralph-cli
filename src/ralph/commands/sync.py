@@ -30,11 +30,7 @@ def sync(
     """
     # Determine skills directory
     if skills_dir is None:
-        project_root = get_project_root()
-        if project_root is None:
-            print_error("Could not find project root directory.")
-            raise typer.Exit(1)
-        skills_dir = project_root / "skills"
+        skills_dir = get_project_root() / "skills"
 
     # Check if skills directory exists
     if not skills_dir.exists():

@@ -327,8 +327,8 @@ This project uses the Ralph autonomous iteration pattern.
         Returns:
             YAML block with appropriate quality checks.
         """
-        if project_type == ProjectType.PYTHON:
-            return """<!-- RALPH:CHECKS:START -->
+        checks_by_type = {
+            ProjectType.PYTHON: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: typecheck
@@ -344,10 +344,8 @@ checks:
     command: uv run pytest
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.NODEJS:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.NODEJS: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: typecheck
@@ -363,10 +361,8 @@ checks:
     command: npm test
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.GO:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.GO: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: build
@@ -382,10 +378,8 @@ checks:
     command: go test ./...
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
-
-        if project_type == ProjectType.RUST:
-            return """<!-- RALPH:CHECKS:START -->
+<!-- RALPH:CHECKS:END -->""",
+            ProjectType.RUST: """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: build
@@ -401,10 +395,11 @@ checks:
     command: cargo test
     required: true
 ```
-<!-- RALPH:CHECKS:END -->"""
+<!-- RALPH:CHECKS:END -->""",
+        }
 
-        # Unknown project type - generic template
-        return """<!-- RALPH:CHECKS:START -->
+        # Default for unknown project type
+        default_checks = """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:
   - name: lint
@@ -415,3 +410,5 @@ checks:
     required: true
 ```
 <!-- RALPH:CHECKS:END -->"""
+
+        return checks_by_type.get(project_type, default_checks)
