@@ -900,3 +900,38 @@
 - Display the feature description in output so user knows what's being processed
 
 ---
+
+## 2026-01-17 - US-005
+
+**Story:** Add --file flag to ralph prd command
+
+### What was implemented
+- Added `--file / -f` option to `prd()` function in `src/ralph/commands/prd.py`
+- When `--file` is provided:
+  - Reads file contents as the feature description
+  - Uses `_run_non_interactive()` for PRD generation (same as `--input`)
+  - Error handling for non-existent files ("File not found")
+  - Error handling for empty files ("File is empty")
+  - Strips whitespace from file contents
+- Updated docstring to mention `--file` option
+
+### Tests written
+- `TestPrdFileFlag` class with 7 tests:
+  - `test_prd_with_file_runs_non_interactive` - verifies --file triggers non-interactive mode
+  - `test_prd_with_file_reads_file_contents` - verifies file contents used as feature description
+  - `test_prd_with_file_error_when_file_not_exists` - verifies error for missing file
+  - `test_prd_with_file_error_when_file_empty` - verifies error for empty file
+  - `test_prd_with_file_displays_feature_description` - verifies feature in output
+  - `test_prd_with_file_success_creates_file` - verifies success handling
+  - `test_prd_with_file_strips_whitespace` - verifies whitespace handling
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Reuse `_run_non_interactive()` for both `--input` and `--file` modes to avoid duplication
+- Always validate file existence and content before processing
+- Use `read_text().strip()` to handle whitespace in input files
+
+---
