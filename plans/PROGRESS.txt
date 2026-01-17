@@ -596,3 +596,33 @@
 - Always end skill instructions with next steps for the user
 
 ---
+
+## 2026-01-17 - US-018
+
+**Story:** Create ralph-tasks skill definition
+
+### What was implemented
+- Created `skills/ralph-tasks/SKILL.md` with required YAML frontmatter (name, description)
+- Story sizing guidelines: right-sized stories (3-6 criteria, 5-7 files max), signs of too large/small stories
+- Story breakdown patterns: foundational first, vertical slices for features
+- Priority assignment guidance: 1-5 for models, 6-10 for services, 11-15 for commands, 16-20 for features, 21+ for tests
+- Dependency rules: models before services, services before commands, core before extensions
+- Acceptance criteria guidance: specific, testable, independent criteria with format examples
+- Full TASKS.json output schema with field descriptions table
+- Example transformation showing how to convert requirements to structured user stories
+- Quality checks section for validating generated output
+- Handling ambiguity guidance for unclear specifications
+
+### Tests written
+- No Python tests needed for this story (skill is a markdown instruction file)
+- Skill format validated by existing SkillsService tests (validates frontmatter parsing)
+
+### Files changed
+- skills/ralph-tasks/SKILL.md (new)
+
+### Learnings for future iterations
+- Skills should provide concrete examples (like the example transformation) to guide Claude output
+- Priority ranges help establish consistent ordering patterns across projects
+- Include a quality checklist at the end for self-validation before output
+
+---
