@@ -348,8 +348,8 @@
         "Tests pass"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created 31 tests covering all GitService methods using pytest fixtures with temporary git repos."
     },
     {
       "id": "US-022",
@@ -364,8 +364,8 @@
         "Tests pass"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created 42 tests covering ProjectType enum, detect_project_type(), create_plans_directory(), placeholder file creation, create_claude_md(), create_agents_md(), scaffold_all(), and _get_quality_checks_yaml()."
     },
     {
       "id": "US-023",
