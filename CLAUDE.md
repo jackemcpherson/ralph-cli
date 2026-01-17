@@ -87,7 +87,13 @@ ralph_cli/
 
 ## Codebase Patterns
 
-(Add patterns discovered during development here. Keep in sync with AGENTS.md.)
+(Keep in sync with AGENTS.md)
+
+- Use Pydantic `BaseModel` for all classes, NOT stdlib `@dataclass` - this is a Pydantic project
+- Use `ConfigDict(arbitrary_types_allowed=True)` when fields use types like `Path` or `TextIO`
+- Use Pydantic `alias` with `populate_by_name=True` when JSON uses camelCase but Python should use snake_case
+- Use `by_alias=True` in `model_dump_json()` to serialize back to the original JSON format
+- Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
 
 ## Project-Specific Instructions
 
