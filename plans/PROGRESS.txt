@@ -794,3 +794,311 @@
 - Test command registration by checking `--help` output for each command
 
 ---
+
+## 2026-01-17 - US-001
+
+**Story:** Add skip_permissions parameter to ClaudeService
+
+### What was implemented
+- Added `skip_permissions: bool = False` parameter to `ClaudeService.run_print_mode()`
+- When `skip_permissions=True`, appends `--dangerously-skip-permissions` to CLI args
+- Updated docstring to document the new parameter
+
+### Tests written
+- `test_includes_skip_permissions_when_true` - verifies flag is included when True
+- `test_excludes_skip_permissions_when_false` - verifies flag is NOT included when False
+- `test_default_skip_permissions_is_false` - verifies default behavior excludes the flag
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The `--dangerously-skip-permissions` flag enables autonomous execution without permission prompts
+- Place new parameters after existing keyword-only parameters in method signatures
+
+---
+
+## 2026-01-17 - US-002
+
+**Story:** Enable skip_permissions in ralph once command
+
+### What was implemented
+- Added `skip_permissions=True` to `run_print_mode()` call in `once.py`
+- Added info message: "Running Claude with auto-approved permissions for autonomous iteration"
+- Message is displayed before Claude starts running
+
+### Tests written
+- `test_once_passes_skip_permissions_true` - verifies `skip_permissions=True` is passed to `run_print_mode()`
+- `test_once_displays_permissions_message` - verifies the info message is displayed
+
+### Files changed
+- src/ralph/commands/once.py (modified)
+- tests/test_commands/test_once.py (modified)
+
+### Learnings for future iterations
+- The skip_permissions parameter is passed as a keyword argument to `run_print_mode()`
+- Use Rich markup `[dim]` for informational messages that shouldn't distract from main output
+
+---
+
+## 2026-01-17 - US-003
+
+**Story:** Enable skip_permissions in ralph loop command
+
+### What was implemented
+- Added `skip_permissions=True` to `run_print_mode()` call in `loop.py`
+- Added one-time info message: "Running Claude with auto-approved permissions for autonomous iteration"
+- Message is displayed once at the start of the loop, before iterations begin
+
+### Tests written
+- `test_loop_passes_skip_permissions_true` - verifies `skip_permissions=True` is passed to `run_print_mode()`
+- `test_loop_displays_permissions_message` - verifies the info message is displayed
+
+### Files changed
+- src/ralph/commands/loop.py (modified)
+- tests/test_commands/test_loop.py (modified)
+
+### Learnings for future iterations
+- The one-time info message should appear before the loop starts, not per-iteration
+- Reuse the same message text as `once.py` for consistency across commands
+
+---
+
+## 2026-01-17 - US-004
+
+**Story:** Add --input flag to ralph prd command
+
+### What was implemented
+- Added `--input / -i` option to `prd()` function in `src/ralph/commands/prd.py`
+- Created `_run_non_interactive()` helper function for non-interactive PRD generation
+- Created `_build_non_interactive_prd_prompt()` helper to build the non-interactive prompt
+- When `--input` is provided:
+  - Displays "Non-Interactive PRD Generation" header
+  - Shows the feature description being processed
+  - Uses `run_print_mode()` instead of `run_interactive()`
+  - Passes feature description to Claude for PRD generation
+
+### Tests written
+- `TestPrdInputFlag` class with 7 tests:
+  - `test_prd_with_input_runs_non_interactive` - verifies --input triggers non-interactive mode
+  - `test_prd_with_input_uses_print_mode` - verifies run_print_mode is called
+  - `test_prd_with_input_includes_feature_description` - verifies feature in prompt
+  - `test_prd_with_input_displays_feature_description` - verifies feature in output
+  - `test_prd_with_input_success_creates_file` - verifies success handling
+  - `test_prd_with_input_handles_claude_error` - verifies error handling
+  - `test_prd_with_input_handles_nonzero_exit` - verifies exit code handling
+- `TestBuildNonInteractivePrdPrompt` class with 4 tests for the helper function
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Non-interactive mode should use `run_print_mode()` instead of `run_interactive()`
+- The non-interactive prompt should NOT ask for clarifying questions (goes straight to generation)
+- Display the feature description in output so user knows what's being processed
+
+---
+
+## 2026-01-17 - US-005
+
+**Story:** Add --file flag to ralph prd command
+
+### What was implemented
+- Added `--file / -f` option to `prd()` function in `src/ralph/commands/prd.py`
+- When `--file` is provided:
+  - Reads file contents as the feature description
+  - Uses `_run_non_interactive()` for PRD generation (same as `--input`)
+  - Error handling for non-existent files ("File not found")
+  - Error handling for empty files ("File is empty")
+  - Strips whitespace from file contents
+- Updated docstring to mention `--file` option
+
+### Tests written
+- `TestPrdFileFlag` class with 7 tests:
+  - `test_prd_with_file_runs_non_interactive` - verifies --file triggers non-interactive mode
+  - `test_prd_with_file_reads_file_contents` - verifies file contents used as feature description
+  - `test_prd_with_file_error_when_file_not_exists` - verifies error for missing file
+  - `test_prd_with_file_error_when_file_empty` - verifies error for empty file
+  - `test_prd_with_file_displays_feature_description` - verifies feature in output
+  - `test_prd_with_file_success_creates_file` - verifies success handling
+  - `test_prd_with_file_strips_whitespace` - verifies whitespace handling
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Reuse `_run_non_interactive()` for both `--input` and `--file` modes to avoid duplication
+- Always validate file existence and content before processing
+- Use `read_text().strip()` to handle whitespace in input files
+
+---
+
+## 2026-01-17 - US-006
+
+**Story:** Make --input and --file mutually exclusive
+
+### What was implemented
+- Added mutual exclusivity check in `prd()` function for `--input` and `--file` flags
+- Check occurs early, after plans/ directory validation but before any processing
+- Error message is clear: "Cannot use both --input and --file at the same time."
+- Actionable guidance is provided: explains to use one or the other, but not both
+- Exits with code 1 when both flags are provided
+
+### Tests written
+- `TestPrdMutualExclusivity` class with 4 tests:
+  - `test_prd_error_when_both_input_and_file_provided` - verifies error message is displayed
+  - `test_prd_mutual_exclusivity_error_is_actionable` - verifies message explains what to do
+  - `test_prd_mutual_exclusivity_exits_nonzero` - verifies exit code is 1
+  - `test_prd_mutual_exclusivity_does_not_call_claude` - verifies Claude is never invoked
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Mutual exclusivity checks should happen early in the function, before any expensive operations
+- Provide actionable guidance in error messages, not just the error description
+- Test that no side effects occur (like Claude invocation) when validation fails
+
+---
+
+## 2026-01-17 - US-007
+
+**Story:** Add file modification detection to ralph prd
+
+### What was implemented
+- Added `_get_file_mtime()` helper function to get file modification time (returns None if file doesn't exist)
+- Added `_check_file_modified()` helper function to check if file was created/modified and display appropriate message
+- Updated interactive mode to record mtime before Claude runs and check modification after
+- Updated non-interactive mode to record mtime before Claude runs and check modification after
+- Success message displayed when file is created or modified (mtime changed)
+- Warning message displayed in yellow when file was not modified or not created
+- Command exits with code 0 in both cases
+
+### Tests written
+- `TestGetFileMtime` class with 2 tests:
+  - `test_returns_mtime_when_file_exists` - verifies mtime returned when file exists
+  - `test_returns_none_when_file_not_exists` - verifies None returned when file doesn't exist
+- `TestCheckFileModified` class with 4 tests:
+  - `test_shows_success_when_file_created` - verifies success message when file is newly created
+  - `test_shows_success_when_file_modified` - verifies success message when file mtime changes
+  - `test_shows_warning_when_file_not_created` - verifies warning when file wasn't created
+  - `test_shows_warning_when_file_not_modified` - verifies warning when file wasn't modified
+- `TestPrdFileModificationDetection` class with 5 integration tests:
+  - `test_prd_detects_file_modification_interactive` - verifies detection in interactive mode
+  - `test_prd_detects_no_modification_interactive` - verifies no-modification detection in interactive mode
+  - `test_prd_detects_file_modification_non_interactive` - verifies detection in non-interactive mode
+  - `test_prd_detects_no_modification_non_interactive` - verifies no-modification detection in non-interactive mode
+  - `test_prd_exits_zero_when_file_not_modified` - verifies exit code 0 even when not modified
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Use `os.path.getmtime()` to get file modification time as a float
+- Compare mtime before and after operation to detect changes (mtime_after > mtime_before)
+- Use `time.sleep(0.01)` in tests to ensure mtime changes between writes
+- The warning message text changed from "was not created" to "was not modified" for clarity
+
+---
+
+## 2026-01-17 - US-008
+
+**Story:** Integration tests for autonomous iteration
+
+### What was implemented
+- Created `tests/test_integration/__init__.py` module
+- Created `tests/test_integration/test_autonomous_iteration.py` with comprehensive integration tests
+- `TestClaudeServiceSkipPermissions` class: Tests that ClaudeService correctly handles skip_permissions parameter
+- `TestOnceCommandAutonomousIteration` class: Integration tests for ralph once command
+- `TestLoopCommandAutonomousIteration` class: Integration tests for ralph loop command
+- `TestAutonomousIterationErrorHandling` class: Error handling tests for both commands
+
+### Tests written
+- `TestClaudeServiceSkipPermissions` (3 tests):
+  - `test_skip_permissions_adds_flag_to_args` - verifies --dangerously-skip-permissions is added
+  - `test_skip_permissions_false_does_not_add_flag` - verifies flag is omitted when False
+  - `test_skip_permissions_flag_position_in_args` - verifies flag position in args
+- `TestOnceCommandAutonomousIteration` (5 tests):
+  - `test_once_invokes_claude_with_skip_permissions` - verifies flag passed to subprocess
+  - `test_once_displays_autonomous_iteration_message` - verifies info message
+  - `test_once_includes_print_flag` - verifies --print mode used
+  - `test_once_passes_prompt_with_story_details` - verifies prompt content
+  - `test_once_complete_workflow` - tests full completion flow
+- `TestLoopCommandAutonomousIteration` (6 tests):
+  - `test_loop_invokes_claude_with_skip_permissions` - verifies flag passed
+  - `test_loop_displays_autonomous_iteration_message` - verifies info message
+  - `test_loop_includes_print_flag` - verifies --print mode
+  - `test_loop_runs_multiple_iterations_with_skip_permissions` - verifies flag across iterations
+  - `test_loop_stops_on_complete_signal` - verifies COMPLETE signal detection
+  - `test_loop_complete_workflow_with_multiple_stories` - tests multi-story completion
+- `TestAutonomousIterationErrorHandling` (3 tests):
+  - `test_once_handles_claude_not_found` - verifies error handling
+  - `test_loop_handles_claude_not_found` - verifies error handling
+  - `test_once_handles_nonzero_exit_code` - verifies exit code handling
+
+### Files changed
+- tests/test_integration/__init__.py (new)
+- tests/test_integration/test_autonomous_iteration.py (new)
+
+### Learnings for future iterations
+- Use `patch.object(service, "_run_process")` to mock ClaudeService at method level for unit tests
+- Use `patch("subprocess.Popen")` for integration tests that need to verify actual subprocess args
+- When testing loop behavior with multiple iterations, read and update the TASKS.json file in the mock to simulate story completion
+- Use `json.loads(file.read_text())` in mocks to read current file state rather than referencing fixture data directly
+
+---
+
+## 2026-01-17 - US-009
+
+**Story:** Integration tests for ralph prd automation
+
+### What was implemented
+- Created `tests/test_integration/test_prd_automation.py` with comprehensive integration tests
+- `TestPrdInputFlagIntegration` class: Tests for `ralph prd --input` flag
+- `TestPrdFileFlagIntegration` class: Tests for `ralph prd --file` flag
+- `TestPrdMutualExclusivityIntegration` class: Tests for mutual exclusivity of --input and --file
+- `TestPrdAutomationCompleteWorkflow` class: End-to-end workflow tests
+
+### Tests written
+- `TestPrdInputFlagIntegration` (7 tests):
+  - `test_prd_input_invokes_claude_in_print_mode` - verifies --print mode used
+  - `test_prd_input_displays_non_interactive_header` - verifies header display
+  - `test_prd_input_shows_feature_description` - verifies feature in output
+  - `test_prd_input_includes_feature_in_prompt` - verifies feature in prompt
+  - `test_prd_input_detects_file_modification` - verifies SPEC.md creation detection
+  - `test_prd_input_handles_claude_error` - verifies error handling
+  - `test_prd_input_handles_nonzero_exit_code` - verifies exit code handling
+- `TestPrdFileFlagIntegration` (8 tests):
+  - `test_prd_file_invokes_claude_in_print_mode` - verifies --print mode
+  - `test_prd_file_displays_non_interactive_header` - verifies header display
+  - `test_prd_file_reads_file_contents` - verifies file content used
+  - `test_prd_file_error_when_file_not_exists` - verifies missing file error
+  - `test_prd_file_error_when_file_empty` - verifies empty file error
+  - `test_prd_file_strips_whitespace` - verifies whitespace handling
+  - `test_prd_file_detects_file_modification` - verifies SPEC.md creation detection
+  - `test_prd_file_handles_claude_error` - verifies error handling
+- `TestPrdMutualExclusivityIntegration` (4 tests):
+  - `test_prd_error_when_both_input_and_file_provided` - verifies error message
+  - `test_prd_mutual_exclusivity_exits_nonzero` - verifies exit code 1
+  - `test_prd_mutual_exclusivity_does_not_call_claude` - verifies Claude not invoked
+  - `test_prd_mutual_exclusivity_shows_guidance` - verifies actionable guidance
+- `TestPrdAutomationCompleteWorkflow` (3 tests):
+  - `test_prd_input_complete_workflow_creates_spec` - end-to-end with --input
+  - `test_prd_file_complete_workflow_creates_spec` - end-to-end with --file
+  - `test_prd_input_updates_existing_spec` - verifies updating existing SPEC.md
+
+### Files changed
+- tests/test_integration/test_prd_automation.py (new)
+
+### Learnings for future iterations
+- Use `os.chdir()` with `try/finally` to ensure directory restoration in tests
+- Mock `subprocess.Popen` with callbacks that simulate file creation for file modification detection tests
+- Test both happy path (file created) and warning path (file not created) scenarios
+- Integration tests should verify the prompt content by extracting from captured args
+
+---

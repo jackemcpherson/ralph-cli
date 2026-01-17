@@ -5,100 +5,12 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.once import _build_iteration_prompt, _find_next_story
+from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
 from ralph.models import TasksFile, UserStory
 from ralph.services import ClaudeError
-
-
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory."""
-    return tmp_path
-
-
-@pytest.fixture
-def sample_tasks_json() -> dict:
-    """Return sample TASKS.json content."""
-    return {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "First story",
-                "description": "As a user, I want feature A",
-                "acceptanceCriteria": ["Criterion A1", "Typecheck passes"],
-                "priority": 1,
-                "passes": True,
-                "notes": "Completed",
-            },
-            {
-                "id": "US-002",
-                "title": "Second story",
-                "description": "As a user, I want feature B",
-                "acceptanceCriteria": ["Criterion B1", "Criterion B2"],
-                "priority": 2,
-                "passes": False,
-                "notes": "",
-            },
-            {
-                "id": "US-003",
-                "title": "Third story",
-                "description": "As a user, I want feature C",
-                "acceptanceCriteria": ["Criterion C1"],
-                "priority": 3,
-                "passes": False,
-                "notes": "",
-            },
-        ],
-    }
-
-
-@pytest.fixture
-def all_complete_tasks_json() -> dict:
-    """Return TASKS.json content with all stories complete."""
-    return {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "First story",
-                "description": "As a user, I want feature A",
-                "acceptanceCriteria": ["Criterion A1"],
-                "priority": 1,
-                "passes": True,
-                "notes": "",
-            },
-        ],
-    }
-
-
-@pytest.fixture
-def initialized_project(temp_project: Path, sample_tasks_json: dict) -> Path:
-    """Create a temporary project with plans/TASKS.json."""
-    plans_dir = temp_project / "plans"
-    plans_dir.mkdir()
-
-    tasks_file = plans_dir / "TASKS.json"
-    tasks_file.write_text(json.dumps(sample_tasks_json, indent=2))
-
-    progress_file = plans_dir / "PROGRESS.txt"
-    progress_file.write_text("# Progress Log\n\n")
-
-    return temp_project
 
 
 class TestOnceCommand:
@@ -349,6 +261,69 @@ class TestOnceCommand:
         finally:
             os.chdir(original_cwd)
 
+    def test_once_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that once passes skip_permissions=True to ClaudeService."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.once.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("Output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["once"])
+
+            # Verify skip_permissions=True was passed
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_displays_permissions_message(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that once displays the auto-approved permissions message."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.once.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("Output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["once"])
+
+            # Verify the permissions message is displayed
+            assert "auto-approved permissions" in result.output
+            assert "autonomous iteration" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_passes_append_system_prompt(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that once passes PERMISSIONS_SYSTEM_PROMPT to run_print_mode."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.once.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("Output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["once"])
+
+            # Verify append_system_prompt was passed
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("append_system_prompt") == PERMISSIONS_SYSTEM_PROMPT
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestFindNextStory:
     """Tests for the _find_next_story helper function."""
@@ -515,3 +490,48 @@ class TestBuildIterationPrompt:
         assert "PROGRESS.txt" in prompt
         assert "quality checks" in prompt.lower()
         assert "<ralph>COMPLETE</ralph>" in prompt
+
+
+class TestOnceBoundaryConditions:
+    """Boundary condition tests for the once command."""
+
+    def test_find_next_story_with_empty_stories(self) -> None:
+        """Test that _find_next_story handles empty userStories array."""
+        tasks = TasksFile(
+            project="EmptyTest",
+            branch_name="ralph/empty",
+            description="Empty stories test",
+            user_stories=[],
+        )
+
+        result = _find_next_story(tasks)
+
+        assert result is None
+
+    def test_once_with_empty_stories_array(self, runner: CliRunner, temp_project: Path) -> None:
+        """Test that once handles an empty userStories array gracefully."""
+        import json
+        import os
+
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(temp_project)
+
+            plans_dir = temp_project / "plans"
+            plans_dir.mkdir()
+
+            tasks_data = {
+                "project": "EmptyStoriesProject",
+                "branchName": "ralph/empty-stories",
+                "description": "A project with no stories",
+                "userStories": [],
+            }
+            tasks_file = plans_dir / "TASKS.json"
+            tasks_file.write_text(json.dumps(tasks_data, indent=2))
+
+            result = runner.invoke(app, ["once"])
+
+            assert result.exit_code == 0
+            assert "All stories complete" in result.output
+        finally:
+            os.chdir(original_cwd)

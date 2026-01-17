@@ -1,388 +1,144 @@
 {
-  "project": "RalphCLI",
-  "branchName": "ralph/cli-implementation",
-  "description": "Python CLI tool for autonomous AI-driven development iterations with Claude Code",
+  "project": "ralph-cli-v1.1-fixes",
+  "branchName": "ralph/v1.1-bug-fixes",
+  "description": "Bug fixes and automation improvements for Ralph CLI v1.1 - enables autonomous iteration and PRD automation",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Initialize project structure with pyproject.toml",
-      "description": "As a developer, I need the basic project scaffolding with pyproject.toml, src layout, and package configuration.",
+      "title": "Add skip_permissions parameter to ClaudeService",
+      "description": "As a developer, I want the ClaudeService.run_print_mode() method to support a skip_permissions parameter so that autonomous commands can run without permission prompts",
       "acceptanceCriteria": [
-        "Create pyproject.toml with dependencies: typer, rich, pydantic, ruff, pytest, pytest-cov",
-        "Configure uv as package manager with Python 3.11+ requirement",
-        "Create src/ralph/ directory structure with __init__.py files",
-        "Create empty module directories: commands/, models/, services/, utils/",
-        "Package is installable via 'uv pip install -e .'",
-        "Typecheck passes"
+        "ClaudeService.run_print_mode() accepts skip_permissions: bool = False parameter",
+        "When skip_permissions=True, '--dangerously-skip-permissions' is included in Claude CLI args",
+        "When skip_permissions=False, the flag is not included",
+        "Typecheck passes",
+        "Unit tests verify both parameter states"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Initial project structure created with pyproject.toml, src layout, and basic CLI entry point."
+      "notes": "Foundation for FR-FIX-01. Modify src/ralph/services/claude.py around line 186"
     },
     {
       "id": "US-002",
-      "title": "Create Pydantic models for TASKS.json",
-      "description": "As a developer, I need Pydantic models to validate and serialize the TASKS.json format.",
+      "title": "Enable skip_permissions in ralph once command",
+      "description": "As a developer, I want ralph once to run Claude with skip_permissions=True by default so that autonomous iteration works without human intervention",
       "acceptanceCriteria": [
-        "Create models/tasks.py with UserStory model (id, title, description, acceptanceCriteria, priority, passes, notes)",
-        "Create TasksFile model (project, branchName, description, userStories)",
-        "Models have proper type hints and default values",
-        "Add load_tasks() and save_tasks() helper functions",
-        "Typecheck passes"
+        "ralph once calls run_print_mode() with skip_permissions=True",
+        "One-time info message displayed: 'Running Claude with auto-approved permissions for autonomous iteration'",
+        "Typecheck passes",
+        "Tests verify the command passes skip_permissions=True to ClaudeService"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Used Pydantic aliases for camelCase JSON compatibility with snake_case Python attributes."
+      "notes": "Depends on US-001. Modify src/ralph/commands/once.py"
     },
     {
       "id": "US-003",
-      "title": "Create configuration models and quality check parser",
-      "description": "As a developer, I need to parse the RALPH:CHECKS YAML block from CLAUDE.md.",
+      "title": "Enable skip_permissions in ralph loop command",
+      "description": "As a developer, I want ralph loop to run Claude with skip_permissions=True by default so that autonomous iteration works without human intervention",
       "acceptanceCriteria": [
-        "Create models/config.py with QualityCheck model (name, command, required)",
-        "Create QualityChecks model containing list of checks",
-        "Implement parse_quality_checks() to extract YAML between RALPH:CHECKS:START and RALPH:CHECKS:END markers",
-        "Parser handles missing or malformed sections gracefully",
-        "Typecheck passes"
+        "ralph loop calls run_print_mode() with skip_permissions=True for each iteration",
+        "One-time info message displayed at start of loop",
+        "Typecheck passes",
+        "Tests verify the command passes skip_permissions=True to ClaudeService"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Added pyyaml dependency. Parser uses regex to extract YAML block and returns empty QualityChecks on malformed input."
+      "notes": "Depends on US-001. Modify src/ralph/commands/loop.py"
     },
     {
       "id": "US-004",
-      "title": "Create Rich console utilities",
-      "description": "As a developer, I need Rich-based console helpers for consistent terminal output.",
+      "title": "Add --input flag to ralph prd command",
+      "description": "As a developer, I want to pass a feature description directly via --input flag so that I can automate PRD creation without interactive input",
       "acceptanceCriteria": [
-        "Create utils/console.py with shared Console instance",
-        "Add print_success(), print_error(), print_warning() helpers",
-        "Add print_step() for iteration progress display",
-        "Add create_spinner() context manager for long operations",
-        "Typecheck passes"
+        "ralph prd accepts --input / -i option with a string value",
+        "When --input is provided, command runs in non-interactive mode with single prompt",
+        "Feature description is passed to Claude for PRD generation",
+        "Typecheck passes",
+        "Tests verify --input triggers non-interactive mode"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Created console.py with shared Console instance, print helpers (success/error/warning/step), and create_spinner context manager."
+      "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py and src/ralph/cli.py"
     },
     {
       "id": "US-005",
-      "title": "Create file operation utilities",
-      "description": "As a developer, I need file utilities for common operations.",
+      "title": "Add --file flag to ralph prd command",
+      "description": "As a developer, I want to pass a file path via --file flag so that I can provide longer feature descriptions from a file",
       "acceptanceCriteria": [
-        "Create utils/files.py with ensure_dir() to create directories",
-        "Add read_file() and write_file() with encoding handling",
-        "Add append_file() for PROGRESS.txt updates",
-        "Add file_exists() and get_project_root() helpers",
-        "Typecheck passes"
+        "ralph prd accepts --file / -f option with a file path",
+        "File contents are read and used as the feature description",
+        "When --file is provided, command runs in non-interactive mode",
+        "Error displayed if file does not exist",
+        "Typecheck passes",
+        "Tests verify --file reads file and triggers non-interactive mode"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Uses pathlib.Path for all operations. get_project_root() walks up looking for common project markers."
+      "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py and src/ralph/cli.py"
     },
     {
       "id": "US-006",
-      "title": "Create Git service for branch management",
-      "description": "As a developer, I need Git operations for branch creation, checkout, and commits.",
+      "title": "Make --input and --file mutually exclusive",
+      "description": "As a developer, I want clear error feedback if I accidentally provide both --input and --file flags",
       "acceptanceCriteria": [
-        "Create services/git.py with GitService class",
-        "Implement get_current_branch() to return current branch name",
-        "Implement checkout_or_create_branch(name) to switch/create branches",
-        "Implement commit(message) with proper formatting",
-        "Implement get_default_branch() to detect main/master",
-        "All operations use subprocess with proper error handling",
-        "Typecheck passes"
+        "Error displayed if both --input and --file are provided",
+        "Error message is clear and actionable",
+        "Command exits with non-zero code when both flags provided",
+        "Typecheck passes",
+        "Tests verify mutual exclusivity enforcement"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Uses dataclass for GitService. All git commands use subprocess with GitError exception for failures."
+      "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py"
     },
     {
       "id": "US-007",
-      "title": "Create Claude Code CLI wrapper service",
-      "description": "As a developer, I need a wrapper to invoke Claude Code CLI with streaming output.",
+      "title": "Add file modification detection to ralph prd",
+      "description": "As a developer, I want ralph prd to detect whether the SPEC.md file was actually modified so that I receive accurate feedback about the session outcome",
       "acceptanceCriteria": [
-        "Create services/claude.py with ClaudeService class",
-        "Implement run_interactive(prompt) for interactive mode",
-        "Implement run_print_mode(prompt) for -p flag execution",
-        "Support streaming stdout to terminal in real-time",
-        "Support --verbose flag to show full JSON output",
-        "Handle subprocess errors gracefully",
-        "Typecheck passes"
+        "Before Claude runs, mtime of plans/SPEC.md is recorded (if file exists)",
+        "After Claude completes, file mtime/existence is checked",
+        "If file created/modified: success message displayed",
+        "If file NOT modified: warning message displayed in yellow",
+        "Command exits with code 0 in both cases",
+        "Typecheck passes",
+        "Tests verify detection logic for both scenarios"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "ClaudeService uses @dataclass pattern. Methods: run_interactive(), run_print_mode(), run_with_output_format(). Supports streaming, --verbose, custom allowed_tools."
+      "notes": "FR-FIX-03. Modify src/ralph/commands/prd.py"
     },
     {
       "id": "US-008",
-      "title": "Create project scaffolding service",
-      "description": "As a developer, I need scaffolding logic to create Ralph project files.",
+      "title": "Integration tests for autonomous iteration",
+      "description": "As a developer, I want integration tests that verify ralph once and ralph loop can run autonomously so that we can catch regressions",
       "acceptanceCriteria": [
-        "Create services/scaffold.py with ScaffoldService class",
-        "Implement create_plans_directory() to create plans/ folder",
-        "Implement create_spec_placeholder() for plans/SPEC.md",
-        "Implement create_tasks_placeholder() for plans/TASKS.json",
-        "Implement create_progress_placeholder() for plans/PROGRESS.txt",
-        "Implement create_claude_md() with quality checks template",
-        "Implement create_agents_md() with Ralph workflow instructions",
-        "Implement detect_project_type() to identify Node.js/Python/Go projects",
+        "Integration test for ralph once with skip_permissions behavior",
+        "Integration test for ralph loop with skip_permissions behavior",
+        "Tests mock Claude subprocess appropriately",
+        "All tests pass",
         "Typecheck passes"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "ScaffoldService uses Pydantic BaseModel. Includes ProjectType enum for detected types. Quality checks templates for Python/Node.js/Go/Rust."
+      "notes": "Validates US-002 and US-003 work end-to-end. Added 17 integration tests."
     },
     {
       "id": "US-009",
-      "title": "Create skills sync service",
-      "description": "As a developer, I need logic to sync skills to ~/.claude/skills/.",
+      "title": "Integration tests for ralph prd automation",
+      "description": "As a developer, I want integration tests that verify ralph prd --input and --file work correctly so that automation workflows are reliable",
       "acceptanceCriteria": [
-        "Create services/skills.py with SkillsService class",
-        "Implement list_local_skills() to find skills in repo's skills/ directory",
-        "Implement validate_skill(path) to check for required frontmatter",
-        "Implement sync_skill(name, path) to copy to ~/.claude/skills/",
-        "Implement sync_all() to sync all valid skills",
-        "Return status (created/updated) for each skill",
+        "Integration test for ralph prd --input",
+        "Integration test for ralph prd --file",
+        "Integration test for mutual exclusivity error",
+        "Tests mock Claude subprocess and file operations appropriately",
+        "All tests pass",
         "Typecheck passes"
       ],
       "priority": 9,
       "passes": true,
-      "notes": "Uses Pydantic BaseModel with SyncStatus enum. Parses YAML frontmatter (name, description) from SKILL.md files."
-    },
-    {
-      "id": "US-010",
-      "title": "Set up Typer CLI app with help and version",
-      "description": "As a developer, I need the main CLI entry point with Typer.",
-      "acceptanceCriteria": [
-        "Create cli.py with Typer app instance",
-        "Add --version flag showing package version",
-        "Add --help with clear command descriptions",
-        "Register all command submodules (init, prd, tasks, once, loop, sync)",
-        "Configure entry point in pyproject.toml as 'ralph'",
-        "Running 'ralph --help' shows all commands",
-        "Typecheck passes"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Added --version flag and registered all command stubs. Commands show 'not yet implemented' until later stories."
-    },
-    {
-      "id": "US-011",
-      "title": "Implement ralph init command",
-      "description": "As a developer, I want to run 'ralph init' to scaffold my project for Ralph workflow.",
-      "acceptanceCriteria": [
-        "Create commands/init.py with init() command function",
-        "Create plans/ directory with SPEC.md, TASKS.json, PROGRESS.txt placeholders",
-        "Create CLAUDE.md with quality checks template and project-specific defaults",
-        "Create AGENTS.md with Ralph workflow instructions",
-        "Detect project type and set appropriate test/lint commands",
-        "Invoke Claude Code /init to enhance CLAUDE.md and AGENTS.md",
-        "Display success message with next steps",
-        "Typecheck passes"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Uses ScaffoldService for file creation. Added --force, --skip-claude, and --name options."
-    },
-    {
-      "id": "US-012",
-      "title": "Implement ralph prd command",
-      "description": "As a developer, I want to run 'ralph prd' to create a PRD interactively.",
-      "acceptanceCriteria": [
-        "Create commands/prd.py with prd() command function",
-        "Display informational message before launching",
-        "Launch Claude Code in interactive mode",
-        "Include prompt to use ralph-prd skill",
-        "Output goes to plans/SPEC.md",
-        "Typecheck passes"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Displays informational message with tips before launching Claude. Supports --output and --verbose flags. Includes PRD structure prompt."
-    },
-    {
-      "id": "US-013",
-      "title": "Implement ralph tasks command",
-      "description": "As a developer, I want to run 'ralph tasks SPEC.md' to convert specs to tasks.",
-      "acceptanceCriteria": [
-        "Create commands/tasks.py with tasks(spec_file) command function",
-        "Accept file path argument for spec file",
-        "Invoke Claude Code in print mode (-p)",
-        "Include prompt to use ralph-tasks skill with spec content",
-        "Validate output against TasksFile Pydantic model",
-        "Write validated output to plans/TASKS.json",
-        "Display success message with task count",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Implemented with JSON extraction from markdown code blocks, Pydantic validation, --output/--verbose/--branch flags. 35 tests added."
-    },
-    {
-      "id": "US-014",
-      "title": "Implement ralph once command",
-      "description": "As a developer, I want to run 'ralph once' to execute a single iteration.",
-      "acceptanceCriteria": [
-        "Create commands/once.py with once() command function",
-        "Read TASKS.json and find highest-priority story with passes=false",
-        "Exit with 'All stories complete' if none remain",
-        "Invoke Claude Code in print mode with ralph-iteration skill",
-        "Stream text output to terminal (default) or JSON with --verbose",
-        "Support --max-fix-attempts flag (default: 3)",
-        "Update TASKS.json to set passes=true on success",
-        "Append iteration summary to PROGRESS.txt",
-        "Display success/failure summary",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Full implementation with iteration prompt, story detection, Claude invocation, success/failure tracking. 19 tests added."
-    },
-    {
-      "id": "US-015",
-      "title": "Implement ralph loop command",
-      "description": "As a developer, I want to run 'ralph loop' to execute multiple iterations automatically.",
-      "acceptanceCriteria": [
-        "Create commands/loop.py with loop(iterations) command function",
-        "Accept optional iterations argument (default: 10)",
-        "Check/create feature branch from branchName in TASKS.json",
-        "Execute iterations sequentially using once() logic",
-        "Display iteration counter (e.g., 'Iteration 3 of 10')",
-        "Support --verbose and --max-fix-attempts flags",
-        "Stop on: all stories complete, max iterations, persistent failure, transient failure, Claude cannot complete",
-        "Archive previous run if branchName differs",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Full loop implementation with branch setup, iteration tracking, LoopStopReason class. Reuses ITERATION_PROMPT from once.py. 27 tests added."
-    },
-    {
-      "id": "US-016",
-      "title": "Implement ralph sync command",
-      "description": "As a developer, I want to run 'ralph sync' to install skills globally.",
-      "acceptanceCriteria": [
-        "Create commands/sync.py with sync() command function",
-        "Read skills from repo's skills/ directory",
-        "Validate each skill has required frontmatter (name, description)",
-        "Copy skill folders to ~/.claude/skills/",
-        "Display list of synced skills with status (created/updated)",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Full implementation using SkillsService. Supports --skills-dir flag. 11 tests added."
-    },
-    {
-      "id": "US-017",
-      "title": "Create ralph-prd skill definition",
-      "description": "As a developer, I need the ralph-prd skill for interactive PRD creation.",
-      "acceptanceCriteria": [
-        "Create skills/ralph-prd/SKILL.md with frontmatter (name, description)",
-        "Include instructions for clarifying questions and PRD structure",
-        "Specify output format for plans/SPEC.md",
-        "Include guidance on feature scoping and requirements",
-        "Typecheck passes"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Created skill with discovery phase questions, PRD template, and feature scoping guidelines."
-    },
-    {
-      "id": "US-018",
-      "title": "Create ralph-tasks skill definition",
-      "description": "As a developer, I need the ralph-tasks skill for spec-to-tasks conversion.",
-      "acceptanceCriteria": [
-        "Create skills/ralph-tasks/SKILL.md with frontmatter (name, description)",
-        "Include instructions for breaking specs into right-sized stories",
-        "Specify TASKS.json output schema",
-        "Include guidance on story ordering and acceptance criteria",
-        "Typecheck passes"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Created skill with story sizing guidelines, priority assignment rules, acceptance criteria examples, and full TASKS.json schema documentation."
-    },
-    {
-      "id": "US-019",
-      "title": "Create ralph-iteration skill definition",
-      "description": "As a developer, I need the ralph-iteration skill for autonomous story execution.",
-      "acceptanceCriteria": [
-        "Create skills/ralph-iteration/SKILL.md with frontmatter (name, description)",
-        "Include instructions for implementing stories and running quality checks",
-        "Specify fix loop behavior and commit message format",
-        "Include guidance on updating PROGRESS.txt and memory files",
-        "Typecheck passes"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Comprehensive skill with 4 phases: context gathering, implementation, quality verification, completion. Includes detailed sections on fix loop behavior, commit format, progress tracking, and memory file updates."
-    },
-    {
-      "id": "US-020",
-      "title": "Add tests for Pydantic models",
-      "description": "As a developer, I need tests to verify model validation and serialization.",
-      "acceptanceCriteria": [
-        "Create tests/test_models.py",
-        "Test UserStory model with valid and invalid data",
-        "Test TasksFile model with valid and invalid data",
-        "Test QualityCheck and QualityChecks models",
-        "Test load_tasks() and save_tasks() functions",
-        "Test parse_quality_checks() with various inputs",
-        "Tests pass"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Created tests/test_models.py with 42 tests covering all model classes and helper functions."
-    },
-    {
-      "id": "US-021",
-      "title": "Add tests for Git service",
-      "description": "As a developer, I need tests for Git operations.",
-      "acceptanceCriteria": [
-        "Create tests/test_services/test_git.py",
-        "Test get_current_branch() returns correct branch",
-        "Test checkout_or_create_branch() with existing and new branches",
-        "Test commit() creates commits with correct message format",
-        "Use temporary git repos for isolation",
-        "Tests pass"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Created 31 tests covering all GitService methods using pytest fixtures with temporary git repos."
-    },
-    {
-      "id": "US-022",
-      "title": "Add tests for scaffold service",
-      "description": "As a developer, I need tests for project scaffolding.",
-      "acceptanceCriteria": [
-        "Create tests/test_services/test_scaffold.py",
-        "Test create_plans_directory() creates folder structure",
-        "Test placeholder file creation with correct content",
-        "Test detect_project_type() identifies Node.js, Python, Go projects",
-        "Use temporary directories for isolation",
-        "Tests pass"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "Created 42 tests covering ProjectType enum, detect_project_type(), create_plans_directory(), placeholder file creation, create_claude_md(), create_agents_md(), scaffold_all(), and _get_quality_checks_yaml()."
-    },
-    {
-      "id": "US-023",
-      "title": "Add integration tests for CLI commands",
-      "description": "As a developer, I need integration tests for CLI commands.",
-      "acceptanceCriteria": [
-        "Create tests/test_cli.py",
-        "Test 'ralph --help' shows all commands",
-        "Test 'ralph --version' shows version",
-        "Test 'ralph init' creates expected files",
-        "Test 'ralph sync' copies skills correctly",
-        "Use CliRunner for command invocation",
-        "Tests pass"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Created tests/test_cli.py with 25 tests covering CLI help, version, init integration, sync integration, command registration, and error handling."
+      "notes": "Validates US-004, US-005, and US-006 work end-to-end. Added 22 integration tests."
     }
   ]
 }
