@@ -16,8 +16,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Initial project structure created with pyproject.toml, src layout, and basic CLI entry point."
     },
     {
       "id": "US-002",
