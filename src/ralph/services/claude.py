@@ -2,9 +2,10 @@
 
 import subprocess
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClaudeError(Exception):
@@ -13,19 +14,20 @@ class ClaudeError(Exception):
     pass
 
 
-@dataclass
-class ClaudeService:
+class ClaudeService(BaseModel):
     """Service for invoking Claude Code CLI.
 
     Provides methods for running Claude Code in interactive and print modes,
     with support for streaming output and verbose JSON display.
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     working_dir: Path | None = None
     verbose: bool = False
     claude_command: str = "claude"
-    stdout: TextIO = field(default_factory=lambda: sys.stdout)
-    stderr: TextIO = field(default_factory=lambda: sys.stderr)
+    stdout: TextIO = Field(default_factory=lambda: sys.stdout)
+    stderr: TextIO = Field(default_factory=lambda: sys.stderr)
 
     def _stream_output(
         self,
