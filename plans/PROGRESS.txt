@@ -295,3 +295,45 @@
 - uv requires a virtual environment to be created first with `uv venv`
 
 ---
+
+## 2026-01-17 - US-011
+
+**Story:** Implement ralph init command
+
+### What was implemented
+- Implemented full `ralph init` command in `src/ralph/commands/init_cmd.py`
+- Uses `ScaffoldService` to create all Ralph workflow files
+- Detects project type (Python, Node.js, Go, Rust) and sets appropriate quality checks
+- Added `--force` flag to overwrite existing files
+- Added `--skip-claude` flag to skip Claude Code /init invocation
+- Added `--name` flag to customize project name
+- Checks for existing Ralph files and warns before overwriting
+- Invokes Claude Code `/init` to enhance CLAUDE.md and AGENTS.md
+- Displays success message with next steps after initialization
+- Added `_check_existing_files()` helper function
+
+### Tests written
+- `tests/test_commands/test_init_cmd.py` with 13 tests:
+  - `test_init_creates_ralph_files` - verifies all files are created
+  - `test_init_detects_python_project` - verifies Python detection
+  - `test_init_detects_nodejs_project` - verifies Node.js detection
+  - `test_init_refuses_overwrite_without_force` - verifies protection
+  - `test_init_with_force_overwrites_files` - verifies --force flag
+  - `test_init_with_skip_claude` - verifies --skip-claude flag
+  - `test_init_with_custom_project_name` - verifies --name flag
+  - `test_init_shows_next_steps` - verifies output messages
+  - `test_init_handles_claude_error_gracefully` - verifies error handling
+  - Tests for `_check_existing_files` helper function
+
+### Files changed
+- src/ralph/commands/init_cmd.py (modified)
+- tests/test_commands/__init__.py (new)
+- tests/test_commands/test_init_cmd.py (new)
+
+### Learnings for future iterations
+- Use `typer.testing.CliRunner` for testing CLI commands
+- Change working directory with `os.chdir()` in tests, but always restore with `try/finally`
+- Mock `ClaudeService` to avoid actually calling Claude during tests
+- Use `Path.relative_to()` to display clean paths in output
+
+---
