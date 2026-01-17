@@ -964,3 +964,44 @@
 - Test that no side effects occur (like Claude invocation) when validation fails
 
 ---
+
+## 2026-01-17 - US-007
+
+**Story:** Add file modification detection to ralph prd
+
+### What was implemented
+- Added `_get_file_mtime()` helper function to get file modification time (returns None if file doesn't exist)
+- Added `_check_file_modified()` helper function to check if file was created/modified and display appropriate message
+- Updated interactive mode to record mtime before Claude runs and check modification after
+- Updated non-interactive mode to record mtime before Claude runs and check modification after
+- Success message displayed when file is created or modified (mtime changed)
+- Warning message displayed in yellow when file was not modified or not created
+- Command exits with code 0 in both cases
+
+### Tests written
+- `TestGetFileMtime` class with 2 tests:
+  - `test_returns_mtime_when_file_exists` - verifies mtime returned when file exists
+  - `test_returns_none_when_file_not_exists` - verifies None returned when file doesn't exist
+- `TestCheckFileModified` class with 4 tests:
+  - `test_shows_success_when_file_created` - verifies success message when file is newly created
+  - `test_shows_success_when_file_modified` - verifies success message when file mtime changes
+  - `test_shows_warning_when_file_not_created` - verifies warning when file wasn't created
+  - `test_shows_warning_when_file_not_modified` - verifies warning when file wasn't modified
+- `TestPrdFileModificationDetection` class with 5 integration tests:
+  - `test_prd_detects_file_modification_interactive` - verifies detection in interactive mode
+  - `test_prd_detects_no_modification_interactive` - verifies no-modification detection in interactive mode
+  - `test_prd_detects_file_modification_non_interactive` - verifies detection in non-interactive mode
+  - `test_prd_detects_no_modification_non_interactive` - verifies no-modification detection in non-interactive mode
+  - `test_prd_exits_zero_when_file_not_modified` - verifies exit code 0 even when not modified
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Use `os.path.getmtime()` to get file modification time as a float
+- Compare mtime before and after operation to detect changes (mtime_after > mtime_before)
+- Use `time.sleep(0.01)` in tests to ensure mtime changes between writes
+- The warning message text changed from "was not created" to "was not modified" for clarity
+
+---
