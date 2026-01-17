@@ -1,7 +1,8 @@
 """Integration tests for autonomous iteration commands (once/loop).
 
 These tests verify that ralph once and ralph loop correctly invoke Claude Code
-with the --dangerously-skip-permissions flag for autonomous execution.
+with the --dangerously-skip-permissions flag for autonomous execution,
+stream-json output format, and append_system_prompt for permissions.
 """
 
 import json
@@ -76,7 +77,9 @@ class TestClaudeServiceSkipPermissions:
         service = ClaudeService()
         captured_args: list[str] = []
 
-        def mock_run_process(args: list[str], stream: bool) -> tuple[str, int]:
+        def mock_run_process(
+            args: list[str], stream: bool, parse_json: bool = False
+        ) -> tuple[str, int]:
             captured_args.extend(args)
             return ("Test output", 0)
 
@@ -90,7 +93,9 @@ class TestClaudeServiceSkipPermissions:
         service = ClaudeService()
         captured_args: list[str] = []
 
-        def mock_run_process(args: list[str], stream: bool) -> tuple[str, int]:
+        def mock_run_process(
+            args: list[str], stream: bool, parse_json: bool = False
+        ) -> tuple[str, int]:
             captured_args.extend(args)
             return ("Test output", 0)
 
@@ -104,7 +109,9 @@ class TestClaudeServiceSkipPermissions:
         service = ClaudeService()
         captured_args: list[str] = []
 
-        def mock_run_process(args: list[str], stream: bool) -> tuple[str, int]:
+        def mock_run_process(
+            args: list[str], stream: bool, parse_json: bool = False
+        ) -> tuple[str, int]:
             captured_args.extend(args)
             return ("Test output", 0)
 
@@ -390,7 +397,12 @@ class TestLoopCommandAutonomousIteration:
 
         def mock_popen(args: list[str], **kwargs):
             mock_process = MagicMock()
-            mock_process.stdout = StringIO("All done! <ralph>COMPLETE</ralph>")
+            # Use stream-json format with COMPLETE signal
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"All done! <ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
             mock_process.stderr = StringIO("")
             mock_process.wait.return_value = 0
             return mock_process
@@ -534,5 +546,301 @@ class TestAutonomousIterationErrorHandling:
 
             # Should warn about exit code
             assert "exited with code" in result.output or result.exit_code != 0
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestStreamingOutputIntegration:
+    """Integration tests for stream-json output format."""
+
+    def test_once_uses_stream_json_format(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph once uses --output-format stream-json."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with patch("subprocess.Popen", side_effect=mock_popen):
+                runner.invoke(app, ["once"])
+
+            assert "--output-format" in captured_args
+            format_idx = captured_args.index("--output-format")
+            assert captured_args[format_idx + 1] == "stream-json"
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_uses_stream_json_format(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph loop uses --output-format stream-json."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                runner.invoke(app, ["loop", "1"])
+
+            assert "--output-format" in captured_args
+            format_idx = captured_args.index("--output-format")
+            assert captured_args[format_idx + 1] == "stream-json"
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_parses_stream_json_events(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph once correctly parses stream-json events."""
+        original_cwd = os.getcwd()
+
+        def mock_popen(args: list[str], **kwargs):
+            mock_process = MagicMock()
+            # Simulate stream-json output with multiple events
+            mock_process.stdout = iter(
+                [
+                    '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Processing..."}}\n',
+                    '{"type":"tool_use","name":"Read"}\n',
+                    '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done!"}}\n',
+                ]
+            )
+            mock_process.stderr = MagicMock()
+            mock_process.stderr.read.return_value = ""
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with patch("subprocess.Popen", side_effect=mock_popen):
+                result = runner.invoke(app, ["once"])
+
+            # The output should contain the parsed text (not raw JSON)
+            # Note: The actual displayed output may not be in result.output
+            # since it's streamed to stdout
+            assert result.exit_code == 1  # Story didn't pass, but no error
+
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestAppendSystemPromptIntegration:
+    """Integration tests for append_system_prompt permissions prompt."""
+
+    def test_once_includes_append_system_prompt(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph once includes --append-system-prompt flag."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with patch("subprocess.Popen", side_effect=mock_popen):
+                runner.invoke(app, ["once"])
+
+            assert "--append-system-prompt" in captured_args
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_includes_append_system_prompt(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph loop includes --append-system-prompt flag."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                runner.invoke(app, ["loop", "1"])
+
+            assert "--append-system-prompt" in captured_args
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_append_system_prompt_contains_permissions_text(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that the append_system_prompt contains permissions instructions."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with patch("subprocess.Popen", side_effect=mock_popen):
+                runner.invoke(app, ["once"])
+
+            # Find the append_system_prompt value
+            asp_idx = captured_args.index("--append-system-prompt")
+            prompt_value = captured_args[asp_idx + 1]
+
+            # Verify it contains key permission instructions
+            assert "autonomous mode" in prompt_value.lower()
+            assert "permission" in prompt_value.lower()
+            assert "DO NOT ask" in prompt_value
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_append_system_prompt_contains_permissions_text(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that append_system_prompt in loop contains permissions text."""
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                runner.invoke(app, ["loop", "1"])
+
+            # Find the append_system_prompt value
+            asp_idx = captured_args.index("--append-system-prompt")
+            prompt_value = captured_args[asp_idx + 1]
+
+            # Verify it contains key permission instructions
+            assert "autonomous mode" in prompt_value.lower()
+            assert "permission" in prompt_value.lower()
+            assert "DO NOT ask" in prompt_value
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_and_loop_use_same_permissions_prompt(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that once and loop use the same PERMISSIONS_SYSTEM_PROMPT."""
+        original_cwd = os.getcwd()
+        once_prompt: str = ""
+        loop_prompt: str = ""
+
+        def capture_once_args(args: list[str], **kwargs):
+            nonlocal once_prompt
+            asp_idx = args.index("--append-system-prompt")
+            once_prompt = args[asp_idx + 1]
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        def capture_loop_args(args: list[str], **kwargs):
+            nonlocal loop_prompt
+            asp_idx = args.index("--append-system-prompt")
+            loop_prompt = args[asp_idx + 1]
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            # Capture once prompt
+            with patch("subprocess.Popen", side_effect=capture_once_args):
+                runner.invoke(app, ["once"])
+
+            # Capture loop prompt
+            with (
+                patch("subprocess.Popen", side_effect=capture_loop_args),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                runner.invoke(app, ["loop", "1"])
+
+            # Both should use the exact same prompt
+            assert once_prompt == loop_prompt
+            assert len(once_prompt) > 0  # Ensure we actually captured something
         finally:
             os.chdir(original_cwd)

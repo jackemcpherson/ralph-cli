@@ -4,6 +4,7 @@ This module provides a service for invoking the Claude Code CLI
 with support for interactive and print modes.
 """
 
+import json
 import logging
 import subprocess
 import sys
@@ -37,26 +38,63 @@ class ClaudeService(BaseModel):
     stdout: TextIO = Field(default_factory=lambda: sys.stdout)
     stderr: TextIO = Field(default_factory=lambda: sys.stderr)
 
+    def _parse_stream_event(self, line: str) -> str | None:
+        """Parse a stream-json line and return displayable text.
+
+        Args:
+            line: A single line from stream-json output.
+
+        Returns:
+            Extracted text for display, or None if no displayable text.
+        """
+        try:
+            event = json.loads(line)
+            # Extract text from assistant message events
+            if event.get("type") == "assistant":
+                message = event.get("message", {})
+                content = message.get("content", [])
+                for block in content:
+                    if block.get("type") == "text":
+                        return block.get("text", "")
+            # Also handle content_block_delta events for streaming text
+            if event.get("type") == "content_block_delta":
+                delta = event.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    return delta.get("text", "")
+        except json.JSONDecodeError:
+            pass
+        return None
+
     def _stream_output(
         self,
         process: subprocess.Popen[str],
+        parse_json: bool = False,
     ) -> tuple[str, str]:
         """Stream process output to terminal in real-time.
 
         Args:
             process: Running subprocess to stream from.
+            parse_json: If True, parse stream-json events and display text content.
 
         Returns:
             Tuple of (stdout_content, stderr_content).
+            When parse_json is True, stdout_content is the extracted text.
         """
-        stdout_lines: list[str] = []
+        collected_text: list[str] = []
         stderr_lines: list[str] = []
 
         if process.stdout:
             for line in process.stdout:
-                stdout_lines.append(line)
-                self.stdout.write(line)
-                self.stdout.flush()
+                if parse_json:
+                    text = self._parse_stream_event(line.strip())
+                    if text:
+                        collected_text.append(text)
+                        self.stdout.write(text)
+                        self.stdout.flush()
+                else:
+                    collected_text.append(line)
+                    self.stdout.write(line)
+                    self.stdout.flush()
 
         if process.stderr:
             stderr_content = process.stderr.read()
@@ -65,7 +103,7 @@ class ClaudeService(BaseModel):
                 self.stderr.write(stderr_content)
                 self.stderr.flush()
 
-        return "".join(stdout_lines), "".join(stderr_lines)
+        return "".join(collected_text), "".join(stderr_lines)
 
     def _build_base_args(self) -> list[str]:
         """Build base command arguments for Claude CLI.
@@ -80,12 +118,15 @@ class ClaudeService(BaseModel):
 
         return args
 
-    def _run_process(self, args: list[str], stream: bool) -> tuple[str, int]:
+    def _run_process(
+        self, args: list[str], stream: bool, parse_json: bool = False
+    ) -> tuple[str, int]:
         """Run a Claude CLI process and capture output.
 
         Args:
             args: Command arguments to run.
             stream: Whether to stream output to terminal.
+            parse_json: If True and streaming, parse stream-json events.
 
         Returns:
             Tuple of (output_text, exit_code).
@@ -103,7 +144,7 @@ class ClaudeService(BaseModel):
             )
 
             if stream:
-                stdout_content, _ = self._stream_output(process)
+                stdout_content, _ = self._stream_output(process, parse_json=parse_json)
             else:
                 stdout_content, stderr_content = process.communicate()
                 if stderr_content:
@@ -164,6 +205,7 @@ class ClaudeService(BaseModel):
         system_prompt: str | None = None,
         allowed_tools: list[str] | None = None,
         skip_permissions: bool = False,
+        append_system_prompt: str | None = None,
     ) -> tuple[str, int]:
         """Run Claude Code in print mode (-p flag).
 
@@ -178,6 +220,7 @@ class ClaudeService(BaseModel):
             system_prompt: Optional system prompt to use.
             allowed_tools: Optional list of allowed tools.
             skip_permissions: Whether to skip permission prompts (default: False).
+            append_system_prompt: Optional text to append to system prompt.
 
         Returns:
             Tuple of (output_text, exit_code).
@@ -204,7 +247,13 @@ class ClaudeService(BaseModel):
             for tool in allowed_tools:
                 args.extend(["--allowedTools", tool])
 
-        return self._run_process(args, stream)
+        if append_system_prompt:
+            args.extend(["--append-system-prompt", append_system_prompt])
+
+        if stream:
+            args.extend(["--output-format", "stream-json"])
+
+        return self._run_process(args, stream, parse_json=stream)
 
     def run_with_output_format(
         self,

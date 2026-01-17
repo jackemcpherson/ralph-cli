@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from ralph.commands.once import _build_iteration_prompt, _find_next_story
+from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
 from ralph.models import load_tasks
 from ralph.services import ClaudeError, ClaudeService, GitError, GitService
 from ralph.utils import (
@@ -150,7 +150,10 @@ def loop(
         try:
             claude = ClaudeService(working_dir=project_root, verbose=verbose)
             output_text, exit_code = claude.run_print_mode(
-                prompt, stream=True, skip_permissions=True
+                prompt,
+                stream=True,
+                skip_permissions=True,
+                append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
             )
         except ClaudeError as e:
             print_error(f"Claude error: {e}")
