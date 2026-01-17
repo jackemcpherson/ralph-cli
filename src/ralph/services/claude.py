@@ -1,5 +1,10 @@
-"""Claude Code CLI wrapper service."""
+"""Claude Code CLI wrapper service.
 
+This module provides a service for invoking the Claude Code CLI
+with support for interactive and print modes.
+"""
+
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -7,9 +12,14 @@ from typing import TextIO
 
 from pydantic import BaseModel, ConfigDict, Field
 
+logger = logging.getLogger(__name__)
+
 
 class ClaudeError(Exception):
-    """Exception raised for Claude Code operation failures."""
+    """Exception raised for Claude Code operation failures.
+
+    Raised when Claude Code is not installed or a command fails.
+    """
 
 
 class ClaudeService(BaseModel):
@@ -42,14 +52,12 @@ class ClaudeService(BaseModel):
         stdout_lines: list[str] = []
         stderr_lines: list[str] = []
 
-        # Stream stdout
         if process.stdout:
             for line in process.stdout:
                 stdout_lines.append(line)
                 self.stdout.write(line)
                 self.stdout.flush()
 
-        # Collect any stderr
         if process.stderr:
             stderr_content = process.stderr.read()
             if stderr_content:
@@ -133,7 +141,6 @@ class ClaudeService(BaseModel):
             args.append(prompt)
 
         try:
-            # Run interactively - don't capture output, let it flow naturally
             result = subprocess.run(
                 args,
                 cwd=self.working_dir,

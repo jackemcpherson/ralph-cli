@@ -1,9 +1,17 @@
-"""Ralph CLI entry point."""
+"""Ralph CLI entry point.
+
+This module provides the main entry point for the Ralph CLI application,
+a tool for autonomous iteration patterns with Claude Code.
+"""
+
+import logging
 
 import typer
 
 from ralph import __version__
 from ralph.commands import init, loop, once, prd, sync, tasks
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(
     name="ralph",
@@ -13,7 +21,14 @@ app = typer.Typer(
 
 
 def version_callback(value: bool) -> None:
-    """Print version and exit."""
+    """Handle the version flag callback.
+
+    Args:
+        value: Whether the version flag was provided.
+
+    Raises:
+        typer.Exit: Always raised after printing version when value is True.
+    """
     if value:
         typer.echo(f"ralph {__version__}")
         raise typer.Exit()
@@ -33,7 +48,6 @@ def main(
     """Ralph CLI - Autonomous iteration pattern for Claude Code."""
 
 
-# Register commands
 app.command(name="init", help="Scaffold a project for Ralph workflow")(init)
 app.command(name="prd", help="Create a PRD interactively with Claude")(prd)
 app.command(name="tasks", help="Convert a specification file to TASKS.json")(tasks)

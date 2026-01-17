@@ -1,13 +1,23 @@
-"""Git service for branch management and commits."""
+"""Git service for branch management and commits.
 
+This module provides a service for Git operations including branch
+management, commits, and repository inspection using subprocess.
+"""
+
+import logging
 import subprocess
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+logger = logging.getLogger(__name__)
+
 
 class GitError(Exception):
-    """Exception raised for Git operation failures."""
+    """Exception raised for Git operation failures.
+
+    Raised when a git command fails or git is not available.
+    """
 
 
 class GitService(BaseModel):
@@ -68,31 +78,25 @@ class GitService(BaseModel):
         """Detect the default branch (main or master).
 
         Checks for 'main' first, then falls back to 'master'.
+        If neither exists locally, checks remote HEAD branch.
 
         Returns:
             The default branch name ('main' or 'master').
-
-        Raises:
-            GitError: If neither main nor master exists.
         """
-        # Check if 'main' exists
         result = self._run(["branch", "--list", "main"], check=False)
         if result.stdout.strip():
             return "main"
 
-        # Check if 'master' exists
         result = self._run(["branch", "--list", "master"], check=False)
         if result.stdout.strip():
             return "master"
 
-        # Check remote refs
         result = self._run(["remote", "show", "origin"], check=False)
         if "HEAD branch:" in result.stdout:
             for line in result.stdout.splitlines():
                 if "HEAD branch:" in line:
                     return line.split(":")[-1].strip()
 
-        # Default to main
         return "main"
 
     def branch_exists(self, name: str) -> bool:
@@ -124,7 +128,6 @@ class GitService(BaseModel):
             self._run(["checkout", name])
             return False
 
-        # Create new branch from base
         if base is None:
             base = self.get_default_branch()
 
@@ -149,7 +152,6 @@ class GitService(BaseModel):
 
         self._run(["commit", "-m", message])
 
-        # Get the commit hash
         result = self._run(["rev-parse", "HEAD"])
         return result.stdout.strip()
 

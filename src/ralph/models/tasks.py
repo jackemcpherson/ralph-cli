@@ -1,12 +1,32 @@
-"""Pydantic models for TASKS.json format."""
+"""Pydantic models for TASKS.json format.
 
+This module defines the data models for the TASKS.json file used
+in the Ralph workflow to track user stories and their completion status.
+"""
+
+import logging
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+logger = logging.getLogger(__name__)
+
 
 class UserStory(BaseModel):
-    """A single user story in the task list."""
+    """A single user story in the task list.
+
+    Represents an atomic unit of work with acceptance criteria,
+    priority ordering, and pass/fail tracking for iterations.
+
+    Attributes:
+        id: Unique story identifier (e.g., US-001).
+        title: Short title of the story.
+        description: Full user story description.
+        acceptance_criteria: List of criteria that must be met.
+        priority: Priority ordering (lower = higher priority).
+        passes: Whether the story has passed all checks.
+        notes: Implementation notes added during iteration.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -24,7 +44,17 @@ class UserStory(BaseModel):
 
 
 class TasksFile(BaseModel):
-    """Root model for TASKS.json file."""
+    """Root model for TASKS.json file.
+
+    Contains project metadata and a list of user stories that make up
+    the feature being implemented in the Ralph workflow.
+
+    Attributes:
+        project: Project name.
+        branch_name: Git branch name for this feature.
+        description: Feature description.
+        user_stories: List of user stories to implement.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 

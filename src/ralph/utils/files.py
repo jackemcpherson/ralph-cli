@@ -1,6 +1,13 @@
-"""File operation utilities for Ralph CLI."""
+"""File operation utilities for Ralph CLI.
 
+This module provides utility functions for common file operations
+including reading, writing, and directory management.
+"""
+
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_dir(path: Path | str) -> Path:
@@ -101,5 +108,4 @@ def get_project_root() -> Path:
                 return current
         current = current.parent
 
-    # Fallback to current working directory if no markers found
     return Path.cwd()

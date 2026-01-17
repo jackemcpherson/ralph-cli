@@ -1,5 +1,10 @@
-"""Project scaffolding service for Ralph CLI."""
+"""Project scaffolding service for Ralph CLI.
 
+This module provides services for scaffolding Ralph workflow files
+including plans directory, CLAUDE.md, AGENTS.md, and related files.
+"""
+
+import logging
 from enum import Enum
 from pathlib import Path
 
@@ -7,9 +12,21 @@ from pydantic import BaseModel, ConfigDict
 
 from ralph.utils import ensure_dir, write_file
 
+logger = logging.getLogger(__name__)
+
 
 class ProjectType(Enum):
-    """Detected project type."""
+    """Detected project type based on marker files.
+
+    Used to determine which quality check template to generate.
+
+    Attributes:
+        PYTHON: Python project (pyproject.toml, setup.py, requirements.txt).
+        NODEJS: Node.js project (package.json).
+        GO: Go project (go.mod).
+        RUST: Rust project (Cargo.toml).
+        UNKNOWN: No recognized project markers found.
+    """
 
     PYTHON = "python"
     NODEJS = "nodejs"
@@ -398,7 +415,6 @@ checks:
 <!-- RALPH:CHECKS:END -->""",
         }
 
-        # Default for unknown project type
         default_checks = """<!-- RALPH:CHECKS:START -->
 ```yaml
 checks:

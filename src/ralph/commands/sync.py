@@ -1,5 +1,10 @@
-"""Ralph sync command - sync skills to ~/.claude/skills/."""
+"""Ralph sync command - sync skills to ~/.claude/skills/.
 
+This module implements the 'ralph sync' command which copies
+skill definitions to the global Claude Code skills directory.
+"""
+
+import logging
 from pathlib import Path
 
 import typer
@@ -12,6 +17,8 @@ from ralph.utils import (
     print_success,
     print_warning,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def sync(
@@ -28,11 +35,9 @@ def sync(
     to ~/.claude/skills/ for global access. Each skill must have
     a SKILL.md file with valid YAML frontmatter (name, description).
     """
-    # Determine skills directory
     if skills_dir is None:
         skills_dir = get_project_root() / "skills"
 
-    # Check if skills directory exists
     if not skills_dir.exists():
         print_warning(f"Skills directory not found: {skills_dir}")
         console.print("\nTo create skills, add a skills/ directory with subdirectories")
@@ -43,7 +48,6 @@ def sync(
         console.print("  ---")
         raise typer.Exit(0)
 
-    # Create skills service and sync
     service = SkillsService(skills_dir=skills_dir)
     skill_paths = service.list_local_skills()
 
@@ -57,7 +61,6 @@ def sync(
 
     results = service.sync_all()
 
-    # Display results
     created_count = 0
     updated_count = 0
     invalid_count = 0
@@ -83,7 +86,6 @@ def sync(
 
     console.print()
 
-    # Summary
     total_synced = created_count + updated_count
     if total_synced > 0:
         print_success(f"Synced {total_synced} skill(s) to {service.target_dir}")
