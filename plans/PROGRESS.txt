@@ -16,6 +16,33 @@
 
 ---
 
+## 2026-01-17 - US-009
+
+**Story:** Create skills sync service
+
+### What was implemented
+- Created `src/ralph/services/skills.py` with SkillsService class using Pydantic BaseModel
+- Created `SyncStatus` enum for sync operation results (CREATED, UPDATED, SKIPPED, INVALID)
+- Created `SkillInfo` model for skill metadata (name, description, path)
+- Created `SkillSyncResult` model for sync operation results
+- `list_local_skills()` - Finds skill directories containing SKILL.md in skills/ folder
+- `validate_skill(path)` - Validates SKILL.md has required frontmatter (name, description)
+- `sync_skill(skill_path)` - Copies skill to ~/.claude/skills/, returns status
+- `sync_all()` - Syncs all valid skills, returns list of results
+- `_parse_frontmatter()` - Simple YAML frontmatter parser without external dependency
+- Updated `services/__init__.py` to export SkillsService, SkillInfo, SkillSyncResult, SyncStatus
+
+### Files changed
+- src/ralph/services/skills.py (new)
+- src/ralph/services/__init__.py (modified)
+
+### Learnings for future iterations
+- Skills use SKILL.md with YAML frontmatter containing `name` and `description` fields
+- Simple frontmatter parsing with regex avoids needing yaml dependency for this module
+- Use shutil.copytree/rmtree for directory operations when syncing skills
+
+---
+
 ## 2026-01-17 - US-008
 
 **Story:** Create project scaffolding service
