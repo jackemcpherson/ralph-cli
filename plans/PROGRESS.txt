@@ -7,12 +7,47 @@
 - Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
 - Use Pydantic `BaseModel` for all classes, NOT stdlib `@dataclass` - this is a Pydantic project
 - Use `ConfigDict(arbitrary_types_allowed=True)` when fields use types like `Path` or `TextIO`
+- Use `X | None` instead of `Optional[X]` for type annotations (ruff UP045)
 
 ---
 
 ## Log
 
 (Iteration entries will be appended below)
+
+---
+
+## 2026-01-17 - US-010
+
+**Story:** Set up Typer CLI app with help and version
+
+### What was implemented
+- Updated `src/ralph/cli.py` with --version/-V flag using version_callback
+- Created command stub modules in `src/ralph/commands/`:
+  - `init_cmd.py` - Scaffold project for Ralph workflow (stub)
+  - `prd.py` - Interactive PRD creation with Claude (stub)
+  - `tasks.py` - Convert spec to TASKS.json (stub)
+  - `once.py` - Execute single iteration (stub)
+  - `loop.py` - Run multiple iterations (stub)
+  - `sync.py` - Sync skills to ~/.claude/skills/ (stub)
+- Updated `commands/__init__.py` to export all command functions
+- Registered all commands in main CLI app with descriptive help text
+- Commands currently display "not yet implemented" warning until later stories
+
+### Files changed
+- src/ralph/cli.py (modified)
+- src/ralph/commands/__init__.py (modified)
+- src/ralph/commands/init_cmd.py (new)
+- src/ralph/commands/prd.py (new)
+- src/ralph/commands/tasks.py (new)
+- src/ralph/commands/once.py (new)
+- src/ralph/commands/loop.py (new)
+- src/ralph/commands/sync.py (new)
+
+### Learnings for future iterations
+- Use `bool | None` instead of `Optional[bool]` to satisfy ruff UP045 rule
+- Named init command file `init_cmd.py` to avoid conflict with Python's `init` module
+- Command stubs use `typer.Exit(1)` to signal incomplete implementation
 
 ---
 

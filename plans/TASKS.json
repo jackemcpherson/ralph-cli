@@ -163,8 +163,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added --version flag and registered all command stubs. Commands show 'not yet implemented' until later stories."
     },
     {
       "id": "US-011",

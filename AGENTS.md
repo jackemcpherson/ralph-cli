@@ -69,6 +69,7 @@ ralph_cli/
 - Use Pydantic `alias` with `populate_by_name=True` when JSON uses camelCase but Python should use snake_case
 - Use `by_alias=True` in `model_dump_json()` to serialize back to the original JSON format
 - Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
+- Use `X | None` instead of `Optional[X]` for type annotations (ruff UP045)
 
 ## Project-Specific Instructions
 
