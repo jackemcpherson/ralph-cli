@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.prd import _build_prd_prompt
+from ralph.commands.prd import _build_non_interactive_prd_prompt, _build_prd_prompt
 from ralph.services import ClaudeError
 
 
@@ -335,3 +335,200 @@ class TestBuildPrdPrompt:
 
         assert "clarifying questions" in prompt
         assert "what feature" in prompt.lower()
+
+
+class TestPrdInputFlag:
+    """Tests for the --input flag in prd command."""
+
+    def test_prd_with_input_runs_non_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input triggers non-interactive mode."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Add a user authentication system"])
+
+            # Verify run_print_mode was called, not run_interactive
+            mock_instance.run_print_mode.assert_called_once()
+            mock_instance.run_interactive.assert_not_called()
+            assert "Non-Interactive PRD Generation" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_uses_print_mode(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input uses run_print_mode instead of run_interactive."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "-i", "Build a REST API"])
+
+            # Verify ClaudeService.run_print_mode was called
+            mock_instance.run_print_mode.assert_called_once()
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_includes_feature_description(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input includes feature description in prompt."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_description = "Add a dark mode toggle feature"
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "--input", feature_description])
+
+            # Verify the prompt includes the feature description
+            call_args = mock_instance.run_print_mode.call_args
+            prompt = call_args[0][0]
+            assert feature_description in prompt
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_displays_feature_description(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input displays the feature description in output."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_description = "Implement user dashboard"
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", feature_description])
+
+            assert feature_description in result.output
+            assert "Generating PRD for:" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_success_creates_file(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input shows success when file is created."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            spec_path = initialized_project / "plans" / "SPEC.md"
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+
+                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                    spec_path.write_text("# Feature Spec\n")
+                    return ("output", 0)
+
+                mock_instance.run_print_mode.side_effect = create_spec_file
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Build feature X"])
+
+            assert result.exit_code == 0
+            assert "PRD saved to" in result.output
+            assert "Next steps" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_handles_claude_error(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input handles ClaudeError gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.side_effect = ClaudeError("Claude not found")
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Some feature"])
+
+            assert result.exit_code == 1
+            assert "Failed to run Claude Code" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_input_handles_nonzero_exit(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --input handles non-zero exit code from Claude."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("error", 1)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Some feature"])
+
+            assert result.exit_code == 1
+            assert "non-zero" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestBuildNonInteractivePrdPrompt:
+    """Tests for the _build_non_interactive_prd_prompt helper function."""
+
+    def test_prompt_includes_feature_description(self) -> None:
+        """Test that prompt includes the feature description."""
+        feature = "Add user authentication with OAuth2"
+        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), feature)
+
+        assert feature in prompt
+
+    def test_prompt_includes_output_path(self) -> None:
+        """Test that prompt includes the output path."""
+        output_path = Path("/project/plans/SPEC.md")
+        prompt = _build_non_interactive_prd_prompt(output_path, "Some feature")
+
+        assert str(output_path) in prompt
+
+    def test_prompt_includes_prd_structure(self) -> None:
+        """Test that prompt includes PRD structure guidance."""
+        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), "Feature X")
+
+        assert "Overview" in prompt
+        assert "Goals" in prompt
+        assert "Non-Goals" in prompt
+        assert "Requirements" in prompt
+        assert "Technical Considerations" in prompt
+        assert "Success Criteria" in prompt
+
+    def test_prompt_does_not_ask_clarifying_questions(self) -> None:
+        """Test that non-interactive prompt doesn't ask for clarifying questions."""
+        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), "Feature X")
+
+        # Non-interactive mode should NOT ask for clarifying questions
+        assert "clarifying questions" not in prompt
+        assert "what feature I want to build" not in prompt
