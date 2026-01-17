@@ -1,0 +1,63 @@
+# Ralph CLI Testing Notes
+
+## Test: Building Pomodoro Timer CLI
+
+### Date: 2026-01-17
+
+---
+
+## Issue #1: `ralph prd` requires interactive terminal input
+
+**Description:** The `ralph prd` command launches an interactive Claude session that expects user input via stdin. When called from another process or script, the session ends immediately without generating a proper PRD because there's no way to provide interactive input.
+
+**Impact:** Users cannot automate PRD generation or use `ralph prd` in CI/CD pipelines or from other tools.
+
+**Workaround:** Manually create/edit the SPEC.md file, or use the command from a true interactive terminal.
+
+**Possible Enhancement:** Consider supporting a `--input` flag or piped input for automated use cases, e.g.:
+- `ralph prd --input "A pomodoro timer CLI with Rich output"`
+- `echo "description" | ralph prd`
+
+**Note:** This is expected behavior for an interactive PRD tool. Users who don't want to use the interactive session can manually edit `plans/SPEC.md` directly.
+
+---
+
+## Issue #2: `ralph prd` reports success even when PRD wasn't updated
+
+**Description:** When `ralph prd` is run with piped input that gets exhausted before the interactive session completes, the command still reports "PRD saved to plans/SPEC.md" even though the file wasn't actually modified.
+
+**Expected:** Should check if the file was modified and report accurately.
+
+**Workaround:** Check the file modification time or contents manually.
+
+---
+
+## Issue #3: `ralph loop` / `ralph once` - Claude subprocess lacks write permissions
+
+**Description:** When `ralph loop` or `ralph once` invokes Claude via subprocess, the inner Claude instance doesn't have pre-approved write permissions. The iteration fails with Claude asking for permission to write files but having no way to receive approval.
+
+**Error:** "I need write permissions to create files in this project. Please grant permission..."
+
+**Impact:** The autonomous iteration loop cannot function without pre-approved permissions. This defeats the purpose of autonomous iteration.
+
+**Root Cause:** The `ClaudeService.run_print_mode()` method doesn't have an option to pass
+`--dangerously-skip-permissions` flag to Claude CLI. This flag exists in Claude CLI but
+ralph doesn't use it.
+
+**Possible Fixes:**
+1. Add `skip_permissions: bool = False` parameter to `ClaudeService.run_print_mode()`
+2. When `skip_permissions=True`, add `--dangerously-skip-permissions` to the args
+3. The `once` and `loop` commands should pass `skip_permissions=True` when calling Claude
+
+**Code location:** `/src/ralph/services/claude.py` line 186 (`run_print_mode` method)
+
+---
+
+## Testing Progress
+
+- [x] `ralph init` - Works correctly, scaffolds project files
+- [x] `ralph prd` - Requires interactive input (see Issue #1 & #2), works from real terminal
+- [x] `ralph tasks` - Works correctly, generated 10 user stories from spec
+- [ ] `ralph once` - TBD
+- [ ] `ralph loop` - Testing now...
+- [ ] `ralph sync` - TBD
