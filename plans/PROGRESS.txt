@@ -661,3 +661,33 @@
 - A file reference table at the end provides quick lookup during execution
 
 ---
+
+## 2026-01-17 - US-020
+
+**Story:** Add tests for Pydantic models
+
+### What was implemented
+- Created `tests/test_models.py` with comprehensive tests for all Pydantic models
+- 42 tests covering model validation, serialization, and helper functions
+- Test classes organized by model/function: TestUserStory, TestTasksFile, TestQualityCheck, TestQualityChecks, TestLoadTasks, TestSaveTasks, TestParseQualityChecks, TestLoadQualityChecks
+
+### Tests written
+- `TestUserStory` (7 tests): valid data, minimal fields, camelCase alias, serialization, missing fields, invalid types
+- `TestTasksFile` (6 tests): valid data, minimal fields, camelCase aliases, serialization, missing fields, nested validation
+- `TestQualityCheck` (4 tests): valid data, default required, optional required, missing fields
+- `TestQualityChecks` (4 tests): multiple checks, empty list, default empty, from dict
+- `TestLoadTasks` (5 tests): valid file, nonexistent file, invalid JSON, invalid structure, empty file
+- `TestSaveTasks` (4 tests): creates file, writes valid JSON, uses aliases, round-trip
+- `TestParseQualityChecks` (9 tests): valid block, missing markers, no markers, invalid YAML, not dict, optional check, empty list, whitespace handling
+- `TestLoadQualityChecks` (3 tests): from file, nonexistent file, file without checks
+
+### Files changed
+- tests/test_models.py (new)
+
+### Learnings for future iterations
+- Pydantic's `model_validate_json()` raises `ValidationError` for both invalid JSON syntax and invalid structure
+- Use `pytest.raises(ValidationError)` to test both missing required fields and invalid types
+- Test both snake_case Python attribute access and camelCase JSON serialization to ensure aliases work correctly
+- Round-trip tests (save then load) are valuable for verifying serialization consistency
+
+---
