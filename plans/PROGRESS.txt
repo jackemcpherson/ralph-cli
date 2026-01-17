@@ -2,13 +2,38 @@
 
 ## Codebase Patterns
 
-(Patterns discovered during iterations will be consolidated here)
+- Use Pydantic `alias` with `populate_by_name=True` when JSON uses camelCase but Python should use snake_case
+- Use `by_alias=True` in `model_dump_json()` to serialize back to the original JSON format
 
 ---
 
 ## Log
 
 (Iteration entries will be appended below)
+
+---
+
+## 2026-01-17 - US-002
+
+**Story:** Create Pydantic models for TASKS.json
+
+### What was implemented
+- Created `src/ralph/models/tasks.py` with UserStory and TasksFile Pydantic models
+- UserStory model includes: id, title, description, acceptance_criteria, priority, passes, notes
+- TasksFile model includes: project, branch_name, description, user_stories
+- Used Pydantic aliases to maintain camelCase JSON compatibility (e.g., `acceptanceCriteria` in JSON maps to `acceptance_criteria` in Python)
+- Implemented `load_tasks()` function to read and validate TASKS.json files
+- Implemented `save_tasks()` function to serialize models back to JSON with proper camelCase
+- Updated `models/__init__.py` to export all public symbols
+
+### Files changed
+- src/ralph/models/tasks.py (new)
+- src/ralph/models/__init__.py (modified)
+
+### Learnings for future iterations
+- Ruff lint rule N815 flags mixedCase variables; use Pydantic aliases to satisfy both Python conventions and external JSON schemas
+- `ConfigDict(populate_by_name=True)` allows models to accept both alias (camelCase) and field name (snake_case)
+- Remember to use `by_alias=True` when serializing to preserve original JSON format
 
 ---
 
