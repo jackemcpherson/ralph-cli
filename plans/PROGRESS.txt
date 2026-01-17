@@ -935,3 +935,32 @@
 - Use `read_text().strip()` to handle whitespace in input files
 
 ---
+
+## 2026-01-17 - US-006
+
+**Story:** Make --input and --file mutually exclusive
+
+### What was implemented
+- Added mutual exclusivity check in `prd()` function for `--input` and `--file` flags
+- Check occurs early, after plans/ directory validation but before any processing
+- Error message is clear: "Cannot use both --input and --file at the same time."
+- Actionable guidance is provided: explains to use one or the other, but not both
+- Exits with code 1 when both flags are provided
+
+### Tests written
+- `TestPrdMutualExclusivity` class with 4 tests:
+  - `test_prd_error_when_both_input_and_file_provided` - verifies error message is displayed
+  - `test_prd_mutual_exclusivity_error_is_actionable` - verifies message explains what to do
+  - `test_prd_mutual_exclusivity_exits_nonzero` - verifies exit code is 1
+  - `test_prd_mutual_exclusivity_does_not_call_claude` - verifies Claude is never invoked
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Mutual exclusivity checks should happen early in the function, before any expensive operations
+- Provide actionable guidance in error messages, not just the error description
+- Test that no side effects occur (like Claude invocation) when validation fails
+
+---
