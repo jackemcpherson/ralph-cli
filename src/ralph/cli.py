@@ -2,6 +2,9 @@
 
 import typer
 
+from ralph import __version__
+from ralph.commands import init, loop, once, prd, sync, tasks
+
 app = typer.Typer(
     name="ralph",
     help="Ralph CLI - Autonomous iteration pattern for Claude Code",
@@ -9,10 +12,35 @@ app = typer.Typer(
 )
 
 
+def version_callback(value: bool) -> None:
+    """Print version and exit."""
+    if value:
+        typer.echo(f"ralph {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
-def main() -> None:
+def main(
+    version: bool | None = typer.Option(
+        None,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit.",
+    ),
+) -> None:
     """Ralph CLI - Autonomous iteration pattern for Claude Code."""
     pass
+
+
+# Register commands
+app.command(name="init", help="Scaffold a project for Ralph workflow")(init)
+app.command(name="prd", help="Create a PRD interactively with Claude")(prd)
+app.command(name="tasks", help="Convert a specification file to TASKS.json")(tasks)
+app.command(name="once", help="Execute a single Ralph iteration")(once)
+app.command(name="loop", help="Run multiple Ralph iterations automatically")(loop)
+app.command(name="sync", help="Sync Ralph skills to Claude Code")(sync)
 
 
 if __name__ == "__main__":
