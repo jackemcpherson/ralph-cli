@@ -1,6 +1,7 @@
 """Integration tests for Ralph CLI commands."""
 
 import os
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,11 @@ from typer.testing import CliRunner
 
 from ralph import __version__
 from ralph.cli import app
+
+
+def strip_ansi(text: str) -> str:
+    """Strip ANSI escape codes from text."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 @pytest.fixture
@@ -94,7 +100,8 @@ class TestCliHelp:
         result = runner.invoke(app, ["--help"])
 
         assert result.exit_code == 0
-        assert "--version" in result.output
+        # Strip ANSI codes as Rich may insert escape codes between dashes
+        assert "--version" in strip_ansi(result.output)
 
     def test_no_args_shows_help(self, runner: CliRunner) -> None:
         """Test that running with no arguments shows help.
