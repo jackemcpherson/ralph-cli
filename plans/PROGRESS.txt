@@ -1005,3 +1005,50 @@
 - The warning message text changed from "was not created" to "was not modified" for clarity
 
 ---
+
+## 2026-01-17 - US-008
+
+**Story:** Integration tests for autonomous iteration
+
+### What was implemented
+- Created `tests/test_integration/__init__.py` module
+- Created `tests/test_integration/test_autonomous_iteration.py` with comprehensive integration tests
+- `TestClaudeServiceSkipPermissions` class: Tests that ClaudeService correctly handles skip_permissions parameter
+- `TestOnceCommandAutonomousIteration` class: Integration tests for ralph once command
+- `TestLoopCommandAutonomousIteration` class: Integration tests for ralph loop command
+- `TestAutonomousIterationErrorHandling` class: Error handling tests for both commands
+
+### Tests written
+- `TestClaudeServiceSkipPermissions` (3 tests):
+  - `test_skip_permissions_adds_flag_to_args` - verifies --dangerously-skip-permissions is added
+  - `test_skip_permissions_false_does_not_add_flag` - verifies flag is omitted when False
+  - `test_skip_permissions_flag_position_in_args` - verifies flag position in args
+- `TestOnceCommandAutonomousIteration` (5 tests):
+  - `test_once_invokes_claude_with_skip_permissions` - verifies flag passed to subprocess
+  - `test_once_displays_autonomous_iteration_message` - verifies info message
+  - `test_once_includes_print_flag` - verifies --print mode used
+  - `test_once_passes_prompt_with_story_details` - verifies prompt content
+  - `test_once_complete_workflow` - tests full completion flow
+- `TestLoopCommandAutonomousIteration` (6 tests):
+  - `test_loop_invokes_claude_with_skip_permissions` - verifies flag passed
+  - `test_loop_displays_autonomous_iteration_message` - verifies info message
+  - `test_loop_includes_print_flag` - verifies --print mode
+  - `test_loop_runs_multiple_iterations_with_skip_permissions` - verifies flag across iterations
+  - `test_loop_stops_on_complete_signal` - verifies COMPLETE signal detection
+  - `test_loop_complete_workflow_with_multiple_stories` - tests multi-story completion
+- `TestAutonomousIterationErrorHandling` (3 tests):
+  - `test_once_handles_claude_not_found` - verifies error handling
+  - `test_loop_handles_claude_not_found` - verifies error handling
+  - `test_once_handles_nonzero_exit_code` - verifies exit code handling
+
+### Files changed
+- tests/test_integration/__init__.py (new)
+- tests/test_integration/test_autonomous_iteration.py (new)
+
+### Learnings for future iterations
+- Use `patch.object(service, "_run_process")` to mock ClaudeService at method level for unit tests
+- Use `patch("subprocess.Popen")` for integration tests that need to verify actual subprocess args
+- When testing loop behavior with multiple iterations, read and update the TASKS.json file in the mock to simulate story completion
+- Use `json.loads(file.read_text())` in mocks to read current file state rather than referencing fixture data directly
+
+---
