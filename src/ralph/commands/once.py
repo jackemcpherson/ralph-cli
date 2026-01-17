@@ -282,11 +282,14 @@ def once(
     prompt = _build_iteration_prompt(next_story, max_fix_attempts)
 
     console.print("[bold]Running Claude Code...[/bold]")
+    console.print(
+        "[dim]Running Claude with auto-approved permissions for autonomous iteration[/dim]"
+    )
     console.print()
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True)
+        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
 
         if exit_code != 0:
             print_warning(f"Claude exited with code {exit_code}")

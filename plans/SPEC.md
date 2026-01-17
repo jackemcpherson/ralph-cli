@@ -568,3 +568,111 @@ Loop/Once flags:
 | 6 | `ralph sync` copies skills to `~/.claude/skills/` successfully | ☐ |
 | 7 | All commands have `--help` with clear documentation | ☐ |
 | 8 | Test suite passes with reasonable coverage (>70%) | ☐ |
+
+---
+
+## 6. Version 1.1: Bug Fixes & Automation Improvements
+
+**Status:** Draft
+**Date:** 2026-01-17
+
+### 6.1 Overview
+
+Testing revealed three issues preventing reliable autonomous operation and automation workflows. This section addresses bugs that block the core autonomous iteration loop from functioning properly.
+
+**Problem Statement:**
+1. The `ralph prd` command requires interactive terminal input, preventing automation
+2. The `ralph prd` command reports success even when no changes were made
+3. The `ralph loop` and `ralph once` commands fail because the Claude subprocess lacks write permissions
+
+### 6.2 Goals
+
+1. **Enable autonomous iteration** - The `ralph loop` and `ralph once` commands must run Claude with appropriate permissions without human intervention
+2. **Support PRD automation** - Allow `ralph prd` to accept input programmatically for CI/CD and scripting
+3. **Improve feedback accuracy** - Ensure command output reflects what actually happened
+
+### 6.3 Non-Goals
+
+- Changing the default interactive behavior of `ralph prd`
+- Adding a global configuration system
+- Modifying the TASKS.json schema or iteration logic
+
+### 6.4 Functional Requirements
+
+#### FR-FIX-01: Add `--dangerously-skip-permissions` Support for Autonomous Commands
+
+**Priority: Critical**
+
+| ID | Requirement |
+|----|-------------|
+| FR-FIX-01.1 | Add `skip_permissions: bool = False` parameter to `ClaudeService.run_print_mode()` |
+| FR-FIX-01.2 | When `skip_permissions=True`, include `--dangerously-skip-permissions` in Claude CLI args |
+| FR-FIX-01.3 | `ralph once` calls `run_print_mode()` with `skip_permissions=True` by default |
+| FR-FIX-01.4 | `ralph loop` calls `run_print_mode()` with `skip_permissions=True` by default |
+| FR-FIX-01.5 | Display one-time info message: "Running Claude with auto-approved permissions for autonomous iteration" |
+| FR-FIX-01.6 | The flag is NOT applied to other commands (`prd`, `tasks`, etc.) |
+
+**File:** `src/ralph/services/claude.py` (line ~186, `run_print_mode` method)
+
+#### FR-FIX-02: Add Non-Interactive Input Options to `ralph prd`
+
+**Priority: High**
+
+| ID | Requirement |
+|----|-------------|
+| FR-FIX-02.1 | Add `--input` / `-i` option accepting a feature description string |
+| FR-FIX-02.2 | Add `--file` / `-f` option accepting a path to a file with the description |
+| FR-FIX-02.3 | `--input` and `--file` are mutually exclusive; error if both provided |
+| FR-FIX-02.4 | When either flag is provided, run in non-interactive mode (single prompt) |
+| FR-FIX-02.5 | When neither flag is provided, maintain current interactive behavior |
+
+**Examples:**
+```bash
+ralph prd --input "A pomodoro timer CLI with Rich output"
+ralph prd --file ./feature-idea.txt
+```
+
+#### FR-FIX-03: Accurate Success/Failure Reporting for `ralph prd`
+
+**Priority: Medium**
+
+| ID | Requirement |
+|----|-------------|
+| FR-FIX-03.1 | Before running Claude, record the mtime of `plans/SPEC.md` (if it exists) |
+| FR-FIX-03.2 | After Claude completes, compare the new mtime or check if file now exists |
+| FR-FIX-03.3 | If file was created/modified: display "PRD saved to plans/SPEC.md" |
+| FR-FIX-03.4 | If file was NOT modified: display warning "Warning: PRD file was not modified. The session may have ended before completion." |
+| FR-FIX-03.5 | Exit with code 0 in both cases (warning only, not error) |
+| FR-FIX-03.6 | Warning message uses Rich warning styling (yellow) |
+
+### 6.5 Technical Considerations
+
+#### Files to Modify
+
+| Requirement | File(s) |
+|-------------|---------|
+| FR-FIX-01 | `src/ralph/services/claude.py`, `src/ralph/commands/once.py`, `src/ralph/commands/loop.py` |
+| FR-FIX-02 | `src/ralph/commands/prd.py`, `src/ralph/cli.py` |
+| FR-FIX-03 | `src/ralph/commands/prd.py` |
+
+#### Testing Strategy
+
+- Unit tests for `ClaudeService.run_print_mode()` with `skip_permissions=True`
+- Integration tests for `ralph prd --input` and `ralph prd --file`
+- Tests for file modification detection logic
+- Manual testing of full autonomous loop
+
+### 6.6 Success Criteria
+
+| # | Criterion | Verified |
+|---|-----------|----------|
+| 1 | `ralph once` completes an iteration without permission prompts | ☐ |
+| 2 | `ralph loop 3` completes 3 iterations without human intervention | ☐ |
+| 3 | `ralph prd --input "description"` generates a complete PRD | ☐ |
+| 4 | `ralph prd --file path.txt` reads file and generates PRD | ☐ |
+| 5 | Failed/incomplete PRD session shows warning message | ☐ |
+| 6 | Existing interactive `ralph prd` workflow unchanged | ☐ |
+
+### 6.7 Reference
+
+- Original bug reports: `/Users/jack/Projects/ralph_cli/TESTING.txt`

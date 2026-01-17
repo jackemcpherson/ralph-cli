@@ -794,3 +794,27 @@
 - Test command registration by checking `--help` output for each command
 
 ---
+
+## 2026-01-17 - US-001
+
+**Story:** Add skip_permissions parameter to ClaudeService
+
+### What was implemented
+- Added `skip_permissions: bool = False` parameter to `ClaudeService.run_print_mode()`
+- When `skip_permissions=True`, appends `--dangerously-skip-permissions` to CLI args
+- Updated docstring to document the new parameter
+
+### Tests written
+- `test_includes_skip_permissions_when_true` - verifies flag is included when True
+- `test_excludes_skip_permissions_when_false` - verifies flag is NOT included when False
+- `test_default_skip_permissions_is_false` - verifies default behavior excludes the flag
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The `--dangerously-skip-permissions` flag enables autonomous execution without permission prompts
+- Place new parameters after existing keyword-only parameters in method signatures
+
+---
