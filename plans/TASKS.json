@@ -74,7 +74,7 @@
         "Tests verify --file reads file and triggers non-interactive mode"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py and src/ralph/cli.py"
     },
     {
