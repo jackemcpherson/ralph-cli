@@ -14,6 +14,33 @@
 
 ---
 
+## 2026-01-17 - US-006
+
+**Story:** Create Git service for branch management
+
+### What was implemented
+- Created `src/ralph/services/git.py` with GitService dataclass
+- `get_current_branch()` - Returns current branch name using `git branch --show-current`
+- `get_default_branch()` - Detects main/master by checking local branches and remote HEAD
+- `branch_exists(name)` - Checks if a branch exists locally
+- `checkout_or_create_branch(name, base)` - Switches to branch, creates from base if needed
+- `commit(message, add_all)` - Creates commit, optionally staging all changes first
+- `has_changes()` - Checks for uncommitted changes via `git status --porcelain`
+- `stage_files(files)` - Stages specific files for commit
+- Created `GitError` exception class for operation failures
+- Updated `services/__init__.py` to export GitService and GitError
+
+### Files changed
+- src/ralph/services/git.py (new)
+- src/ralph/services/__init__.py (modified)
+
+### Learnings for future iterations
+- Use `@dataclass` for service classes that need configuration (like working_dir)
+- `subprocess.run()` with `text=True` returns string output instead of bytes
+- Check both local branches and remote HEAD when detecting default branch
+
+---
+
 ## 2026-01-17 - US-005
 
 **Story:** Create file operation utilities
