@@ -352,11 +352,9 @@ def once(
 
     if story_passed:
         _append_cli_summary(progress_path, next_story.id, next_story.title, all_complete)
-
-    if story_passed:
         raise typer.Exit(0)
-    else:
-        raise typer.Exit(1)
+
+    raise typer.Exit(1)
 
 
 def _find_next_story(tasks: TasksFile) -> UserStory | None:
