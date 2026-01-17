@@ -4,12 +4,37 @@
 
 - Use Pydantic `alias` with `populate_by_name=True` when JSON uses camelCase but Python should use snake_case
 - Use `by_alias=True` in `model_dump_json()` to serialize back to the original JSON format
+- Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
 
 ---
 
 ## Log
 
 (Iteration entries will be appended below)
+
+---
+
+## 2026-01-17 - US-004
+
+**Story:** Create Rich console utilities
+
+### What was implemented
+- Created `src/ralph/utils/console.py` with Rich-based console helpers
+- Added shared `Console` instance for consistent output across the application
+- Implemented `print_success()` with green checkmark for success messages
+- Implemented `print_error()` with red X for error messages
+- Implemented `print_warning()` with yellow warning sign for warning messages
+- Implemented `print_step()` for iteration progress display (e.g., `[1/5] Processing...`)
+- Implemented `create_spinner()` context manager using Rich's status spinner
+- Updated `utils/__init__.py` to export all public symbols
+
+### Files changed
+- src/ralph/utils/console.py (new)
+- src/ralph/utils/__init__.py (modified)
+
+### Learnings for future iterations
+- Import `Iterator` from `collections.abc` instead of `typing` to satisfy ruff UP035 rule
+- Rich's `console.status()` provides an easy way to create spinners with context manager syntax
 
 ---
 
