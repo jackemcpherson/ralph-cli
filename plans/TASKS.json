@@ -110,8 +110,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ClaudeService uses @dataclass pattern. Methods: run_interactive(), run_print_mode(), run_with_output_format(). Supports streaming, --verbose, custom allowed_tools."
     },
     {
       "id": "US-008",
