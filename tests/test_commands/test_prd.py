@@ -8,7 +8,12 @@ import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.prd import _build_non_interactive_prd_prompt, _build_prd_prompt
+from ralph.commands.prd import (
+    _build_non_interactive_prd_prompt,
+    _build_prd_prompt,
+    _check_file_modified,
+    _get_file_mtime,
+)
 from ralph.services import ClaudeError
 
 
@@ -197,8 +202,8 @@ class TestPrdCommand:
                 result = runner.invoke(app, ["prd"])
 
             # File was not created
-            assert "was not created" in result.output
-            assert "cancelled" in result.output
+            assert "was not modified" in result.output
+            assert "cancelled" in result.output or "no changes" in result.output
         finally:
             os.chdir(original_cwd)
 
@@ -791,5 +796,246 @@ class TestPrdMutualExclusivity:
             # Claude should never be called
             mock_instance.run_interactive.assert_not_called()
             mock_instance.run_print_mode.assert_not_called()
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestGetFileMtime:
+    """Tests for the _get_file_mtime helper function."""
+
+    def test_returns_mtime_when_file_exists(self, tmp_path: Path) -> None:
+        """Test that _get_file_mtime returns mtime when file exists."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+
+        mtime = _get_file_mtime(test_file)
+
+        assert mtime is not None
+        assert isinstance(mtime, float)
+        assert mtime > 0
+
+    def test_returns_none_when_file_not_exists(self, tmp_path: Path) -> None:
+        """Test that _get_file_mtime returns None when file doesn't exist."""
+        test_file = tmp_path / "nonexistent.txt"
+
+        mtime = _get_file_mtime(test_file)
+
+        assert mtime is None
+
+
+class TestCheckFileModified:
+    """Tests for the _check_file_modified helper function."""
+
+    def test_shows_success_when_file_created(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that _check_file_modified shows success when file is newly created."""
+        output_path = tmp_path / "SPEC.md"
+        output = Path("plans/SPEC.md")
+
+        # Simulate file created by Claude
+        output_path.write_text("# New PRD")
+
+        _check_file_modified(output_path, output, mtime_before=None)
+
+        captured = capsys.readouterr()
+        assert "PRD saved to" in captured.out
+        assert "Next steps" in captured.out
+
+    def test_shows_success_when_file_modified(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that _check_file_modified shows success when file is modified."""
+        import time
+
+        output_path = tmp_path / "SPEC.md"
+        output = Path("plans/SPEC.md")
+
+        # Create initial file
+        output_path.write_text("# Initial PRD")
+        mtime_before = _get_file_mtime(output_path)
+
+        # Wait a tiny bit and modify file
+        time.sleep(0.01)
+        output_path.write_text("# Modified PRD")
+
+        _check_file_modified(output_path, output, mtime_before)
+
+        captured = capsys.readouterr()
+        assert "PRD saved to" in captured.out
+        assert "Next steps" in captured.out
+
+    def test_shows_warning_when_file_not_created(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that _check_file_modified shows warning when file was not created."""
+        output_path = tmp_path / "SPEC.md"
+        output = Path("plans/SPEC.md")
+
+        # File doesn't exist and was never created
+        _check_file_modified(output_path, output, mtime_before=None)
+
+        captured = capsys.readouterr()
+        assert "was not modified" in captured.out
+        assert "cancelled" in captured.out or "no changes" in captured.out
+
+    def test_shows_warning_when_file_not_modified(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that _check_file_modified shows warning when file was not modified."""
+        output_path = tmp_path / "SPEC.md"
+        output = Path("plans/SPEC.md")
+
+        # Create file before
+        output_path.write_text("# PRD Content")
+        mtime_before = _get_file_mtime(output_path)
+
+        # Don't modify the file - mtime stays the same
+        _check_file_modified(output_path, output, mtime_before)
+
+        captured = capsys.readouterr()
+        assert "was not modified" in captured.out
+
+
+class TestPrdFileModificationDetection:
+    """Integration tests for file modification detection in prd command."""
+
+    def test_prd_detects_file_modification_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that interactive prd detects when file is modified."""
+        import time
+
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an existing SPEC.md file
+            spec_path = initialized_project / "plans" / "SPEC.md"
+            spec_path.write_text("# Initial Spec\n")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+
+                def modify_spec_file(_prompt: str) -> int:
+                    time.sleep(0.01)  # Ensure mtime changes
+                    spec_path.write_text("# Modified Spec\n")
+                    return 0
+
+                mock_instance.run_interactive.side_effect = modify_spec_file
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd"])
+
+            assert result.exit_code == 0
+            assert "PRD saved to" in result.output
+            assert "Next steps" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_detects_no_modification_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that interactive prd detects when file is not modified."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an existing SPEC.md file
+            spec_path = initialized_project / "plans" / "SPEC.md"
+            spec_path.write_text("# Initial Spec\n")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                # Claude returns success but doesn't modify the file
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd"])
+
+            assert result.exit_code == 0
+            assert "was not modified" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_detects_file_modification_non_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that non-interactive prd detects when file is modified."""
+        import time
+
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an existing SPEC.md file
+            spec_path = initialized_project / "plans" / "SPEC.md"
+            spec_path.write_text("# Initial Spec\n")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+
+                def modify_spec_file(_prompt: str) -> tuple[str, int]:
+                    time.sleep(0.01)  # Ensure mtime changes
+                    spec_path.write_text("# Modified Spec\n")
+                    return ("output", 0)
+
+                mock_instance.run_print_mode.side_effect = modify_spec_file
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Add a feature"])
+
+            assert result.exit_code == 0
+            assert "PRD saved to" in result.output
+            assert "Next steps" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_detects_no_modification_non_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that non-interactive prd detects when file is not modified."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an existing SPEC.md file
+            spec_path = initialized_project / "plans" / "SPEC.md"
+            spec_path.write_text("# Initial Spec\n")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                # Claude returns success but doesn't modify the file
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--input", "Add a feature"])
+
+            assert result.exit_code == 0
+            assert "was not modified" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_exits_zero_when_file_not_modified(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd exits with code 0 even when file is not modified."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an existing SPEC.md file
+            spec_path = initialized_project / "plans" / "SPEC.md"
+            spec_path.write_text("# Initial Spec\n")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd"])
+
+            # Exit code should be 0 even when file wasn't modified
+            assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
