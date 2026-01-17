@@ -11,3 +11,39 @@
 (Iteration entries will be appended below)
 
 ---
+
+## 2026-01-17 - US-001
+
+**Story:** Initialize project structure with pyproject.toml
+
+### What was implemented
+- Created pyproject.toml with all required dependencies (typer, rich, pydantic, ruff, pytest, pytest-cov, pyright)
+- Configured hatchling build backend with src layout
+- Set up Python 3.11+ requirement
+- Created src/ralph/ directory structure with __init__.py files
+- Created empty module directories: commands/, models/, services/, utils/
+- Created basic cli.py with Typer app entry point
+- Added README.md with basic documentation
+- Added .gitignore for Python projects
+- Added initial test for version verification
+- Verified package installs successfully with `uv pip install -e ".[dev]"`
+
+### Files changed
+- pyproject.toml (new)
+- README.md (new)
+- .gitignore (new)
+- src/ralph/__init__.py (new)
+- src/ralph/cli.py (new)
+- src/ralph/commands/__init__.py (new)
+- src/ralph/models/__init__.py (new)
+- src/ralph/services/__init__.py (new)
+- src/ralph/utils/__init__.py (new)
+- tests/__init__.py (new)
+- tests/test_init.py (new)
+
+### Learnings for future iterations
+- pytest returns exit code 5 when no tests are collected, so at least one test file is needed
+- hatchling requires README.md to exist if referenced in pyproject.toml
+- uv requires a virtual environment to be created first with `uv venv`
+
+---
