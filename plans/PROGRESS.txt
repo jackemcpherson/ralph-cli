@@ -16,6 +16,35 @@
 
 ---
 
+## 2026-01-17 - US-008
+
+**Story:** Create project scaffolding service
+
+### What was implemented
+- Created `src/ralph/services/scaffold.py` with ScaffoldService class using Pydantic BaseModel
+- Created `ProjectType` enum for detected project types (Python, Node.js, Go, Rust, Unknown)
+- `detect_project_type()` - Identifies project by marker files (pyproject.toml, package.json, go.mod, Cargo.toml)
+- `create_plans_directory()` - Creates plans/ folder structure
+- `create_spec_placeholder()` - Creates plans/SPEC.md with template
+- `create_tasks_placeholder()` - Creates plans/TASKS.json with example structure
+- `create_progress_placeholder()` - Creates plans/PROGRESS.txt with template
+- `create_claude_md()` - Creates CLAUDE.md with project-specific quality checks template
+- `create_agents_md()` - Creates AGENTS.md with Ralph workflow instructions
+- `scaffold_all()` - Convenience method to create all files at once
+- `_get_quality_checks_yaml()` - Returns appropriate quality checks YAML for detected project type
+- Updated `services/__init__.py` to export ScaffoldService and ProjectType
+
+### Files changed
+- src/ralph/services/scaffold.py (new)
+- src/ralph/services/__init__.py (modified)
+
+### Learnings for future iterations
+- Use Enum for type-safe project type detection
+- Quality check templates should be project-type-specific for better developer experience
+- Include Rust support alongside Python/Node.js/Go for broader coverage
+
+---
+
 ## 2026-01-17 - US-007
 
 **Story:** Create Claude Code CLI wrapper service
