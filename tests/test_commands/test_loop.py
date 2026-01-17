@@ -451,6 +451,59 @@ class TestLoopCommand:
         finally:
             os.chdir(original_cwd)
 
+    def test_loop_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that loop passes skip_permissions=True to run_print_mode."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with (
+                patch("ralph.commands.loop.ClaudeService") as mock_claude,
+                patch("ralph.commands.loop._setup_branch") as mock_setup,
+            ):
+                mock_setup.return_value = True
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (
+                    "<ralph>COMPLETE</ralph>",
+                    0,
+                )
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["loop", "1"])
+
+            call_args = mock_instance.run_print_mode.call_args
+            assert call_args.kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_displays_permissions_message(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that loop displays the auto-approved permissions message."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with (
+                patch("ralph.commands.loop.ClaudeService") as mock_claude,
+                patch("ralph.commands.loop._setup_branch") as mock_setup,
+            ):
+                mock_setup.return_value = True
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (
+                    "<ralph>COMPLETE</ralph>",
+                    0,
+                )
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["loop", "1"])
+
+            assert "auto-approved permissions" in result.output
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestSetupBranch:
     """Tests for the _setup_branch helper function."""
