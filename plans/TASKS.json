@@ -58,7 +58,7 @@
         "Tests verify --input triggers non-interactive mode"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Part of FR-FIX-02. Modify src/ralph/commands/prd.py and src/ralph/cli.py"
     },
     {

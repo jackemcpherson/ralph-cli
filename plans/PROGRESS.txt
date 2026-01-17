@@ -864,3 +864,39 @@
 - Reuse the same message text as `once.py` for consistency across commands
 
 ---
+
+## 2026-01-17 - US-004
+
+**Story:** Add --input flag to ralph prd command
+
+### What was implemented
+- Added `--input / -i` option to `prd()` function in `src/ralph/commands/prd.py`
+- Created `_run_non_interactive()` helper function for non-interactive PRD generation
+- Created `_build_non_interactive_prd_prompt()` helper to build the non-interactive prompt
+- When `--input` is provided:
+  - Displays "Non-Interactive PRD Generation" header
+  - Shows the feature description being processed
+  - Uses `run_print_mode()` instead of `run_interactive()`
+  - Passes feature description to Claude for PRD generation
+
+### Tests written
+- `TestPrdInputFlag` class with 7 tests:
+  - `test_prd_with_input_runs_non_interactive` - verifies --input triggers non-interactive mode
+  - `test_prd_with_input_uses_print_mode` - verifies run_print_mode is called
+  - `test_prd_with_input_includes_feature_description` - verifies feature in prompt
+  - `test_prd_with_input_displays_feature_description` - verifies feature in output
+  - `test_prd_with_input_success_creates_file` - verifies success handling
+  - `test_prd_with_input_handles_claude_error` - verifies error handling
+  - `test_prd_with_input_handles_nonzero_exit` - verifies exit code handling
+- `TestBuildNonInteractivePrdPrompt` class with 4 tests for the helper function
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- Non-interactive mode should use `run_print_mode()` instead of `run_interactive()`
+- The non-interactive prompt should NOT ask for clarifying questions (goes straight to generation)
+- Display the feature description in output so user knows what's being processed
+
+---
