@@ -43,7 +43,7 @@
         "Tests verify the command passes skip_permissions=True to ClaudeService"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001. Modify src/ralph/commands/loop.py"
     },
     {

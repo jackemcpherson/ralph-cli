@@ -100,6 +100,10 @@ def loop(
     console.print(f"[dim]Already complete:[/dim] {completed_before}")
     console.print(f"[dim]Remaining:[/dim] {remaining}")
     console.print()
+    console.print(
+        "[dim]Running Claude with auto-approved permissions for autonomous iteration[/dim]"
+    )
+    console.print()
 
     if remaining == 0:
         print_success("All stories already complete!")
@@ -145,7 +149,9 @@ def loop(
 
         try:
             claude = ClaudeService(working_dir=project_root, verbose=verbose)
-            output_text, exit_code = claude.run_print_mode(prompt, stream=True)
+            output_text, exit_code = claude.run_print_mode(
+                prompt, stream=True, skip_permissions=True
+            )
         except ClaudeError as e:
             print_error(f"Claude error: {e}")
             stop_reason = LoopStopReason.TRANSIENT_FAILURE
