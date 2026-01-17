@@ -1,0 +1,13 @@
+# Ralph Progress Log
+
+## Codebase Patterns
+
+(Patterns discovered during iterations will be consolidated here)
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
