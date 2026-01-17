@@ -380,3 +380,59 @@
 - Display helpful tips before launching interactive Claude sessions to improve UX
 
 ---
+
+## 2026-01-17 - US-013
+
+**Story:** Implement ralph tasks command
+
+### What was implemented
+- Implemented full `ralph tasks` command in `src/ralph/commands/tasks.py`
+- Accepts spec file path argument (with typer validation for existence/readability)
+- Invokes Claude Code in print mode (non-streaming) to generate TASKS.json
+- Builds comprehensive prompt with JSON schema and story-creation guidelines
+- Added `_extract_json()` helper to extract JSON from various formats:
+  - Pure JSON
+  - JSON wrapped in markdown code blocks (```json)
+  - JSON embedded in surrounding text
+- Validates Claude output against TasksFile Pydantic model
+- Saves validated output to plans/TASKS.json (or custom path with --output)
+- Added `--output` flag for custom output path
+- Added `--verbose` flag for verbose Claude output
+- Added `--branch` flag for custom branch name in generated tasks
+- Displays success message with story count and next steps
+- Handles errors gracefully: empty spec, Claude failures, invalid JSON, validation errors
+
+### Tests written
+- `tests/test_commands/test_tasks.py` with 35 tests:
+  - `TestTasksCommand` class (17 tests):
+    - `test_tasks_requires_spec_file_argument` - verifies argument required
+    - `test_tasks_fails_for_nonexistent_file` - verifies file validation
+    - `test_tasks_fails_for_empty_spec_file` - verifies empty file handling
+    - `test_tasks_displays_informational_message` - verifies output
+    - `test_tasks_launches_claude_in_print_mode` - verifies Claude invocation
+    - `test_tasks_includes_spec_content_in_prompt` - verifies prompt building
+    - `test_tasks_validates_claude_output` - verifies Pydantic validation
+    - `test_tasks_saves_valid_output` - verifies file creation
+    - `test_tasks_shows_success_message_with_story_count` - verifies success output
+    - `test_tasks_handles_nonzero_exit_code` - verifies exit code handling
+    - `test_tasks_handles_claude_error` - verifies ClaudeError handling
+    - `test_tasks_notes_existing_tasks_json` - verifies existing file note
+    - `test_tasks_with_custom_output_path` - verifies --output flag
+    - `test_tasks_with_verbose_flag` - verifies --verbose flag
+    - `test_tasks_with_branch_name_flag` - verifies --branch flag
+    - `test_tasks_handles_no_json_in_output` - verifies no-JSON handling
+  - `TestExtractJson` class (7 tests) for _extract_json helper
+  - `TestIsValidJson` class (4 tests) for _is_valid_json helper
+  - `TestBuildTasksPrompt` class (6 tests) for _build_tasks_prompt helper
+
+### Files changed
+- src/ralph/commands/tasks.py (modified - full implementation)
+- tests/test_commands/test_tasks.py (new)
+
+### Learnings for future iterations
+- Use non-streaming mode (`stream=False`) when you need to capture and process Claude output
+- Extract JSON robustly by trying multiple patterns: pure JSON, code blocks, embedded JSON
+- Regex `[\s\S]*?` is useful for non-greedy matching across newlines in code blocks
+- Pydantic `model_validate_json()` directly validates JSON strings without intermediate dict
+
+---
