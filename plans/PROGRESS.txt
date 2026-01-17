@@ -567,3 +567,32 @@
 - Exit with non-zero code for errors but zero for warnings (invalid skills)
 
 ---
+
+## 2026-01-17 - US-017
+
+**Story:** Create ralph-prd skill definition
+
+### What was implemented
+- Created `skills/ralph-prd/SKILL.md` with required YAML frontmatter (name, description)
+- Phase 1: Discovery questions covering project context, feature overview, scope definition, and technical considerations
+- Phase 2: PRD generation with structured output format template
+- Output format section with complete PRD markdown template for plans/SPEC.md
+- Guidelines for feature scoping (right-size features, avoid scope creep, think in iterations)
+- Guidelines for requirements quality (specific, testable, independent)
+- Interaction style guidance (ask one category at a time, summarize understanding, be concise)
+- Next steps prompt directing users to run `ralph tasks plans/SPEC.md`
+
+### Tests written
+- No Python tests needed for this story (skill is a markdown instruction file)
+- Skill format validated by existing SkillsService tests (validates frontmatter parsing)
+
+### Files changed
+- skills/ralph-prd/SKILL.md (new)
+
+### Learnings for future iterations
+- Skills are markdown files with YAML frontmatter containing `name` and `description`
+- Skills should guide Claude through a multi-phase process (discovery, then generation)
+- Include concrete output format templates to ensure consistent results
+- Always end skill instructions with next steps for the user
+
+---
