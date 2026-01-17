@@ -46,8 +46,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pyyaml dependency. Parser uses regex to extract YAML block and returns empty QualityChecks on malformed input."
     },
     {
       "id": "US-004",
