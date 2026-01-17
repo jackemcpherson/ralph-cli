@@ -497,6 +497,180 @@ class TestPrdInputFlag:
             os.chdir(original_cwd)
 
 
+class TestPrdFileFlag:
+    """Tests for the --file flag in prd command."""
+
+    def test_prd_with_file_runs_non_interactive(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file triggers non-interactive mode."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create a feature description file
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Add a user authentication system")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--file", "feature.txt"])
+
+            # Verify run_print_mode was called, not run_interactive
+            mock_instance.run_print_mode.assert_called_once()
+            mock_instance.run_interactive.assert_not_called()
+            assert "Non-Interactive PRD Generation" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_reads_file_contents(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file reads and uses file contents as feature description."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_description = "Build a REST API with authentication"
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text(feature_description)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "-f", "feature.txt"])
+
+            # Verify the prompt includes the feature description from file
+            call_args = mock_instance.run_print_mode.call_args
+            prompt = call_args[0][0]
+            assert feature_description in prompt
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_error_when_file_not_exists(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file shows error when file doesn't exist."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            result = runner.invoke(app, ["prd", "--file", "nonexistent.txt"])
+
+            assert result.exit_code == 1
+            assert "File not found" in result.output
+            assert "nonexistent.txt" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_error_when_file_empty(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file shows error when file is empty."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # Create an empty file
+            feature_file = initialized_project / "empty.txt"
+            feature_file.write_text("")
+
+            result = runner.invoke(app, ["prd", "--file", "empty.txt"])
+
+            assert result.exit_code == 1
+            assert "File is empty" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_displays_feature_description(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file displays the feature description in output."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_description = "Implement user dashboard with analytics"
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text(feature_description)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--file", "feature.txt"])
+
+            assert feature_description in result.output
+            assert "Generating PRD for:" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_success_creates_file(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file shows success when PRD file is created."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_file = initialized_project / "feature.txt"
+            feature_file.write_text("Build feature X")
+            spec_path = initialized_project / "plans" / "SPEC.md"
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+
+                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                    spec_path.write_text("# Feature Spec\n")
+                    return ("output", 0)
+
+                mock_instance.run_print_mode.side_effect = create_spec_file
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd", "--file", "feature.txt"])
+
+            assert result.exit_code == 0
+            assert "PRD saved to" in result.output
+            assert "Next steps" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_with_file_strips_whitespace(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that --file strips whitespace from file contents."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            feature_description = "Build a feature"
+            feature_file = initialized_project / "feature.txt"
+            # File has leading/trailing whitespace
+            feature_file.write_text(f"  \n  {feature_description}  \n  ")
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "--file", "feature.txt"])
+
+            # Verify the prompt includes the stripped feature description
+            call_args = mock_instance.run_print_mode.call_args
+            prompt = call_args[0][0]
+            assert feature_description in prompt
+            # Verify no leading/trailing whitespace
+            assert "  \n  Build a feature" not in prompt
+        finally:
+            os.chdir(original_cwd)
+
+
 class TestBuildNonInteractivePrdPrompt:
     """Tests for the _build_non_interactive_prd_prompt helper function."""
 

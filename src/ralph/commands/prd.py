@@ -29,13 +29,19 @@ def prd(
         "-i",
         help="Feature description for non-interactive PRD generation",
     ),
+    file: Path | None = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="File containing the feature description for non-interactive PRD generation",
+    ),
 ) -> None:
     """Create a PRD interactively with Claude.
 
     Launches Claude Code in interactive mode to help create a
     Product Requirements Document saved to plans/SPEC.md.
 
-    With --input, runs in non-interactive mode using the provided
+    With --input or --file, runs in non-interactive mode using the provided
     feature description.
 
     Claude will guide you through:
@@ -55,6 +61,19 @@ def prd(
     if output_path.exists():
         console.print(f"[bold yellow]Note:[/bold yellow] {output} already exists.")
         console.print("Claude will help you update or expand it.\n")
+
+    # Non-interactive mode when --file is provided
+    if file is not None:
+        file_path = project_root / file
+        if not file_path.exists():
+            print_error(f"File not found: {file}")
+            raise typer.Exit(1)
+        feature_description = file_path.read_text().strip()
+        if not feature_description:
+            print_error(f"File is empty: {file}")
+            raise typer.Exit(1)
+        _run_non_interactive(project_root, output_path, output, verbose, feature_description)
+        return
 
     # Non-interactive mode when --input is provided
     if input_text is not None:
