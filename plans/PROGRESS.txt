@@ -14,6 +14,31 @@
 
 ---
 
+## 2026-01-17 - US-005
+
+**Story:** Create file operation utilities
+
+### What was implemented
+- Created `src/ralph/utils/files.py` with file operation utilities
+- `ensure_dir(path)` - Creates directory and parents if they don't exist
+- `read_file(path, encoding)` - Reads file contents with configurable encoding
+- `write_file(path, content, encoding)` - Writes content to file, creates parent dirs
+- `append_file(path, content, encoding)` - Appends content, creates file if needed
+- `file_exists(path)` - Checks if path exists and is a file
+- `get_project_root()` - Walks up directory tree looking for project markers (pyproject.toml, package.json, go.mod, Cargo.toml, CLAUDE.md, .git)
+- Updated `utils/__init__.py` to export all new functions
+
+### Files changed
+- src/ralph/utils/files.py (new)
+- src/ralph/utils/__init__.py (modified)
+
+### Learnings for future iterations
+- Using `pathlib.Path` provides clean, cross-platform file operations
+- `Path.mkdir(parents=True, exist_ok=True)` is equivalent to `mkdir -p`
+- Always create parent directories when writing files to prevent errors
+
+---
+
 ## 2026-01-17 - US-004
 
 **Story:** Create Rich console utilities
