@@ -5,72 +5,11 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
 from ralph.commands.tasks import _build_tasks_prompt, _extract_json, _is_valid_json
 from ralph.services import ClaudeError
-
-
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    return tmp_path
-
-
-@pytest.fixture
-def initialized_project(temp_project: Path) -> Path:
-    """Create a temporary project with plans/ directory and SPEC.md.
-
-    Args:
-        temp_project: Temporary project directory.
-
-    Returns:
-        Path to the initialized project directory.
-    """
-    plans_dir = temp_project / "plans"
-    plans_dir.mkdir()
-
-    spec_file = plans_dir / "SPEC.md"
-    spec_file.write_text("# Feature Spec\n\nThis is a test specification.")
-
-    return temp_project
-
-
-@pytest.fixture
-def valid_tasks_json() -> str:
-    """Return a valid TASKS.json content string."""
-    tasks = {
-        "project": "TestProject",
-        "branchName": "ralph/test-feature",
-        "description": "Test feature description",
-        "userStories": [
-            {
-                "id": "US-001",
-                "title": "Test story",
-                "description": "As a user, I want to test",
-                "acceptanceCriteria": ["Criterion 1", "Typecheck passes"],
-                "priority": 1,
-                "passes": False,
-                "notes": "",
-            }
-        ],
-    }
-    return json.dumps(tasks)
 
 
 class TestTasksCommand:
@@ -115,16 +54,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_displays_informational_message(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks displays informational message."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -135,16 +74,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_launches_claude_in_print_mode(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks launches Claude Code in print mode."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -160,16 +99,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_includes_spec_content_in_prompt(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks includes spec content in the prompt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -184,12 +123,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_validates_claude_output(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_spec: Path
     ) -> None:
         """Test that tasks validates Claude output against Pydantic model."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             # Return invalid JSON that doesn't match the model
             invalid_json = json.dumps({"invalid": "structure"})
@@ -207,16 +146,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_saves_valid_output(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks saves valid output to TASKS.json."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -224,7 +163,7 @@ class TestTasksCommand:
             assert result.exit_code == 0
 
             # Verify file was created
-            tasks_file = initialized_project / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
             assert tasks_file.exists()
 
             # Verify content is valid JSON
@@ -235,16 +174,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_shows_success_message_with_story_count(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks shows success message with story count."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -256,12 +195,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_handles_nonzero_exit_code(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_spec: Path
     ) -> None:
         """Test that tasks handles non-zero exit code from Claude."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -275,11 +214,13 @@ class TestTasksCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_tasks_handles_claude_error(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_tasks_handles_claude_error(
+        self, runner: CliRunner, initialized_project_with_spec: Path
+    ) -> None:
         """Test that tasks handles ClaudeError gracefully."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -294,20 +235,20 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_notes_existing_tasks_json(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks notes when TASKS.json already exists."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             # Create existing TASKS.json
-            tasks_path = initialized_project / "plans" / "TASKS.json"
+            tasks_path = initialized_project_with_spec / "plans" / "TASKS.json"
             tasks_path.write_text("{}")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
@@ -318,18 +259,18 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_with_custom_output_path(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks accepts custom output path."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             custom_output = "plans/CUSTOM_TASKS.json"
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md", "--output", custom_output])
@@ -338,22 +279,22 @@ class TestTasksCommand:
             assert custom_output in result.output
 
             # Verify file was created at custom path
-            tasks_file = initialized_project / custom_output
+            tasks_file = initialized_project_with_spec / custom_output
             assert tasks_file.exists()
         finally:
             os.chdir(original_cwd)
 
     def test_tasks_with_verbose_flag(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks passes verbose flag to ClaudeService."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 runner.invoke(app, ["tasks", "plans/SPEC.md", "--verbose"])
@@ -365,16 +306,16 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_with_branch_name_flag(
-        self, runner: CliRunner, initialized_project: Path, valid_tasks_json: str
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
         """Test that tasks passes branch name to prompt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
                 mock_claude.return_value = mock_instance
 
                 runner.invoke(app, ["tasks", "plans/SPEC.md", "--branch", "ralph/custom-branch"])
@@ -388,12 +329,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_handles_no_json_in_output(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_spec: Path
     ) -> None:
         """Test that tasks handles Claude output with no valid JSON."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_spec)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()

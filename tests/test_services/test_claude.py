@@ -162,6 +162,106 @@ class TestRunPrintMode:
             mock_run.assert_called_once()
             assert mock_run.call_args[0][1] is True
 
+    def test_includes_skip_permissions_when_true(self) -> None:
+        """Test that --dangerously-skip-permissions is included when skip_permissions=True."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+
+    def test_excludes_skip_permissions_when_false(self) -> None:
+        """Test that --dangerously-skip-permissions is NOT included when skip_permissions=False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", skip_permissions=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_default_skip_permissions_is_false(self) -> None:
+        """Test that skip_permissions defaults to False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt")
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_includes_append_system_prompt_when_specified(self) -> None:
+        """Test that --append-system-prompt is included when append_system_prompt is provided."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", append_system_prompt="Do not ask for permission")
+
+            args = mock_run.call_args[0][0]
+            assert "--append-system-prompt" in args
+            asp_idx = args.index("--append-system-prompt")
+            assert args[asp_idx + 1] == "Do not ask for permission"
+
+    def test_excludes_append_system_prompt_when_none(self) -> None:
+        """Test that --append-system-prompt is NOT included when append_system_prompt is None."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", append_system_prompt=None)
+
+            args = mock_run.call_args[0][0]
+            assert "--append-system-prompt" not in args
+
+    def test_default_append_system_prompt_is_none(self) -> None:
+        """Test that append_system_prompt defaults to None."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt")
+
+            args = mock_run.call_args[0][0]
+            assert "--append-system-prompt" not in args
+
+    def test_includes_stream_json_format_when_streaming(self) -> None:
+        """Test that --output-format stream-json is included when stream=True."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--output-format" in args
+            fmt_idx = args.index("--output-format")
+            assert args[fmt_idx + 1] == "stream-json"
+
+    def test_excludes_stream_json_format_when_not_streaming(self) -> None:
+        """Test that --output-format stream-json is NOT included when stream=False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--output-format" not in args
+
 
 class TestRunWithOutputFormat:
     """Tests for run_with_output_format method."""
@@ -306,6 +406,188 @@ class TestRunProcess:
 
             assert output == "stdout content"
             assert code == 0
+
+    def test_streaming_passes_parse_json_to_stream_output(self) -> None:
+        """Test that _run_process passes parse_json to _stream_output when streaming."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.Popen"):
+            with patch.object(service, "_stream_output") as mock_stream:
+                mock_stream.return_value = ("output", "")
+
+                service._run_process(["claude", "-p", "test"], stream=True, parse_json=True)
+
+                # Verify parse_json was passed
+                mock_stream.assert_called_once()
+                call_kwargs = mock_stream.call_args.kwargs
+                assert call_kwargs.get("parse_json") is True
+
+
+class TestRunPrintModeStreamJsonParsing:
+    """Tests for run_print_mode stream-json parsing integration."""
+
+    def test_run_print_mode_passes_parse_json_when_streaming(self) -> None:
+        """Test that run_print_mode passes parse_json=True when stream=True."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            # Verify parse_json was passed as True
+            call_kwargs = mock_run.call_args.kwargs
+            assert call_kwargs.get("parse_json") is True
+
+    def test_run_print_mode_passes_parse_json_false_when_not_streaming(self) -> None:
+        """Test that run_print_mode passes parse_json=False when stream=False."""
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=False)
+
+            # Verify parse_json was passed as False
+            call_kwargs = mock_run.call_args.kwargs
+            assert call_kwargs.get("parse_json") is False
+
+
+class TestStreamOutput:
+    """Tests for _stream_output method."""
+
+    def test_stream_output_writes_lines_when_not_parsing(self) -> None:
+        """Test that _stream_output writes raw lines when parse_json=False."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        # Replace stdout with mock after initialization
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(["line1\n", "line2\n"])
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=False)
+
+        assert stdout_content == "line1\nline2\n"
+        # Verify lines were written
+        assert mock_stdout.write.call_count == 2
+        mock_stdout.write.assert_any_call("line1\n")
+        mock_stdout.write.assert_any_call("line2\n")
+
+    def test_stream_output_parses_json_when_enabled(self) -> None:
+        """Test that _stream_output parses JSON and extracts text when parse_json=True."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello "}}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"world"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "Hello world"
+        # Verify parsed text was written
+        mock_stdout.write.assert_any_call("Hello ")
+        mock_stdout.write.assert_any_call("world")
+
+    def test_stream_output_skips_non_text_events_when_parsing(self) -> None:
+        """Test that _stream_output skips non-text events when parse_json=True."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"tool_use","name":"Read"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"text"}}\n',
+                '{"type":"tool_result"}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "text"
+        # Should only have written once (the text event)
+        mock_stdout.write.assert_called_once_with("text")
+
+
+class TestParseStreamEvent:
+    """Tests for _parse_stream_event method."""
+
+    def test_parses_assistant_message_with_text(self) -> None:
+        """Test that assistant messages with text content are parsed."""
+        service = ClaudeService()
+
+        line = '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}'
+        result = service._parse_stream_event(line)
+
+        assert result == "Hello world"
+
+    def test_parses_content_block_delta(self) -> None:
+        """Test that content_block_delta events are parsed."""
+        service = ClaudeService()
+
+        line = '{"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk"}}'
+        result = service._parse_stream_event(line)
+
+        assert result == "chunk"
+
+    def test_returns_none_for_non_text_events(self) -> None:
+        """Test that non-text events return None."""
+        service = ClaudeService()
+
+        line = '{"type":"tool_use","name":"Read"}'
+        result = service._parse_stream_event(line)
+
+        assert result is None
+
+    def test_returns_none_for_invalid_json(self) -> None:
+        """Test that invalid JSON returns None."""
+        service = ClaudeService()
+
+        line = "not valid json"
+        result = service._parse_stream_event(line)
+
+        assert result is None
+
+    def test_returns_none_for_empty_content_array(self) -> None:
+        """Test that empty content array returns None."""
+        service = ClaudeService()
+
+        line = '{"type":"assistant","message":{"content":[]}}'
+        result = service._parse_stream_event(line)
+
+        assert result is None
+
+    def test_returns_none_for_non_text_content_type(self) -> None:
+        """Test that non-text content type returns None."""
+        service = ClaudeService()
+
+        line = '{"type":"assistant","message":{"content":[{"type":"tool_use"}]}}'
+        result = service._parse_stream_event(line)
+
+        assert result is None
+
+    def test_handles_missing_delta_type(self) -> None:
+        """Test that content_block_delta without text_delta type returns None."""
+        service = ClaudeService()
+
+        line = '{"type":"content_block_delta","delta":{"type":"other","data":"stuff"}}'
+        result = service._parse_stream_event(line)
+
+        assert result is None
 
 
 class TestClaudeError:

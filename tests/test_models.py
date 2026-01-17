@@ -220,6 +220,52 @@ class TestTasksFile:
                 ],
             )
 
+    def test_tasks_file_with_unicode_project_name(self) -> None:
+        """Test TasksFile accepts unicode characters in project name."""
+        tasks = TasksFile(
+            project="Проект テスト 项目 🚀",
+            branch_name="ralph/unicode-test",
+            description="Project with unicode characters",
+        )
+
+        assert tasks.project == "Проект テスト 项目 🚀"
+
+    def test_tasks_file_with_empty_user_stories_array(self) -> None:
+        """Test TasksFile with explicitly empty userStories array."""
+        tasks = TasksFile(
+            project="EmptyStoriesTest",
+            branch_name="ralph/empty-stories",
+            description="Testing empty stories array",
+            user_stories=[],
+        )
+
+        assert tasks.user_stories == []
+        assert len(tasks.user_stories) == 0
+
+    def test_tasks_file_with_very_long_description(self) -> None:
+        """Test TasksFile with a very long description."""
+        long_description = "A" * 10000
+        tasks = TasksFile(
+            project="LongDescTest",
+            branch_name="ralph/long-desc",
+            description=long_description,
+        )
+
+        assert len(tasks.description) == 10000
+
+    def test_user_story_with_many_acceptance_criteria(self) -> None:
+        """Test UserStory with a large number of acceptance criteria."""
+        many_criteria = [f"Criterion {i}" for i in range(100)]
+        story = UserStory(
+            id="US-100",
+            title="Many criteria story",
+            description="A story with many acceptance criteria",
+            acceptance_criteria=many_criteria,
+            priority=1,
+        )
+
+        assert len(story.acceptance_criteria) == 100
+
 
 class TestQualityCheck:
     """Tests for the QualityCheck model."""
