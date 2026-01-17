@@ -691,3 +691,72 @@
 - Round-trip tests (save then load) are valuable for verifying serialization consistency
 
 ---
+
+## 2026-01-17 - US-021
+
+**Story:** Add tests for Git service
+
+### What was implemented
+- Created `tests/test_services/test_git.py` with 31 comprehensive tests for GitService
+- Created pytest fixtures: `temp_git_repo` (creates isolated git repo) and `git_service` (GitService instance)
+- Test classes organized by method: TestGetCurrentBranch, TestGetDefaultBranch, TestBranchExists, TestCheckoutOrCreateBranch, TestCommit, TestHasChanges, TestStageFiles
+- Additional test classes: TestGitServiceRun (internal _run method), TestGitError, TestGitServiceWorkingDir
+
+### Tests written
+- `TestGetCurrentBranch` (3 tests): returns main, returns feature branch, raises for non-repo
+- `TestGetDefaultBranch` (3 tests): returns main, returns master when only master exists, defaults to main
+- `TestBranchExists` (2 tests): returns true for existing, false for nonexistent
+- `TestCheckoutOrCreateBranch` (4 tests): checks out existing, creates new from default, creates from specified base, raises for invalid base
+- `TestCommit` (4 tests): creates with message, creates with add_all, raises when nothing to commit, handles special characters
+- `TestHasChanges` (4 tests): returns false when clean, true with unstaged/untracked/staged changes
+- `TestStageFiles` (4 tests): stages single/multiple files, does nothing with empty list, raises for nonexistent
+- `TestGitServiceRun` (2 tests): raises for invalid command, does not raise with check=False
+- `TestGitError` (2 tests): stores message, is Exception subclass
+- `TestGitServiceWorkingDir` (3 tests): default is None, custom working_dir, working_dir used for commands
+
+### Files changed
+- tests/test_services/__init__.py (new)
+- tests/test_services/test_git.py (new)
+
+### Learnings for future iterations
+- Use `pytest.fixture` with `tmp_path` to create isolated git repos for testing
+- Configure git user.email and user.name in test fixtures to avoid commit failures
+- Use `git branch -M main` to ensure consistent branch naming across different git versions
+- The `temp_git_repo` fixture pattern can be reused for other tests needing git operations
+
+---
+
+## 2026-01-17 - US-022
+
+**Story:** Add tests for scaffold service
+
+### What was implemented
+- Created `tests/test_services/test_scaffold.py` with 42 comprehensive tests for ScaffoldService
+- Test classes organized by method/functionality:
+  - `TestProjectType` (1 test) - Tests enum values
+  - `TestDetectProjectType` (8 tests) - Tests project detection for Python, Node.js, Go, Rust
+  - `TestCreatePlansDirectory` (2 tests) - Tests plans/ directory creation
+  - `TestCreateSpecPlaceholder` (2 tests) - Tests SPEC.md creation and content
+  - `TestCreateTasksPlaceholder` (3 tests) - Tests TASKS.json creation and JSON validity
+  - `TestCreateProgressPlaceholder` (2 tests) - Tests PROGRESS.txt creation and structure
+  - `TestCreateClaudeMd` (9 tests) - Tests CLAUDE.md with project-specific quality checks
+  - `TestCreateAgentsMd` (5 tests) - Tests AGENTS.md creation and content
+  - `TestScaffoldAll` (3 tests) - Tests full scaffolding workflow
+  - `TestGetQualityChecksYaml` (5 tests) - Tests quality check YAML generation
+  - `TestScaffoldServiceModel` (2 tests) - Tests Pydantic model configuration
+
+### Tests written
+- 42 tests covering all ScaffoldService methods and ProjectType enum
+- Tests verify file creation, content structure, project type detection, and quality check templates
+- All tests use pytest's `tmp_path` fixture for isolated temporary directories
+
+### Files changed
+- tests/test_services/test_scaffold.py (new)
+- plans/TASKS.json (updated)
+
+### Learnings for future iterations
+- ScaffoldService uses Pydantic BaseModel with ConfigDict(arbitrary_types_allowed=True) for Path support
+- Quality check templates are project-type-specific and defined in _get_quality_checks_yaml()
+- Test organization by method/class mirrors the source structure for easy navigation
+
+---
