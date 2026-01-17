@@ -1052,3 +1052,53 @@
 - Use `json.loads(file.read_text())` in mocks to read current file state rather than referencing fixture data directly
 
 ---
+
+## 2026-01-17 - US-009
+
+**Story:** Integration tests for ralph prd automation
+
+### What was implemented
+- Created `tests/test_integration/test_prd_automation.py` with comprehensive integration tests
+- `TestPrdInputFlagIntegration` class: Tests for `ralph prd --input` flag
+- `TestPrdFileFlagIntegration` class: Tests for `ralph prd --file` flag
+- `TestPrdMutualExclusivityIntegration` class: Tests for mutual exclusivity of --input and --file
+- `TestPrdAutomationCompleteWorkflow` class: End-to-end workflow tests
+
+### Tests written
+- `TestPrdInputFlagIntegration` (7 tests):
+  - `test_prd_input_invokes_claude_in_print_mode` - verifies --print mode used
+  - `test_prd_input_displays_non_interactive_header` - verifies header display
+  - `test_prd_input_shows_feature_description` - verifies feature in output
+  - `test_prd_input_includes_feature_in_prompt` - verifies feature in prompt
+  - `test_prd_input_detects_file_modification` - verifies SPEC.md creation detection
+  - `test_prd_input_handles_claude_error` - verifies error handling
+  - `test_prd_input_handles_nonzero_exit_code` - verifies exit code handling
+- `TestPrdFileFlagIntegration` (8 tests):
+  - `test_prd_file_invokes_claude_in_print_mode` - verifies --print mode
+  - `test_prd_file_displays_non_interactive_header` - verifies header display
+  - `test_prd_file_reads_file_contents` - verifies file content used
+  - `test_prd_file_error_when_file_not_exists` - verifies missing file error
+  - `test_prd_file_error_when_file_empty` - verifies empty file error
+  - `test_prd_file_strips_whitespace` - verifies whitespace handling
+  - `test_prd_file_detects_file_modification` - verifies SPEC.md creation detection
+  - `test_prd_file_handles_claude_error` - verifies error handling
+- `TestPrdMutualExclusivityIntegration` (4 tests):
+  - `test_prd_error_when_both_input_and_file_provided` - verifies error message
+  - `test_prd_mutual_exclusivity_exits_nonzero` - verifies exit code 1
+  - `test_prd_mutual_exclusivity_does_not_call_claude` - verifies Claude not invoked
+  - `test_prd_mutual_exclusivity_shows_guidance` - verifies actionable guidance
+- `TestPrdAutomationCompleteWorkflow` (3 tests):
+  - `test_prd_input_complete_workflow_creates_spec` - end-to-end with --input
+  - `test_prd_file_complete_workflow_creates_spec` - end-to-end with --file
+  - `test_prd_input_updates_existing_spec` - verifies updating existing SPEC.md
+
+### Files changed
+- tests/test_integration/test_prd_automation.py (new)
+
+### Learnings for future iterations
+- Use `os.chdir()` with `try/finally` to ensure directory restoration in tests
+- Mock `subprocess.Popen` with callbacks that simulate file creation for file modification detection tests
+- Test both happy path (file created) and warning path (file not created) scenarios
+- Integration tests should verify the prompt content by extracting from captured args
+
+---
