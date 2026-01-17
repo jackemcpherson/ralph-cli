@@ -626,3 +626,38 @@
 - Include a quality checklist at the end for self-validation before output
 
 ---
+
+## 2026-01-17 - US-019
+
+**Story:** Create ralph-iteration skill definition
+
+### What was implemented
+- Created `skills/ralph-iteration/SKILL.md` with required YAML frontmatter (name, description)
+- Structured skill into 4 phases: Context Gathering, Story Implementation, Quality Verification, Completion
+- Phase 1 covers reading TASKS.json, PROGRESS.txt patterns, CLAUDE.md checks, and branch verification
+- Phase 2 covers understanding story, planning approach, implementing, writing tests, self-review
+- Phase 3 covers running quality checks, fix loop behavior (max 3 attempts), common issues table
+- Phase 4 covers commit message format, TASKS.json updates, PROGRESS.txt appending, memory file updates
+- Included detailed fix loop behavior with analyze/identify/fix/re-run cycle
+- Documented commit message format: `feat: [Story ID] - [Story Title]`
+- Added PROGRESS.txt format template with all required sections
+- Included guidance on updating Codebase Patterns section for reusable discoveries
+- Added CLAUDE.md/AGENTS.md update instructions (must stay in sync)
+- Documented stop condition with `<ralph>COMPLETE</ralph>` signal
+- Added error handling section for blocked/incomplete stories
+- Included file reference table for quick lookup
+
+### Tests written
+- No Python tests needed for this story (skill is a markdown instruction file)
+- Skill format validated by existing SkillsService tests (validates frontmatter parsing)
+
+### Files changed
+- skills/ralph-iteration/SKILL.md (new)
+
+### Learnings for future iterations
+- Skills should break complex workflows into clear phases for better agent understanding
+- Include concrete examples (commit messages, JSON updates) rather than abstract descriptions
+- Add error handling guidance so agents know what to do when blocked
+- A file reference table at the end provides quick lookup during execution
+
+---
