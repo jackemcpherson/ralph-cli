@@ -13,6 +13,33 @@
 
 ---
 
+## 2026-01-17 - US-003
+
+**Story:** Create configuration models and quality check parser
+
+### What was implemented
+- Created `src/ralph/models/config.py` with QualityCheck and QualityChecks Pydantic models
+- QualityCheck model includes: name, command, required (with default=True)
+- QualityChecks model contains a list of QualityCheck items
+- Implemented `parse_quality_checks()` to extract YAML between RALPH:CHECKS:START and RALPH:CHECKS:END markers using regex
+- Implemented `load_quality_checks()` helper to load directly from a file path
+- Parser returns empty QualityChecks on missing markers or malformed YAML (graceful degradation)
+- Added pyyaml>=6.0.0 dependency to pyproject.toml
+- Updated `models/__init__.py` to export all new public symbols
+
+### Files changed
+- src/ralph/models/config.py (new)
+- src/ralph/models/__init__.py (modified)
+- pyproject.toml (modified)
+- uv.lock (modified)
+
+### Learnings for future iterations
+- Use `yaml.safe_load()` for security when parsing untrusted YAML content
+- Regex with `re.DOTALL` flag is useful for matching across multiple lines
+- Return empty container models instead of None for graceful handling of missing/malformed data
+
+---
+
 ## 2026-01-17 - US-002
 
 **Story:** Create Pydantic models for TASKS.json
