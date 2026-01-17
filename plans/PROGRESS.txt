@@ -760,3 +760,37 @@
 - Test organization by method/class mirrors the source structure for easy navigation
 
 ---
+
+## 2026-01-17 - US-023
+
+**Story:** Add integration tests for CLI commands
+
+### What was implemented
+- Created `tests/test_cli.py` with comprehensive integration tests for the Ralph CLI
+- Test classes organized by functionality:
+  - `TestCliHelp` (5 tests): --help shows all commands, app description, version option, no args shows help, command-specific help
+  - `TestCliVersion` (3 tests): --version and -V flags, version format includes app name
+  - `TestInitIntegration` (4 tests): creates all ralph files, valid TASKS.json, CLAUDE.md with quality checks, --skip-claude flag
+  - `TestSyncIntegration` (4 tests): copies skills to target, custom skills directory, displays summary, handles missing skills directory
+  - `TestCommandsExist` (6 tests): verifies all commands are registered (init, prd, tasks, once, loop, sync)
+  - `TestErrorHandling` (3 tests): unknown command error, invalid option error, tasks without file error
+
+### Tests written
+- 25 tests total covering:
+  - CLI help and version display
+  - Integration tests for init command (file creation, JSON validity, quality check markers)
+  - Integration tests for sync command (skill copying, custom directories, summaries)
+  - Command registration verification for all 6 commands
+  - Error handling for invalid commands and options
+
+### Files changed
+- tests/test_cli.py (new)
+- plans/TASKS.json (updated)
+
+### Learnings for future iterations
+- Typer's `no_args_is_help=True` returns exit code 2, not 0 - test for this explicitly
+- Use `CliRunner` from `typer.testing` for testing CLI commands
+- Integration tests should verify both file creation and file content validity
+- Test command registration by checking `--help` output for each command
+
+---

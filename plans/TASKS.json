@@ -381,8 +381,8 @@
         "Tests pass"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created tests/test_cli.py with 25 tests covering CLI help, version, init integration, sync integration, command registration, and error handling."
     }
   ]
 }
