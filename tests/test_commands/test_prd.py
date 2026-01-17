@@ -18,25 +18,6 @@ from ralph.services import ClaudeError
 
 
 @pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
-
-
-@pytest.fixture
-def temp_project(tmp_path: Path) -> Path:
-    """Create a temporary project directory.
-
-    Args:
-        tmp_path: pytest's built-in tmp_path fixture.
-
-    Returns:
-        Path to the temporary project directory.
-    """
-    return tmp_path
-
-
-@pytest.fixture
 def initialized_project(temp_project: Path) -> Path:
     """Create a temporary project with plans/ directory.
 
