@@ -346,5 +346,5 @@ cd ../pomodoro-timer-cli && uv run pomodoro stats
 ---
 
 *Test completed: 2026-01-18*
-*Ralph CLI version: 1.0.1*
+*Ralph CLI version: 1.1.0*
 *Test project: pomodoro-timer-cli*
