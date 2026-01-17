@@ -181,8 +181,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Uses ScaffoldService for file creation. Added --force, --skip-claude, and --name options."
     },
     {
       "id": "US-012",
