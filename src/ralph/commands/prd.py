@@ -5,6 +5,7 @@ an interactive session with Claude to create a PRD.
 """
 
 import logging
+import os
 from pathlib import Path
 
 import typer
@@ -13,6 +14,47 @@ from ralph.services import ClaudeError, ClaudeService
 from ralph.utils import console, print_error, print_success, print_warning
 
 logger = logging.getLogger(__name__)
+
+
+def _get_file_mtime(path: Path) -> float | None:
+    """Get the modification time of a file, or None if it doesn't exist.
+
+    Args:
+        path: Path to the file.
+
+    Returns:
+        The mtime as a float, or None if the file doesn't exist.
+    """
+    if path.exists():
+        return os.path.getmtime(path)
+    return None
+
+
+def _check_file_modified(
+    output_path: Path,
+    output: Path,
+    mtime_before: float | None,
+) -> None:
+    """Check if the output file was created or modified and display appropriate message.
+
+    Args:
+        output_path: Full path to the output file.
+        output: Relative output path for display.
+        mtime_before: The mtime of the file before Claude ran, or None if it didn't exist.
+    """
+    mtime_after = _get_file_mtime(output_path)
+
+    # File was created or modified
+    if mtime_after is not None and (mtime_before is None or mtime_after > mtime_before):
+        print_success(f"PRD saved to {output}")
+        console.print()
+        console.print("[bold]Next steps:[/bold]")
+        console.print("  1. Review the PRD in [cyan]plans/SPEC.md[/cyan]")
+        console.print("  2. Generate tasks: [cyan]ralph tasks plans/SPEC.md[/cyan]")
+    else:
+        # File was not created or not modified
+        print_warning(f"PRD file was not modified at {output}")
+        console.print("[dim]The session may have been cancelled or no changes were made.[/dim]")
 
 
 def prd(
@@ -104,21 +146,16 @@ def prd(
 
     prompt = _build_prd_prompt(output_path)
 
+    # Record mtime before Claude runs
+    mtime_before = _get_file_mtime(output_path)
+
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
         exit_code = claude.run_interactive(prompt)
 
         if exit_code == 0:
             console.print()
-            if output_path.exists():
-                print_success(f"PRD saved to {output}")
-                console.print()
-                console.print("[bold]Next steps:[/bold]")
-                console.print("  1. Review the PRD in [cyan]plans/SPEC.md[/cyan]")
-                console.print("  2. Generate tasks: [cyan]ralph tasks plans/SPEC.md[/cyan]")
-            else:
-                print_warning(f"PRD file was not created at {output}")
-                console.print("[dim]The session may have been cancelled.[/dim]")
+            _check_file_modified(output_path, output, mtime_before)
         else:
             print_warning("Claude Code exited with non-zero status.")
             raise typer.Exit(exit_code)
@@ -157,20 +194,16 @@ def _run_non_interactive(
 
     prompt = _build_non_interactive_prd_prompt(output_path, feature_description)
 
+    # Record mtime before Claude runs
+    mtime_before = _get_file_mtime(output_path)
+
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
         _, exit_code = claude.run_print_mode(prompt)
 
         if exit_code == 0:
             console.print()
-            if output_path.exists():
-                print_success(f"PRD saved to {output}")
-                console.print()
-                console.print("[bold]Next steps:[/bold]")
-                console.print("  1. Review the PRD in [cyan]plans/SPEC.md[/cyan]")
-                console.print("  2. Generate tasks: [cyan]ralph tasks plans/SPEC.md[/cyan]")
-            else:
-                print_warning(f"PRD file was not created at {output}")
+            _check_file_modified(output_path, output, mtime_before)
         else:
             print_warning("Claude Code exited with non-zero status.")
             raise typer.Exit(exit_code)
