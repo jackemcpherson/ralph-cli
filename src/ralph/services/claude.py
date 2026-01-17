@@ -163,6 +163,7 @@ class ClaudeService(BaseModel):
         max_turns: int | None = None,
         system_prompt: str | None = None,
         allowed_tools: list[str] | None = None,
+        skip_permissions: bool = False,
     ) -> tuple[str, int]:
         """Run Claude Code in print mode (-p flag).
 
@@ -176,6 +177,7 @@ class ClaudeService(BaseModel):
             max_turns: Optional maximum number of agentic turns.
             system_prompt: Optional system prompt to use.
             allowed_tools: Optional list of allowed tools.
+            skip_permissions: Whether to skip permission prompts (default: False).
 
         Returns:
             Tuple of (output_text, exit_code).
@@ -185,6 +187,9 @@ class ClaudeService(BaseModel):
         """
         args = self._build_base_args()
         args.extend(["--print", prompt])
+
+        if skip_permissions:
+            args.append("--dangerously-skip-permissions")
 
         if model:
             args.extend(["--model", model])
