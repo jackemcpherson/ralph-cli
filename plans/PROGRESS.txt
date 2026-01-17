@@ -337,3 +337,46 @@
 - Use `Path.relative_to()` to display clean paths in output
 
 ---
+
+## 2026-01-17 - US-012
+
+**Story:** Implement ralph prd command
+
+### What was implemented
+- Implemented full `ralph prd` command in `src/ralph/commands/prd.py`
+- Displays informational message before launching Claude (tips for good PRD session)
+- Launches Claude Code in interactive mode with a structured PRD prompt
+- Prompt includes PRD structure guidance: Overview, Goals, Non-Goals, Requirements, Technical Considerations, Success Criteria
+- Added `--output` flag to customize output path (default: plans/SPEC.md)
+- Added `--verbose` flag for verbose Claude output
+- Checks for plans/ directory existence before launching
+- Notes when SPEC.md already exists (update vs create)
+- Shows success message with next steps when PRD is created
+- Handles errors gracefully (non-zero exit, ClaudeError)
+
+### Tests written
+- `tests/test_commands/test_prd.py` with 15 tests:
+  - `test_prd_requires_plans_directory` - verifies plans/ check
+  - `test_prd_displays_informational_message` - verifies tips display
+  - `test_prd_launches_claude_interactively` - verifies ClaudeService usage
+  - `test_prd_includes_prd_prompt` - verifies prompt structure
+  - `test_prd_shows_output_path` - verifies output path display
+  - `test_prd_success_with_file_created` - verifies success handling
+  - `test_prd_warning_when_file_not_created` - verifies cancelled session handling
+  - `test_prd_handles_nonzero_exit_code` - verifies exit code handling
+  - `test_prd_handles_claude_error` - verifies ClaudeError handling
+  - `test_prd_notes_existing_spec` - verifies existing file note
+  - `test_prd_with_custom_output_path` - verifies --output flag
+  - `test_prd_with_verbose_flag` - verifies --verbose flag
+  - Tests for `_build_prd_prompt` helper function
+
+### Files changed
+- src/ralph/commands/prd.py (modified)
+- tests/test_commands/test_prd.py (new)
+
+### Learnings for future iterations
+- Use `_build_prd_prompt()` helper to keep prompt construction testable
+- Check for prerequisite directories (like plans/) before launching interactive sessions
+- Display helpful tips before launching interactive Claude sessions to improve UX
+
+---
