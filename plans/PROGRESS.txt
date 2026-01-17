@@ -436,3 +436,53 @@
 - Pydantic `model_validate_json()` directly validates JSON strings without intermediate dict
 
 ---
+
+## 2026-01-17 - US-014
+
+**Story:** Implement ralph once command
+
+### What was implemented
+- Full `ralph once` command implementation in `src/ralph/commands/once.py`
+- `ITERATION_PROMPT` constant with comprehensive iteration instructions for Claude
+- `_find_next_story()` helper to find highest-priority incomplete story
+- `_build_iteration_prompt()` helper to format story details into prompt
+- `_append_cli_summary()` helper to append minimal CLI summary to PROGRESS.txt
+- Load TASKS.json and validate structure using Pydantic models
+- Exit with "All stories complete" when no incomplete stories remain
+- Invoke Claude Code in print mode with streaming output
+- Support `--verbose` flag for full JSON output
+- Support `--max-fix-attempts` flag (default: 3) passed to iteration prompt
+- Detect story completion by re-reading TASKS.json after Claude runs
+- Display iteration summary with success/failure status
+- Detect `<ralph>COMPLETE</ralph>` signal when all stories complete
+
+### Tests written
+- `tests/test_commands/test_once.py` with 19 tests:
+  - `TestOnceCommand` class (12 tests):
+    - `test_once_requires_tasks_json` - verifies TASKS.json requirement
+    - `test_once_displays_story_info` - verifies story display
+    - `test_once_picks_highest_priority_incomplete_story` - verifies priority logic
+    - `test_once_exits_when_all_stories_complete` - verifies completion handling
+    - `test_once_runs_claude_in_print_mode` - verifies Claude invocation
+    - `test_once_handles_claude_error` - verifies error handling
+    - `test_once_shows_remaining_count` - verifies progress display
+    - `test_once_detects_all_complete_signal` - verifies COMPLETE detection
+    - `test_once_with_verbose_flag` - verifies --verbose flag
+    - `test_once_includes_max_fix_attempts_in_prompt` - verifies --max-fix-attempts
+    - `test_once_detects_story_passed` - verifies success detection
+    - `test_once_handles_invalid_tasks_json` - verifies error handling
+  - `TestFindNextStory` class (3 tests) for _find_next_story helper
+  - `TestBuildIterationPrompt` class (4 tests) for _build_iteration_prompt helper
+
+### Files changed
+- src/ralph/commands/once.py (modified - full implementation)
+- tests/test_commands/test_once.py (new)
+
+### Learnings for future iterations
+- Use `datetime.UTC` instead of `timezone.utc` (ruff UP017)
+- Initialize variables before try blocks to avoid "possibly unbound" pyright errors
+- Use backslash continuation for long lines in multiline strings to satisfy ruff E501
+- Re-read TASKS.json after Claude runs to detect if the story was marked as passed
+- The `<ralph>COMPLETE</ralph>` signal indicates all stories are complete
+
+---
