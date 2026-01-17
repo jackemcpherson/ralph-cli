@@ -106,7 +106,7 @@
         "Tests verify detection logic for both scenarios"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "FR-FIX-03. Modify src/ralph/commands/prd.py"
     },
     {
