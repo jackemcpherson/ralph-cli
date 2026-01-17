@@ -841,3 +841,26 @@
 - Use Rich markup `[dim]` for informational messages that shouldn't distract from main output
 
 ---
+
+## 2026-01-17 - US-003
+
+**Story:** Enable skip_permissions in ralph loop command
+
+### What was implemented
+- Added `skip_permissions=True` to `run_print_mode()` call in `loop.py`
+- Added one-time info message: "Running Claude with auto-approved permissions for autonomous iteration"
+- Message is displayed once at the start of the loop, before iterations begin
+
+### Tests written
+- `test_loop_passes_skip_permissions_true` - verifies `skip_permissions=True` is passed to `run_print_mode()`
+- `test_loop_displays_permissions_message` - verifies the info message is displayed
+
+### Files changed
+- src/ralph/commands/loop.py (modified)
+- tests/test_commands/test_loop.py (modified)
+
+### Learnings for future iterations
+- The one-time info message should appear before the loop starts, not per-iteration
+- Reuse the same message text as `once.py` for consistency across commands
+
+---
