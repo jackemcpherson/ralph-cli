@@ -51,27 +51,20 @@ def init(
     console.print()
     console.print("[bold]Creating Ralph workflow files...[/bold]")
 
-    # Preserve existing CHANGELOG.md content (never overwrite - it's persistent memory)
-    changelog_path = project_root / "CHANGELOG.md"
-    changelog_existed = changelog_path.exists()
-    changelog_content: str | None = None
-    if changelog_existed:
-        changelog_content = changelog_path.read_text()
-
-    created_files = scaffold.scaffold_all(project_name=project_name)
-
-    # Restore CHANGELOG.md if it existed
-    if changelog_existed and changelog_content is not None:
-        changelog_path.write_text(changelog_content)
+    # Skip CHANGELOG.md creation if it already exists (it's persistent memory)
+    changelog_existed = (project_root / "CHANGELOG.md").exists()
+    created_files = scaffold.scaffold_all(
+        project_name=project_name, skip_changelog=changelog_existed
+    )
 
     for file_type, path in created_files.items():
         if file_type == "plans_dir":
             continue
-        if file_type == "changelog" and changelog_existed:
-            console.print("[dim]  Skipped CHANGELOG.md (already exists)[/dim]")
-            continue
         relative_path = path.relative_to(project_root)
         print_success(f"Created {relative_path}")
+
+    if changelog_existed:
+        console.print("[dim]  Skipped CHANGELOG.md (already exists)[/dim]")
 
     if not skip_claude:
         console.print()
@@ -124,9 +117,4 @@ def _check_existing_files(project_root: Path) -> list[str]:
         "CHANGELOG.md",
     ]
 
-    existing = []
-    for file_path in files_to_check:
-        if (project_root / file_path).exists():
-            existing.append(file_path)
-
-    return existing
+    return [f for f in files_to_check if (project_root / f).exists()]

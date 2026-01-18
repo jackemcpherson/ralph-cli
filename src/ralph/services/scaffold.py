@@ -15,6 +15,50 @@ from ralph.utils import ensure_dir, write_file
 logger = logging.getLogger(__name__)
 
 
+# Template for fresh PROGRESS.txt file
+PROGRESS_TEMPLATE = """# Ralph Progress Log
+
+## Codebase Patterns
+
+(Add reusable patterns discovered during iterations here)
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+"""
+
+# Guidelines for CHANGELOG.md (shared between CLAUDE.md and AGENTS.md)
+CHANGELOG_GUIDELINES = """## CHANGELOG.md
+
+This project maintains a CHANGELOG.md for persistent memory across feature cycles.
+
+**When to update:**
+- New features or capabilities added
+- Bug fixes that affect user-facing behavior
+- Breaking changes or API modifications
+- Performance improvements with measurable impact
+- Security fixes
+- Deprecations of existing functionality
+
+**When NOT to update:**
+- Internal refactoring with no behavior change
+- Test additions or modifications
+- Documentation-only changes
+- Code style/formatting changes
+- Dependency updates (unless they fix security issues or change behavior)
+- Work-in-progress commits during a feature branch
+
+**How to update:**
+1. Add entries under the `[Unreleased]` section
+2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
+3. Write entries from the user's perspective (what changed for them)
+4. Be concise but specific (include context like file names or feature areas)"""
+
+
 class ProjectType(Enum):
     """Detected project type based on marker files.
 
@@ -170,21 +214,7 @@ class ScaffoldService(BaseModel):
             Path to the created PROGRESS.txt file.
         """
         progress_path = self.project_root / "plans" / "PROGRESS.txt"
-        content = """# Ralph Progress Log
-
-## Codebase Patterns
-
-(Add reusable patterns discovered during iterations here)
-
----
-
-## Log
-
-(Iteration entries will be appended below)
-
----
-"""
-        write_file(progress_path, content)
+        write_file(progress_path, PROGRESS_TEMPLATE)
         return progress_path
 
     def create_claude_md(self, project_name: str | None = None) -> Path:
@@ -249,31 +279,7 @@ Run all checks before committing. Fix any failures before proceeding.
 
 [Add discovered patterns here as you iterate]
 
-## CHANGELOG.md
-
-This project maintains a CHANGELOG.md for persistent memory across feature cycles.
-
-**When to update:**
-- New features or capabilities added
-- Bug fixes that affect user-facing behavior
-- Breaking changes or API modifications
-- Performance improvements with measurable impact
-- Security fixes
-- Deprecations of existing functionality
-
-**When NOT to update:**
-- Internal refactoring with no behavior change
-- Test additions or modifications
-- Documentation-only changes
-- Code style/formatting changes
-- Dependency updates (unless they fix security issues or change behavior)
-- Work-in-progress commits during a feature branch
-
-**How to update:**
-1. Add entries under the `[Unreleased]` section
-2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
-3. Write entries from the user's perspective (what changed for them)
-4. Be concise but specific (include context like file names or feature areas)
+{CHANGELOG_GUIDELINES}
 
 ## Project-Specific Instructions
 
@@ -364,31 +370,7 @@ This project uses the Ralph autonomous iteration pattern.
 
 [Add discovered patterns here as you iterate]
 
-## CHANGELOG.md
-
-This project maintains a CHANGELOG.md for persistent memory across feature cycles.
-
-**When to update:**
-- New features or capabilities added
-- Bug fixes that affect user-facing behavior
-- Breaking changes or API modifications
-- Performance improvements with measurable impact
-- Security fixes
-- Deprecations of existing functionality
-
-**When NOT to update:**
-- Internal refactoring with no behavior change
-- Test additions or modifications
-- Documentation-only changes
-- Code style/formatting changes
-- Dependency updates (unless they fix security issues or change behavior)
-- Work-in-progress commits during a feature branch
-
-**How to update:**
-1. Add entries under the `[Unreleased]` section
-2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
-3. Write entries from the user's perspective (what changed for them)
-4. Be concise but specific (include context like file names or feature areas)
+{CHANGELOG_GUIDELINES}
 
 ## Guidelines
 
@@ -401,26 +383,33 @@ This project maintains a CHANGELOG.md for persistent memory across feature cycle
         write_file(agents_md_path, content)
         return agents_md_path
 
-    def scaffold_all(self, project_name: str | None = None) -> dict[str, Path]:
+    def scaffold_all(
+        self, project_name: str | None = None, skip_changelog: bool = False
+    ) -> dict[str, Path]:
         """Create all Ralph workflow files.
 
         Args:
             project_name: Optional project name (defaults to directory name).
+            skip_changelog: If True, skip creating CHANGELOG.md (e.g., if it already exists).
 
         Returns:
             Dictionary mapping file type to created path.
         """
         self.create_plans_directory()
 
-        return {
+        result: dict[str, Path] = {
             "plans_dir": self.project_root / "plans",
             "spec": self.create_spec_placeholder(),
             "tasks": self.create_tasks_placeholder(),
             "progress": self.create_progress_placeholder(),
             "claude_md": self.create_claude_md(project_name),
             "agents_md": self.create_agents_md(project_name),
-            "changelog": self.create_changelog(),
         }
+
+        if not skip_changelog:
+            result["changelog"] = self.create_changelog()
+
+        return result
 
     def _get_quality_checks_yaml(self, project_type: ProjectType) -> str:
         """Get the quality checks YAML block for a project type.

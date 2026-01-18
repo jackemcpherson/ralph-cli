@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from ralph.models import TasksFile, save_tasks
 from ralph.services import ClaudeError, ClaudeService
+from ralph.services.scaffold import PROGRESS_TEMPLATE
 from ralph.utils import console, print_error, print_success, read_file, write_file
 
 logger = logging.getLogger(__name__)
@@ -248,23 +249,6 @@ def _is_valid_json(text: str) -> bool:
         return True
     except json.JSONDecodeError:
         return False
-
-
-# Template for fresh PROGRESS.txt file (matches scaffold.py)
-PROGRESS_TEMPLATE = """# Ralph Progress Log
-
-## Codebase Patterns
-
-(Add reusable patterns discovered during iterations here)
-
----
-
-## Log
-
-(Iteration entries will be appended below)
-
----
-"""
 
 
 def _archive_progress_file(project_root: Path) -> Path | None:
