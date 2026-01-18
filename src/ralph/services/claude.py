@@ -15,6 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
+# Sentinel value to indicate a message boundary (end of an assistant turn)
+MESSAGE_BOUNDARY = "\n"
+
 
 class ClaudeError(Exception):
     """Exception raised for Claude Code operation failures.
@@ -45,22 +48,32 @@ class ClaudeService(BaseModel):
             line: A single line from stream-json output.
 
         Returns:
-            Extracted text for display, or None if no displayable text.
+            Extracted text for display, MESSAGE_BOUNDARY for message end,
+            or None if no displayable text.
         """
         try:
             event = json.loads(line)
+            event_type = event.get("type")
+
+            # Detect message boundaries - end of assistant turn
+            # These event types indicate a complete message has been sent
+            if event_type in ("message_stop", "result"):
+                return MESSAGE_BOUNDARY
+
             # Extract text from assistant message events
-            if event.get("type") == "assistant":
+            if event_type == "assistant":
                 message = event.get("message", {})
                 content = message.get("content", [])
                 for block in content:
                     if block.get("type") == "text":
                         return block.get("text", "")
+
             # Also handle content_block_delta events for streaming text
-            if event.get("type") == "content_block_delta":
+            if event_type == "content_block_delta":
                 delta = event.get("delta", {})
                 if delta.get("type") == "text_delta":
                     return delta.get("text", "")
+
         except json.JSONDecodeError:
             pass
         return None

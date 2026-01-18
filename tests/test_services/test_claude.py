@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ralph.services.claude import ClaudeError, ClaudeService
+from ralph.services.claude import MESSAGE_BOUNDARY, ClaudeError, ClaudeService
 
 
 class TestClaudeServiceInit:
@@ -629,6 +629,125 @@ class TestParseStreamEvent:
         result = service._parse_stream_event(line)
 
         assert result is None
+
+    def test_returns_message_boundary_for_message_stop(self) -> None:
+        """Test that message_stop events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"message_stop"}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
+    def test_returns_message_boundary_for_result(self) -> None:
+        """Test that result events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"result","subtype":"success","result":{}}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
+    def test_message_boundary_is_newline(self) -> None:
+        """Test that MESSAGE_BOUNDARY is a newline character."""
+        assert MESSAGE_BOUNDARY == "\n"
+
+
+class TestStreamOutputMessageBoundary:
+    """Tests for _stream_output message boundary handling."""
+
+    def test_stream_output_adds_newline_at_message_boundary(self) -> None:
+        """Test that _stream_output adds a newline when encountering message_stop."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"World"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should include the newline between messages
+        assert stdout_content == "Hello\nWorld"
+        # Verify write calls
+        assert mock_stdout.write.call_count == 3
+        mock_stdout.write.assert_any_call("Hello")
+        mock_stdout.write.assert_any_call("\n")
+        mock_stdout.write.assert_any_call("World")
+
+    def test_stream_output_adds_newline_at_result_boundary(self) -> None:
+        """Test that _stream_output adds a newline when encountering result event."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"First"}}\n',
+                '{"type":"result","subtype":"success"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Second"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "First\nSecond"
+
+    def test_stream_output_preserves_inline_text_flow(self) -> None:
+        """Test that inline text within a single message flows without extra newlines."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part1 "}}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part2 "}}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part3"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should be concatenated without extra newlines
+        assert stdout_content == "Part1 Part2 Part3"
+
+    def test_stream_output_multiple_message_boundaries(self) -> None:
+        """Test that multiple message boundaries each add a newline."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg1"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg2"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg3"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "Msg1\nMsg2\nMsg3"
 
 
 class TestClaudeError:
