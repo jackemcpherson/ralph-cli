@@ -123,8 +123,28 @@ class TestParseStreamEventNewlineMarkers:
     """Tests for _parse_stream_event() newline marker behavior.
 
     Bug fix: US-002 - Add newlines between message blocks in output.
-    The parser should return MESSAGE_BOUNDARY for message_stop and result events.
+    Bug fix: Issue #6 - Output formatting with newlines between content blocks.
+
+    The parser should return MESSAGE_BOUNDARY for:
+    - content_block_stop: end of each content block within a message
+    - message_stop: end of the entire message
+    - result: end of the conversation
     """
+
+    def test_content_block_stop_returns_newline_marker(self) -> None:
+        """Test that content_block_stop events return MESSAGE_BOUNDARY.
+
+        This is the key fix for issue #6 - content_block_stop fires after each
+        content block (text, tool_use), enabling proper newlines between
+        Claude's thoughts within a single message.
+        """
+        service = ClaudeService()
+
+        line = '{"type":"content_block_stop","index":0}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+        assert result == "\n"
 
     def test_message_stop_returns_newline_marker(self) -> None:
         """Test that message_stop events return MESSAGE_BOUNDARY."""
@@ -214,6 +234,53 @@ class TestParseStreamEventNewlineMarkers:
         assert stdout_content == "First\nSecond"
         # Verify the newline was written
         mock_stdout.write.assert_any_call("\n")
+
+    def test_stream_output_writes_newline_at_content_block_stop(self) -> None:
+        """Test that _stream_output writes newlines at content_block_stop.
+
+        Issue #6 fix: Multiple content blocks within a single message should be
+        separated by newlines. The stream-json format emits content_block_stop
+        after each block (text or tool_use), which triggers the newline.
+
+        Example stream structure:
+        content_block_start (text)
+        content_block_delta (text: "I'll check...")
+        content_block_stop     <- newline here
+        content_block_start (tool_use)
+        content_block_delta (tool input)
+        content_block_stop     <- newline here
+        """
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        # Realistic scenario: text block, then tool use, then more text
+        mock_process = MagicMock()
+        evt1 = '{"type":"content_block_delta",'
+        evt1 += '"delta":{"type":"text_delta","text":"Let me check."}}\n'
+        evt2 = '{"type":"content_block_stop","index":0}\n'
+        evt3 = '{"type":"content_block_start","index":1,'
+        evt3 += '"content_block":{"type":"tool_use"}}\n'
+        evt4 = '{"type":"content_block_stop","index":1}\n'
+        evt5 = '{"type":"content_block_delta",'
+        evt5 += '"delta":{"type":"text_delta","text":"Now implementing."}}\n'
+        evt6 = '{"type":"content_block_stop","index":2}\n'
+        mock_process.stdout = iter([evt1, evt2, evt3, evt4, evt5, evt6])
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Expected output with newlines between content blocks
+        # 3 content_block_stop events = 3 newlines
+        expected = "Let me check.\n\nNow implementing.\n"
+        assert stdout_content == expected
+
+        # Verify structure: text, newline, newline, text, newline
+        calls = [call[0][0] for call in mock_stdout.write.call_args_list]
+        assert "Let me check." in calls
+        assert "Now implementing." in calls
+        assert calls.count("\n") == 3  # 3 content_block_stop events
 
 
 class TestRunInteractiveSkipPermissions:

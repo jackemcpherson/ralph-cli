@@ -679,6 +679,15 @@ class TestParseStreamEvent:
 
         assert result is None
 
+    def test_returns_message_boundary_for_content_block_stop(self) -> None:
+        """Test that content_block_stop events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"content_block_stop","index":0}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
     def test_returns_message_boundary_for_message_stop(self) -> None:
         """Test that message_stop events return MESSAGE_BOUNDARY."""
         service = ClaudeService()
@@ -731,6 +740,36 @@ class TestStreamOutputMessageBoundary:
         mock_stdout.write.assert_any_call("Hello")
         mock_stdout.write.assert_any_call("\n")
         mock_stdout.write.assert_any_call("World")
+
+    def test_stream_output_adds_newline_at_content_block_stop(self) -> None:
+        """Test that _stream_output adds a newline when encountering content_block_stop.
+
+        This is the key fix for issue #6 - newlines between content blocks within
+        the same message, not just between separate messages.
+        """
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        event1 = '{"type":"content_block_delta",'
+        event1 += '"delta":{"type":"text_delta","text":"First thought"}}\n'
+        event2 = '{"type":"content_block_stop","index":0}\n'
+        event3 = '{"type":"content_block_delta",'
+        event3 += '"delta":{"type":"text_delta","text":"Second thought"}}\n'
+        event4 = '{"type":"content_block_stop","index":1}\n'
+        mock_process.stdout = iter([event1, event2, event3, event4])
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should have newlines between content blocks
+        assert stdout_content == "First thought\nSecond thought\n"
+        # Verify write calls
+        mock_stdout.write.assert_any_call("First thought")
+        mock_stdout.write.assert_any_call("\n")
+        mock_stdout.write.assert_any_call("Second thought")
 
     def test_stream_output_adds_newline_at_result_boundary(self) -> None:
         """Test that _stream_output adds a newline when encountering result event."""

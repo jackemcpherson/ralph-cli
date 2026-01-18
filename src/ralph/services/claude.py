@@ -55,9 +55,11 @@ class ClaudeService(BaseModel):
             event = json.loads(line)
             event_type = event.get("type")
 
-            # Detect message boundaries - end of assistant turn
-            # These event types indicate a complete message has been sent
-            if event_type in ("message_stop", "result"):
+            # Detect message boundaries - end of content block or assistant turn
+            # content_block_stop fires after each content block (text, tool_use)
+            # message_stop fires at the end of the entire message
+            # result fires at the end of the conversation
+            if event_type in ("content_block_stop", "message_stop", "result"):
                 return MESSAGE_BOUNDARY
 
             # Extract text from assistant message events

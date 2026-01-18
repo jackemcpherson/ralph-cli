@@ -32,7 +32,7 @@
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Issue #6. Fixed by detecting message_stop and result events and returning MESSAGE_BOUNDARY newline."
+      "notes": "Issue #6. Fixed by detecting content_block_stop, message_stop, and result events and returning MESSAGE_BOUNDARY newline. v1.2.1 added content_block_stop detection to properly handle newlines between content blocks within the same message."
     },
     {
       "id": "US-003",
@@ -135,8 +135,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Add tests to tests/ directory"
+      "passes": true,
+      "notes": "Added tests/test_bug_fixes.py with 31 comprehensive tests covering: streaming verbose behavior (6 tests), newline markers (8 tests), skip_permissions (6 tests), archival timestamp (9 tests), and integration (2 tests)."
     },
     {
       "id": "US-010",
@@ -151,8 +151,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Add integration tests to tests/ directory"
+      "passes": true,
+      "notes": "Added tests/test_integration/test_command_integration.py with 19 integration tests: TestOnceCommandWithoutVerboseFlag (4), TestLoopCommandWithoutVerboseFlag (4), TestTasksCommandStreaming (3), TestInitCommandChangelogCreation (5), TestMessageBoundaryNewlines (1), TestSkipPermissionsIntegration (2). All 565 tests pass."
     }
   ]
 }
