@@ -1102,3 +1102,426 @@
 - Integration tests should verify the prompt content by extracting from captured args
 
 ---
+
+## 2026-01-18 - US-001
+
+**Story:** Fix stream-json requires verbose flag
+
+### What was implemented
+- Added conditional `--verbose` flag in `run_print_mode()` when `stream=True`
+- The stream-json output format requires the `--verbose` flag to work properly
+- The code checks if `--verbose` is already in args to avoid duplication when `self.verbose=True`
+- In non-verbose mode, stream-json is parsed and only text content is displayed (via existing `parse_json` logic)
+- In verbose mode, full JSON stream is displayed (current behavior preserved)
+
+### Tests written
+- `test_includes_verbose_when_streaming` - verifies --verbose is always included when stream=True
+- `test_excludes_verbose_when_not_streaming_and_not_verbose` - verifies --verbose is NOT included when stream=False and verbose=False
+- `test_does_not_duplicate_verbose_when_already_set` - verifies --verbose is not duplicated when service.verbose=True and stream=True
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The `--output-format stream-json` requires `--verbose` flag when using `--print` mode
+- Always check for existing flags in args before adding to avoid duplication (`"--verbose" not in args`)
+- The existing `parse_json` logic in `_stream_output()` handles text display vs JSON display correctly
+
+---
+
+[Ralph Loop] 2026-01-18 01:41 UTC - Iteration 1: US-001 (Fix stream-json requires verbose flag) completed
+
+---
+
+## 2026-01-18 - US-002
+
+**Story:** Add newlines between message blocks in output
+
+### What was implemented
+- Added `MESSAGE_BOUNDARY` constant (set to `"\n"`) in `src/ralph/services/claude.py`
+- Modified `_parse_stream_event()` to detect message boundaries via `message_stop` and `result` event types
+- When a message boundary is detected, the method returns `MESSAGE_BOUNDARY` (a newline)
+- The `_stream_output()` method already writes returned text, so newlines are automatically added
+- Inline text flow is preserved because `content_block_delta` events continue to return text without newlines
+
+### Tests written
+- `test_returns_message_boundary_for_message_stop` - verifies `message_stop` events return `MESSAGE_BOUNDARY`
+- `test_returns_message_boundary_for_result` - verifies `result` events return `MESSAGE_BOUNDARY`
+- `test_message_boundary_is_newline` - verifies `MESSAGE_BOUNDARY` is `"\n"`
+- `TestStreamOutputMessageBoundary` class with 4 integration tests:
+  - `test_stream_output_adds_newline_at_message_boundary` - verifies newline added after `message_stop`
+  - `test_stream_output_adds_newline_at_result_boundary` - verifies newline added after `result`
+  - `test_stream_output_preserves_inline_text_flow` - verifies text chunks concatenate without extra newlines
+  - `test_stream_output_multiple_message_boundaries` - verifies multiple boundaries work correctly
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The stream-json format uses `message_stop` and `result` event types to indicate message boundaries
+- Returning special sentinel values from parsing functions is a clean way to signal metadata to callers
+- The existing `_stream_output()` code handles any returned string, so the newline is automatically written
+
+---
+
+[Ralph Loop] 2026-01-18 01:44 UTC - Iteration 2: US-002 (Add newlines between message blocks in output) completed
+
+[Ralph Loop] 2026-01-18 01:45 UTC - Iteration 2: US-002 (Add newlines between message blocks in output) completed
+
+## 2026-01-18 - US-003
+
+**Story:** Enable skip permissions for ralph prd
+
+### What was implemented
+- Added `skip_permissions: bool = False` parameter to `run_interactive()` in `src/ralph/services/claude.py`
+- When `skip_permissions=True`, `--dangerously-skip-permissions` flag is added to CLI args
+- Updated `ralph prd` command to call `run_interactive()` with `skip_permissions=True`
+- Added info message: "Running with auto-approved permissions for PRD creation"
+
+### Tests written
+- `TestRunInteractive` class extended with 4 new tests:
+  - `test_includes_skip_permissions_when_true` - verifies flag is included when True
+  - `test_excludes_skip_permissions_when_false` - verifies flag is NOT included when False
+  - `test_default_skip_permissions_is_false` - verifies default behavior
+  - `test_skip_permissions_with_prompt` - verifies flag works with prompt
+- `TestPrdSkipPermissions` class (new) with 2 tests:
+  - `test_prd_passes_skip_permissions_true` - verifies prd passes skip_permissions=True
+  - `test_prd_displays_permissions_message` - verifies info message is displayed
+- Fixed 2 existing tests to handle new skip_permissions parameter signature
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- src/ralph/commands/prd.py (modified)
+- tests/test_services/test_claude.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- When adding parameters to `run_interactive()`, use `*` to make them keyword-only: `def run_interactive(self, prompt: str | None = None, *, skip_permissions: bool = False)`
+- Tests using `side_effect` functions must match the new method signature (accept `skip_permissions` kwarg)
+- Info messages about permissions should be displayed before launching Claude for user awareness
+
+---
+
+[Ralph Loop] 2026-01-18 01:49 UTC - Iteration 3: US-003 (Enable skip permissions for ralph prd) completed
+
+## 2026-01-18 - US-004
+
+**Story:** Create CHANGELOG.md on ralph init
+
+### What was implemented
+- Added `create_changelog()` method to ScaffoldService in `scaffold.py`
+- Template follows Keep a Changelog format with reference link
+- Template includes Unreleased section with all 6 standard category headers:
+  - Added, Changed, Deprecated, Removed, Fixed, Security
+- Updated `scaffold_all()` to include changelog in created files
+- Updated `init_cmd.py` to preserve existing CHANGELOG.md content (never overwrite)
+- Added CHANGELOG.md to `_check_existing_files()` check list
+- Shows "Skipped CHANGELOG.md (already exists)" message when changelog exists
+
+### Tests written
+- `TestCreateChangelog` class (4 tests):
+  - `test_creates_changelog_file` - verifies CHANGELOG.md is created
+  - `test_changelog_follows_keep_a_changelog_format` - verifies format reference
+  - `test_changelog_has_unreleased_section` - verifies Unreleased section exists
+  - `test_changelog_has_category_headers` - verifies all 6 category headers
+- `TestScaffoldAll` tests updated to include changelog assertions
+- `TestCheckExistingFiles` tests updated to include CHANGELOG.md
+- `TestInitChangelogCreation` class (5 tests):
+  - `test_init_creates_changelog_md` - verifies file is created
+  - `test_init_changelog_follows_keep_a_changelog_format` - verifies format
+  - `test_init_changelog_has_unreleased_section` - verifies section/headers
+  - `test_init_does_not_overwrite_existing_changelog` - verifies preservation
+  - `test_init_shows_skipped_message_for_existing_changelog` - verifies output
+
+### Files changed
+- src/ralph/services/scaffold.py (modified - added create_changelog method)
+- src/ralph/commands/init_cmd.py (modified - preserve existing changelog)
+- tests/test_services/test_scaffold.py (modified - added changelog tests)
+- tests/test_commands/test_init_cmd.py (modified - added changelog tests)
+
+### Learnings for future iterations
+- CHANGELOG.md is treated as persistent memory and should never be overwritten even with --force
+- Save content before scaffold_all() and restore after to preserve existing file
+- Keep a Changelog format uses section headers in order: Added, Changed, Deprecated, Removed, Fixed, Security
+
+---
+
+[Ralph Loop] 2026-01-18 01:53 UTC - Iteration 4: US-004 (Create CHANGELOG.md on ralph init) completed
+
+## 2026-01-18 - US-005
+
+**Story:** Add CHANGELOG guidelines to CLAUDE.md and AGENTS.md
+
+### What was implemented
+- Added CHANGELOG.md section to CLAUDE.md template in scaffold.py
+- Added identical CHANGELOG.md section to AGENTS.md template (kept in sync)
+- Guidelines specify when to update: features, bug fixes, breaking changes, performance, security, deprecations
+- Guidelines specify when NOT to update: refactoring, tests, docs, formatting, deps, WIP commits
+- Guidelines specify how to update: Unreleased section, appropriate categories, user perspective, concise but specific
+
+### Tests written
+- No new tests needed - existing scaffold tests cover template generation
+- All 499 tests pass with the updated template content
+
+### Files changed
+- src/ralph/services/scaffold.py (modified - added CHANGELOG.md section to both templates)
+
+### Learnings for future iterations
+- Template sections in CLAUDE.md and AGENTS.md must be kept in sync - duplicate the content verbatim
+- CHANGELOG guidelines serve as persistent memory for Claude about what changes to document
+- The guidelines distinguish user-facing changes (log) from internal changes (don't log)
+
+---
+
+[Ralph Loop] 2026-01-18 - Iteration 5: US-005 (Add CHANGELOG guidelines to CLAUDE.md and AGENTS.md) completed
+
+[Ralph Loop] 2026-01-18 01:58 UTC - Iteration 5: US-005 (Add CHANGELOG guidelines to CLAUDE.md and AGENTS.md) completed
+
+## 2026-01-18 - US-006
+
+**Story:** Update iteration prompt for CHANGELOG
+
+### What was implemented
+- Added CHANGELOG.md to Phase 4 (Completion) step list in ralph-iteration/SKILL.md
+- Added dedicated "CHANGELOG.md" subsection under "Updating Memory Files"
+- Section includes:
+  - "When to Update" with 6 categories: new features, bug fixes, breaking changes, performance, security, deprecations
+  - "When NOT to Update" with 6 categories: refactoring, tests, docs, formatting, deps, WIP commits
+  - "How to Update" with step-by-step guidance and example entry
+- Added CHANGELOG.md to File Reference table at end of skill
+
+### Tests written
+- No Python tests needed (skill is a markdown instruction file)
+- Format validated by existing SkillsService tests (validates frontmatter parsing)
+
+### Files changed
+- skills/ralph-iteration/SKILL.md (modified - added CHANGELOG guidance)
+
+### Learnings for future iterations
+- Skills are markdown files that guide Claude through workflows - they don't need code tests
+- CHANGELOG guidelines in skill should mirror guidelines in CLAUDE.md/AGENTS.md templates
+- Include concrete examples (like the markdown entry example) for better guidance
+
+---
+
+
+[Ralph Loop] 2026-01-18 02:00 UTC - Iteration 6: US-006 (Update iteration prompt for CHANGELOG) completed
+
+## 2026-01-18 - US-007
+
+**Story:** Archive PROGRESS.txt on new task generation
+
+### What was implemented
+- Added `_archive_progress_file()` helper function in `src/ralph/commands/tasks.py`
+- Archives existing PROGRESS.txt to `plans/PROGRESS.{timestamp}.txt` format (YYYYMMDD_HHMMSS)
+- Creates fresh PROGRESS.txt with standard header template after archiving
+- Added `PROGRESS_TEMPLATE` constant matching the scaffold.py template
+- Archives only if PROGRESS.txt exists and has non-whitespace content
+- Displays message "Archived previous progress to PROGRESS.{timestamp}.txt" after archiving
+- Integrated archival into tasks command - runs after TASKS.json is successfully written
+
+### Tests written
+- `TestArchiveProgressFile` class with 7 tests:
+  - `test_returns_none_if_progress_does_not_exist` - verifies no archival when file missing
+  - `test_returns_none_if_progress_is_empty` - verifies no archival for empty file
+  - `test_returns_none_if_progress_only_whitespace` - verifies whitespace-only handling
+  - `test_archives_existing_progress_file` - verifies content is archived correctly
+  - `test_archive_uses_correct_timestamp_format` - verifies YYYYMMDD_HHMMSS pattern
+  - `test_creates_fresh_progress_with_template` - verifies new template is written
+  - `test_fresh_progress_has_expected_sections` - verifies required sections
+- `TestTasksCommandProgressArchival` class with 5 integration tests:
+  - `test_tasks_archives_progress_file` - end-to-end archival test
+  - `test_tasks_displays_archive_message` - verifies output message
+  - `test_tasks_creates_fresh_progress_file` - verifies fresh template
+  - `test_tasks_does_not_archive_empty_progress` - verifies empty file handling
+  - `test_tasks_does_not_archive_nonexistent_progress` - verifies missing file handling
+
+### Files changed
+- src/ralph/commands/tasks.py (modified - added archival logic and helper)
+- tests/test_commands/test_tasks.py (modified - added 12 new tests)
+
+### Learnings for future iterations
+- Use `datetime.now(UTC)` instead of `datetime.now(timezone.utc)` for ruff UP017 compliance
+- Use `shutil.copy2()` to preserve file metadata when archiving
+- Check for both file existence AND content before archiving to avoid empty archives
+- The PROGRESS_TEMPLATE should match scaffold.py's `create_progress_placeholder()` exactly
+
+---
+
+[Ralph Loop] 2026-01-18 UTC - Iteration 7: US-007 (Archive PROGRESS.txt on new task generation) completed
+
+[Ralph Loop] 2026-01-18 02:04 UTC - Iteration 7: US-007 (Archive PROGRESS.txt on new task generation) completed
+
+## 2026-01-18 - US-008
+
+**Story:** Enable streaming for ralph tasks
+
+### What was implemented
+- Changed `stream=False` to `stream=True` in `run_print_mode()` call in `tasks.py`
+- Users now see Claude's progress in real-time as it generates the task breakdown
+- JSON extraction continues to work correctly because `ClaudeService._stream_output()` extracts text content from stream-json events and returns it as plain text, which `_extract_json()` can parse normally
+
+### Tests written
+- `TestTasksCommandStreaming` class with 4 tests:
+  - `test_tasks_streaming_extracts_json_from_text_output` - verifies JSON extraction works with streamed output
+  - `test_tasks_streaming_handles_json_in_code_block` - verifies extraction handles code blocks
+  - `test_tasks_streaming_handles_text_with_embedded_json` - verifies extraction handles embedded JSON in text
+  - `test_tasks_streaming_shows_progress_during_generation` - verifies "Running Claude" message is displayed
+- Updated `test_tasks_launches_claude_in_print_mode_with_streaming` to verify `stream=True` is passed
+
+### Files changed
+- src/ralph/commands/tasks.py (modified - changed stream=False to stream=True)
+- tests/test_commands/test_tasks.py (modified - added 4 new streaming tests, updated 1 existing test)
+
+### Learnings for future iterations
+- When streaming is enabled, `ClaudeService` parses stream-json events and extracts text content, returning clean text that can be processed by `_extract_json()`
+- The existing `_extract_json()` function already handles multiple formats (pure JSON, code blocks, embedded JSON) which works seamlessly with streamed output
+- No changes needed to JSON extraction logic - the abstraction in `ClaudeService` keeps the command code simple
+
+---
+
+[Ralph Loop] 2026-01-18 UTC - Iteration 8: US-008 (Enable streaming for ralph tasks) completed
+
+[Ralph Loop] 2026-01-18 02:07 UTC - Iteration 8: US-008 (Enable streaming for ralph tasks) completed
+
+## 2026-01-18 - US-009
+
+**Story:** Add unit tests for bug fixes
+
+### What was implemented
+- Created `tests/test_bug_fixes.py` with comprehensive unit tests for v1.2 bug fixes
+- `TestBuildBaseArgsStreamingVerbose` class (6 tests): Tests for verbose flag when streaming
+- `TestParseStreamEventNewlineMarkers` class (8 tests): Tests for newline marker behavior
+- `TestRunInteractiveSkipPermissions` class (6 tests): Tests for skip_permissions parameter
+- `TestProgressArchivalTimestampFormat` class (9 tests): Tests for PROGRESS.txt archival
+- `TestBugFixesIntegration` class (2 tests): Integration tests verifying components work together
+
+### Tests written
+- 31 new tests covering all acceptance criteria:
+  - `test_verbose_included_when_streaming_enabled` - Core bug fix test
+  - `test_verbose_not_duplicated_when_service_verbose_true` - No duplication
+  - `test_message_stop_returns_newline_marker` - Message boundary detection
+  - `test_result_event_returns_newline_marker` - Result event boundary
+  - `test_skip_permissions_adds_flag_when_true` - Flag added correctly
+  - `test_archive_creates_file_with_timestamp_format` - YYYYMMDD_HHMMSS format
+  - `test_archive_timestamp_is_valid_datetime` - Valid datetime validation
+  - Plus 24 more tests for edge cases and error conditions
+
+### Files changed
+- tests/test_bug_fixes.py (new - 480 lines)
+- plans/TASKS.json (updated - marked US-009 as passed)
+
+### Learnings for future iterations
+- Group bug fix tests in a dedicated test module for clarity and maintainability
+- Include integration tests that verify multiple bug fixes work together
+- Test timestamp parsing validates actual datetime format, not just regex pattern
+- Testing MESSAGE_BOUNDARY constant ensures it remains a newline character
+
+---
+
+[Ralph Loop] 2026-01-18 UTC - Iteration 9: US-009 (Add unit tests for bug fixes) completed
+
+[Ralph Loop] 2026-01-18 02:10 UTC - Iteration 9: US-009 (Add unit tests for bug fixes) completed
+## 2026-01-18 - US-010
+
+**Story:** Add integration tests for commands
+
+### What was implemented
+- Created `tests/test_integration/test_command_integration.py` with comprehensive integration tests
+- `TestOnceCommandWithoutVerboseFlag` class (4 tests): Tests ralph once runs without -v flag
+- `TestLoopCommandWithoutVerboseFlag` class (4 tests): Tests ralph loop runs without -v flag
+- `TestTasksCommandStreaming` class (3 tests): Tests ralph tasks uses streaming output
+- `TestInitCommandChangelogCreation` class (5 tests): Tests ralph init creates CHANGELOG.md
+- `TestMessageBoundaryNewlines` class (1 test): Tests newlines at message boundaries
+- `TestSkipPermissionsIntegration` class (2 tests): Tests skip_permissions for ralph prd
+- Fixed line length issues in test_bug_fixes.py to satisfy ruff E501
+
+### Tests written
+- 19 new integration tests covering all acceptance criteria:
+  - `test_once_runs_without_verbose_flag_no_crash` - Core test for streaming bug fix
+  - `test_once_without_verbose_uses_stream_json_format` - Verifies stream-json format
+  - `test_loop_runs_without_verbose_flag_no_crash` - Loop command no-crash test
+  - `test_loop_without_verbose_uses_stream_json_format` - Loop stream-json test
+  - `test_tasks_streams_output` - Verifies stream=True in run_print_mode
+  - `test_tasks_streaming_extracts_json_successfully` - JSON extraction with streaming
+  - `test_init_creates_changelog_md` - CHANGELOG.md creation verification
+  - `test_init_changelog_has_keep_a_changelog_format` - Format verification
+  - `test_init_changelog_has_all_category_headers` - Category headers verification
+  - `test_init_preserves_existing_changelog` - Preservation test
+  - Plus 9 more tests for verbose flags, code blocks, message boundaries, and prd permissions
+
+### Files changed
+- tests/test_integration/test_command_integration.py (new - 787 lines)
+- tests/test_bug_fixes.py (modified - fixed line length issues)
+
+### Learnings for future iterations
+- Use string concatenation to break long JSON strings: `event = ('{"type":"a",' '"data":"b"}')`
+- Integration tests should verify both crash-free operation and correct behavior
+- When testing streaming, mock Popen to return StringIO or iter() for stdout
+- Use `result.exit_code in (0, 1)` to allow both success and story-not-passed outcomes
+
+---
+
+[Ralph Loop] 2026-01-18 UTC - Iteration 10: US-010 (Add integration tests for commands) completed
+
+## 2026-01-18 - Issue #6 Fix (v1.2.1) - INCOMPLETE
+
+**Issue:** Output formatting - newlines not appearing between Claude's thoughts
+
+### Root Cause (Initial Analysis - INCORRECT)
+The original fix (US-002) detected `message_stop` and `result` events to add newlines. The v1.2.1 fix added `content_block_stop` detection, but this was based on the **Anthropic API** streaming format, not the **Claude Code CLI** streaming format.
+
+**The Claude CLI's `stream-json` format is different from the Anthropic API:**
+- Anthropic API streaming: `content_block_delta`, `content_block_stop`, `message_stop` events
+- Claude CLI stream-json: Full `{"type":"assistant","message":{...}}` events with complete content
+
+The `content_block_stop` events don't exist in Claude CLI output - they are from the API format.
+
+---
+
+## 2026-01-18 - Issue #6 Fix (v1.2.2) - CORRECT FIX
+
+**Issue:** Output formatting - newlines not appearing between Claude's thoughts
+
+### Root Cause (Correct Analysis)
+The Claude Code CLI's `stream-json` format outputs complete `assistant` events, not streaming deltas. Each `{"type":"assistant","message":{...}}` event contains a full turn (text or tool_use). Multiple Claude "thoughts" separated by tool calls appear as separate `assistant` events.
+
+### What was implemented
+- Modified text extraction from `assistant` events to append a trailing newline
+- Each assistant turn's text now ends with `\n` for readability between turns
+- The fix is in `_parse_stream_event()` when extracting text from assistant events
+
+### Code change
+```python
+# Before:
+return block.get("text", "")
+
+# After:
+text = block.get("text", "")
+return text + "\n" if text else None
+```
+
+### Tests updated
+- `test_parses_assistant_message_with_text` - now expects trailing newline
+- `test_assistant_message_returns_text_with_newline` - renamed and updated
+
+### Files changed
+- src/ralph/services/claude.py (modified - assistant events add trailing newline)
+- tests/test_services/test_claude.py (modified - updated test expectations)
+- tests/test_bug_fixes.py (modified - updated test expectations)
+- pyproject.toml (modified - bumped version to 1.2.2)
+- src/ralph/__init__.py (modified - bumped __version__ to 1.2.2)
+
+### Expected output after fix
+```
+I'm on the correct branch. Let me check the project.
+Now let me start implementing US-001.
+Now let me add the dependencies.
+```
+
+Each assistant turn now ends with a newline, making output readable.
+
+---
+

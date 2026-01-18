@@ -143,6 +143,8 @@ def prd(
     console.print()
     console.print("[bold]Starting Claude Code...[/bold]")
     console.print()
+    console.print("[dim]Running with auto-approved permissions for PRD creation[/dim]")
+    console.print()
 
     prompt = _build_prd_prompt(output_path)
 
@@ -151,7 +153,7 @@ def prd(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        exit_code = claude.run_interactive(prompt)
+        exit_code = claude.run_interactive(prompt, skip_permissions=True)
 
         if exit_code == 0:
             console.print()
