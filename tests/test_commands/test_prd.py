@@ -152,7 +152,7 @@ class TestPrdCommand:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def create_spec_file(_prompt: str) -> int:
+                def create_spec_file(_prompt: str, *, skip_permissions: bool = False) -> int:
                     spec_path.write_text("# Feature Spec\n")
                     return 0
 
@@ -290,6 +290,50 @@ class TestPrdCommand:
             # Verify ClaudeService was created with verbose=True
             call_kwargs = mock_claude.call_args.kwargs
             assert call_kwargs.get("verbose") is True
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestPrdSkipPermissions:
+    """Tests for skip_permissions functionality in prd command."""
+
+    def test_prd_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd calls run_interactive with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd"])
+
+            # Verify run_interactive was called with skip_permissions=True
+            call_kwargs = mock_instance.run_interactive.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
+    def test_prd_displays_permissions_message(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd displays info message about auto-approved permissions."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["prd"])
+
+            assert "auto-approved permissions" in result.output
         finally:
             os.chdir(original_cwd)
 
@@ -898,7 +942,7 @@ class TestPrdFileModificationDetection:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def modify_spec_file(_prompt: str) -> int:
+                def modify_spec_file(_prompt: str, *, skip_permissions: bool = False) -> int:
                     time.sleep(0.01)  # Ensure mtime changes
                     spec_path.write_text("# Modified Spec\n")
                     return 0

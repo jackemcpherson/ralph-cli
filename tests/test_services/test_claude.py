@@ -404,6 +404,55 @@ class TestRunInteractive:
 
             assert "Failed to run Claude Code" in str(exc_info.value)
 
+    def test_includes_skip_permissions_when_true(self) -> None:
+        """Test that --dangerously-skip-permissions is included when skip_permissions=True."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+
+    def test_excludes_skip_permissions_when_false(self) -> None:
+        """Test that --dangerously-skip-permissions is NOT included when skip_permissions=False."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(skip_permissions=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_default_skip_permissions_is_false(self) -> None:
+        """Test that skip_permissions defaults to False in run_interactive."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive()
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_skip_permissions_with_prompt(self) -> None:
+        """Test that skip_permissions works correctly with a prompt."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(prompt="Hello", skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+            assert "Hello" in args
+
 
 class TestRunProcess:
     """Tests for _run_process method."""

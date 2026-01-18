@@ -174,7 +174,12 @@ class ClaudeService(BaseModel):
         except subprocess.SubprocessError as e:
             raise ClaudeError(f"Failed to run Claude Code: {e}") from e
 
-    def run_interactive(self, prompt: str | None = None) -> int:
+    def run_interactive(
+        self,
+        prompt: str | None = None,
+        *,
+        skip_permissions: bool = False,
+    ) -> int:
         """Run Claude Code in interactive mode.
 
         Launches Claude Code interactively, allowing user input.
@@ -182,6 +187,7 @@ class ClaudeService(BaseModel):
 
         Args:
             prompt: Optional initial prompt to start the conversation.
+            skip_permissions: Whether to skip permission prompts (default: False).
 
         Returns:
             Exit code from the Claude process.
@@ -190,6 +196,9 @@ class ClaudeService(BaseModel):
             ClaudeError: If Claude Code is not installed or fails to start.
         """
         args = self._build_base_args()
+
+        if skip_permissions:
+            args.append("--dangerously-skip-permissions")
 
         if prompt:
             args.append(prompt)
