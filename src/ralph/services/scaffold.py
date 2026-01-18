@@ -249,6 +249,32 @@ Run all checks before committing. Fix any failures before proceeding.
 
 [Add discovered patterns here as you iterate]
 
+## CHANGELOG.md
+
+This project maintains a CHANGELOG.md for persistent memory across feature cycles.
+
+**When to update:**
+- New features or capabilities added
+- Bug fixes that affect user-facing behavior
+- Breaking changes or API modifications
+- Performance improvements with measurable impact
+- Security fixes
+- Deprecations of existing functionality
+
+**When NOT to update:**
+- Internal refactoring with no behavior change
+- Test additions or modifications
+- Documentation-only changes
+- Code style/formatting changes
+- Dependency updates (unless they fix security issues or change behavior)
+- Work-in-progress commits during a feature branch
+
+**How to update:**
+1. Add entries under the `[Unreleased]` section
+2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
+3. Write entries from the user's perspective (what changed for them)
+4. Be concise but specific (include context like file names or feature areas)
+
 ## Project-Specific Instructions
 
 [Add any project-specific instructions here]
@@ -337,6 +363,32 @@ This project uses the Ralph autonomous iteration pattern.
 (Keep in sync with CLAUDE.md)
 
 [Add discovered patterns here as you iterate]
+
+## CHANGELOG.md
+
+This project maintains a CHANGELOG.md for persistent memory across feature cycles.
+
+**When to update:**
+- New features or capabilities added
+- Bug fixes that affect user-facing behavior
+- Breaking changes or API modifications
+- Performance improvements with measurable impact
+- Security fixes
+- Deprecations of existing functionality
+
+**When NOT to update:**
+- Internal refactoring with no behavior change
+- Test additions or modifications
+- Documentation-only changes
+- Code style/formatting changes
+- Dependency updates (unless they fix security issues or change behavior)
+- Work-in-progress commits during a feature branch
+
+**How to update:**
+1. Add entries under the `[Unreleased]` section
+2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
+3. Write entries from the user's perspective (what changed for them)
+4. Be concise but specific (include context like file names or feature areas)
 
 ## Guidelines
 
