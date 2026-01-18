@@ -1,678 +1,312 @@
-# Ralph CLI Specification
+# Ralph CLI v1.2 Specification: Bug Fixes & Memory System Improvements
 
 ## Metadata
 
 - **Status:** Draft
-- **Version:** 1.0.0
-- **Last Updated:** 2025-01-17
+- **Version:** 1.2.0
+- **Last Updated:** 2026-01-18
 - **Owner:** To be assigned
+- **Related Issues:** #4, #5, #6, #7, #8, #9
 
 ---
 
-## 1. Context and Goals
+## 1. Overview
 
 ### 1.1 Problem Statement
 
-AI coding agents have context limits that prevent completing large features in a single session. The existing Ralph implementation (for Amp) solves this by breaking work into small, autonomous iterations—but it relies on a fragmented mix of bash scripts and manual commands that is difficult to maintain, extend, and use.
+Ralph CLI v1.1 has several issues affecting reliability and developer experience:
 
-Developers need a clean, unified CLI tool that implements the Ralph autonomous iteration pattern for Claude Code, with proper project structure, intuitive commands, and a polished terminal experience.
+1. **Critical Bug:** The `ralph once` and `ralph loop` commands crash when the `-v` (verbose) flag is not provided. The error message indicates that `--output-format=stream-json` requires `--verbose` when using `--print` mode.
 
-### 1.2 Business and Product Goals
+2. **Output Formatting Bug:** When streaming output works, text chunks are written without proper newlines, creating a wall of text that is difficult to read.
 
-1. Provide a single, well-designed Python CLI (`ralph`) that wraps the entire autonomous coding workflow
-2. Integrate natively with Claude Code's skill system for maintainable, version-controlled prompts
-3. Enable developers to go from idea → PRD → tasks → implementation with minimal friction
-4. Maintain memory across iterations via structured files (`PROGRESS.txt`, `CLAUDE.md`, `AGENTS.md`)
-5. Deliver a polished TUI experience using Rich, with sensible defaults and clear feedback
+3. **Permissions Bug:** The `ralph prd` interactive command does not use `--dangerously-skip-permissions`, causing Claude to prompt for permissions during autonomous execution.
 
-### 1.3 User Personas and Stories
+4. **Missing Feature:** No long-term memory persists across feature development cycles. PROGRESS.txt accumulates entries from previous features, causing confusion.
 
-#### Persona: Solo Developer
+5. **UX Issue:** The `ralph tasks` command does not stream output, leaving users with no feedback during generation.
 
-A developer working on personal or small-team projects who wants to leverage AI for autonomous feature implementation without babysitting each step.
+### 1.2 Goals
 
-**Stories:**
+1. **Fix crash on non-verbose mode** - Commands must work correctly with or without the `-v` flag
+2. **Improve output readability** - Add proper newlines between response blocks
+3. **Enable autonomous PRD creation** - Apply skip permissions to interactive commands
+4. **Implement persistent memory** - Add CHANGELOG.md for cross-feature learning
+5. **Clean slate for new features** - Archive PROGRESS.txt when starting new task sets
+6. **Better feedback** - Stream output for the `ralph tasks` command
 
-- As a developer, I want to run `ralph init` in my project so that I have the correct file structure for autonomous iteration.
-- As a developer, I want to run `ralph prd` to interactively create a detailed specification with Claude's help.
-- As a developer, I want to run `ralph tasks SPEC.md` to automatically convert my specification into executable tasks.
-- As a developer, I want to run `ralph loop` and walk away, trusting that Ralph will complete as many stories as possible.
-- As a developer, I want to run `ralph sync` to update my global Claude Code skills from my local repo.
+### 1.3 Non-Goals
 
-#### Persona: AI-Assisted Workflow Enthusiast
-
-A developer experimenting with AI-driven development patterns who wants fine-grained control over the iteration process.
-
-**Stories:**
-
-- As a developer, I want to run `ralph once` to execute a single iteration so I can review progress incrementally.
-- As a developer, I want to pass `--verbose` to see the full JSON stream from Claude Code for debugging.
-- As a developer, I want to configure max fix attempts so I can tune how persistent Ralph is when tests fail.
-
-### 1.4 Scope
-
-#### In Scope
-
-| Area | Details |
-|------|---------|
-| CLI Commands | `init`, `prd`, `tasks`, `once`, `loop`, `sync` |
-| Skills | `ralph-prd`, `ralph-tasks`, `ralph-iteration` installed to `~/.claude/skills/` |
-| Project Scaffolding | `plans/` directory, `CLAUDE.md`, `AGENTS.md`, placeholder files |
-| Task Format | `TASKS.json` following original Ralph `prd.json` schema |
-| Quality Checks | Defined in `CLAUDE.md` (hybrid structured + natural language) |
-| Error Handling | Fix loop with configurable retry attempts |
-| Branch Management | Automatic branch creation, checkout, and commits |
-| Memory System | `PROGRESS.txt` (append-only), `CLAUDE.md` + `AGENTS.md` (pattern updates) |
-| TUI | Minimal Rich styling; `--verbose` for full JSON stream |
-
-#### Out of Scope (v1.0)
-
-| Area | Rationale |
-|------|-----------|
-| Web UI / Dashboard | CLI-only for simplicity |
-| Cloud Sync / Remote State | Purely local operation |
-| Multi-Project Management | One project at a time |
-| Parallel Iterations | Sequential execution only |
-| External Issue Tracker Integration | No Jira, Linear, GitHub Issues, etc. |
-
-### 1.5 Assumptions and Dependencies
-
-#### Assumptions
-
-1. User has Claude Code CLI installed and authenticated
-2. User has a git repository initialized in their project
-3. User has Python 3.11+ installed
-4. User's project has some form of test/lint commands (detected or manually configured)
-
-#### Dependencies
-
-| Dependency | Purpose |
-|------------|---------|
-| Claude Code CLI | Core AI agent execution |
-| Git | Version control, branch management, memory via commits |
-| Python 3.11+ | Runtime |
-| uv | Package/project management |
-| Typer | CLI framework |
-| Rich | Terminal styling and output |
-| Pydantic | Data validation and settings |
-| ruff | Linting and formatting |
-| pytest | Testing |
+- Changing the TASKS.json schema
+- Adding new CLI commands
+- Modifying the iteration logic
+- Automatic version bumping
 
 ---
 
-## 2. Functional Requirements
+## 2. Requirements
 
-### 2.1 Command: `ralph init`
-
-**Purpose:** Scaffold a project for Ralph-based autonomous development.
-
-| ID | Requirement |
-|----|-------------|
-| FR-INIT-01 | Create `plans/` directory if it does not exist |
-| FR-INIT-02 | Create `plans/SPEC.md` with placeholder content marked "to be overwritten" |
-| FR-INIT-03 | Create `plans/TASKS.json` with placeholder content marked "to be overwritten" |
-| FR-INIT-04 | Create `plans/PROGRESS.txt` with placeholder content marked "to be overwritten" |
-| FR-INIT-05 | Create `CLAUDE.md` in project root with Ralph workflow instructions, marked "do not overwrite" |
-| FR-INIT-06 | Create `AGENTS.md` in project root with Ralph workflow instructions, marked "do not overwrite" |
-| FR-INIT-07 | Detect project type (e.g., Node.js, Python, Go) and populate `CLAUDE.md` with appropriate default test/lint commands |
-| FR-INIT-08 | `CLAUDE.md` must contain a structured, parseable section for quality checks (see Section 4.3) |
-| FR-INIT-09 | Invoke Claude Code's native `/init` command with instructions to enhance both `CLAUDE.md` and `AGENTS.md` with project-specific context |
-| FR-INIT-10 | Display success message with next steps after scaffolding completes |
-
-### 2.2 Command: `ralph prd`
-
-**Purpose:** Launch an interactive PRD creation session with Claude Code.
-
-| ID | Requirement |
-|----|-------------|
-| FR-PRD-01 | Launch Claude Code in interactive mode |
-| FR-PRD-02 | Include prompt instructing Claude to "Use the ralph-prd skill" |
-| FR-PRD-03 | The `ralph-prd` skill guides Claude through clarifying questions and PRD generation |
-| FR-PRD-04 | Output file is `plans/SPEC.md` |
-| FR-PRD-05 | Display informational message before launching Claude Code |
-
-### 2.3 Command: `ralph tasks <spec-file>`
-
-**Purpose:** Convert a specification document into executable tasks.
-
-| ID | Requirement |
-|----|-------------|
-| FR-TASKS-01 | Accept a file path argument (e.g., `plans/SPEC.md`) |
-| FR-TASKS-02 | Invoke Claude Code in non-interactive print mode (`-p`) |
-| FR-TASKS-03 | Include prompt instructing Claude to "Use the ralph-tasks skill" |
-| FR-TASKS-04 | Pass the spec file content to Claude Code |
-| FR-TASKS-05 | Output file is `plans/TASKS.json` |
-| FR-TASKS-06 | Validate output against TASKS.json schema (Pydantic) before writing |
-| FR-TASKS-07 | Display success message with task count after completion |
-
-### 2.4 Command: `ralph once`
-
-**Purpose:** Execute a single iteration (one user story).
-
-| ID | Requirement |
-|----|-------------|
-| FR-ONCE-01 | Read `plans/TASKS.json` to find highest-priority story where `passes: false` |
-| FR-ONCE-02 | If no stories remain, display "All stories complete" and exit |
-| FR-ONCE-03 | Invoke Claude Code in non-interactive print mode (`-p`) |
-| FR-ONCE-04 | Include prompt instructing Claude to "Use the ralph-iteration skill" |
-| FR-ONCE-05 | Stream Claude's text output to terminal in real-time (default) |
-| FR-ONCE-06 | With `--verbose` / `-v`, stream full parsed JSON output instead |
-| FR-ONCE-07 | Claude implements the story and runs quality checks defined in `CLAUDE.md` |
-| FR-ONCE-08 | If quality checks fail, Claude attempts to fix and re-run (fix loop) |
-| FR-ONCE-09 | Fix loop limited to `--max-fix-attempts` (default: 3) |
-| FR-ONCE-10 | If checks pass, Claude commits with message format: `feat: [Story ID] - [Story Title]` |
-| FR-ONCE-11 | Update `plans/TASKS.json` to set `passes: true` for completed story |
-| FR-ONCE-12 | Append iteration summary to `plans/PROGRESS.txt` |
-| FR-ONCE-13 | Update both `CLAUDE.md` and `AGENTS.md` with any discovered patterns (kept in sync) |
-| FR-ONCE-14 | Display success/failure summary after iteration completes |
-
-### 2.5 Command: `ralph loop [iterations]`
-
-**Purpose:** Run multiple iterations until completion or limit reached.
-
-| ID | Requirement |
-|----|-------------|
-| FR-LOOP-01 | Accept optional `iterations` argument (default: 10) |
-| FR-LOOP-02 | Read `plans/TASKS.json` to get current state |
-| FR-LOOP-03 | Check/create feature branch from `branchName` field in TASKS.json |
-| FR-LOOP-04 | Execute iterations sequentially, each following `ralph once` logic |
-| FR-LOOP-05 | Display iteration counter (e.g., "Iteration 3 of 10") |
-| FR-LOOP-06 | Stream Claude's text output in real-time (default) |
-| FR-LOOP-07 | With `--verbose` / `-v`, stream full parsed JSON output instead |
-| FR-LOOP-08 | Support `--max-fix-attempts N` flag (default: 3) |
-| FR-LOOP-09 | **Stop Condition - Success:** All stories have `passes: true` → exit cleanly with success message |
-| FR-LOOP-10 | **Stop Condition - Max Iterations:** Reached limit → exit with warning |
-| FR-LOOP-11 | **Stop Condition - Persistent Failure:** Quality checks fail after N fix attempts → exit with error |
-| FR-LOOP-12 | **Stop Condition - Transient Failure:** Network/rate limit fails after 1 retry → exit with error |
-| FR-LOOP-13 | **Stop Condition - Claude Cannot Complete:** Claude indicates it cannot finish → exit with error |
-| FR-LOOP-14 | Archive previous run if `branchName` differs from last run (same behavior as original Ralph) |
-
-### 2.6 Command: `ralph sync`
-
-**Purpose:** Synchronize local skill definitions to global Claude Code skills directory.
-
-| ID | Requirement |
-|----|-------------|
-| FR-SYNC-01 | Read skills from repo's `skills/` directory |
-| FR-SYNC-02 | Copy skill folders to `~/.claude/skills/` |
-| FR-SYNC-03 | Overwrite existing skills with same name |
-| FR-SYNC-04 | Display list of synced skills with status (created/updated) |
-| FR-SYNC-05 | Validate each SKILL.md has required frontmatter (`name`, `description`) before copying |
-
-### 2.7 Branch Management
-
-| ID | Requirement |
-|----|-------------|
-| FR-BRANCH-01 | On `ralph loop` start, check if on correct branch (from `branchName` in TASKS.json) |
-| FR-BRANCH-02 | If not on correct branch, checkout or create from main/master |
-| FR-BRANCH-03 | Commits happen automatically after each successful story |
-| FR-BRANCH-04 | Commit message format: `feat: [Story ID] - [Story Title]` |
-| FR-BRANCH-05 | Archive previous run files when starting a new feature (different `branchName`) |
-| FR-BRANCH-06 | Archive location: `archive/YYYY-MM-DD-<feature-name>/` |
-
-### 2.8 Memory System
-
-| ID | Requirement |
-|----|-------------|
-| FR-MEM-01 | `plans/PROGRESS.txt` is append-only; each iteration adds a summary block |
-| FR-MEM-02 | Progress block includes: timestamp, story ID, thread URL, changes made, learnings |
-| FR-MEM-03 | A "Codebase Patterns" section at top of `PROGRESS.txt` consolidates key reusable learnings |
-| FR-MEM-04 | `CLAUDE.md` and `AGENTS.md` are updated with discovered patterns after each iteration |
-| FR-MEM-05 | Both files must be kept in sync (same patterns in both) |
-
----
-
-## 3. Non-Functional Requirements
-
-### 3.1 Performance
-
-| ID | Requirement |
-|----|-------------|
-| NFR-PERF-01 | CLI commands (`init`, `sync`) complete in < 5 seconds (excluding Claude Code invocation) |
-| NFR-PERF-02 | Streaming output has < 500ms latency from Claude Code output to terminal display |
-
-### 3.2 Usability
-
-| ID | Requirement |
-|----|-------------|
-| NFR-USE-01 | All commands support `--help` with clear descriptions and examples |
-| NFR-USE-02 | Error messages are actionable (explain what went wrong and suggest fixes) |
-| NFR-USE-03 | Terminal output uses Rich styling: colors, spinners, tables where appropriate |
-| NFR-USE-04 | Minimal formatting by default; verbose output opt-in via `--verbose` |
-
-### 3.3 Reliability
-
-| ID | Requirement |
-|----|-------------|
-| NFR-REL-01 | Graceful handling of missing files (e.g., TASKS.json not found → clear error) |
-| NFR-REL-02 | Partial state is preserved on failure (completed stories remain marked as `passes: true`) |
-| NFR-REL-03 | Git operations fail safely (no partial commits) |
-
-### 3.4 Maintainability
-
-| ID | Requirement |
-|----|-------------|
-| NFR-MAINT-01 | Code formatted with ruff |
-| NFR-MAINT-02 | Type hints on all public functions |
-| NFR-MAINT-03 | Pydantic models for all data structures (TASKS.json, config) |
-| NFR-MAINT-04 | Test coverage > 70% for core logic |
-
----
-
-## 4. Technical Specifications
-
-### 4.1 Technology Stack
-
-| Component | Technology |
-|-----------|------------|
-| Language | Python 3.11+ |
-| CLI Framework | Typer |
-| Terminal UI | Rich |
-| Data Validation | Pydantic |
-| Package Management | uv |
-| Linting/Formatting | ruff |
-| Testing | pytest |
-| Claude Integration | Claude Code CLI (subprocess) |
-
-### 4.2 Project Structure
-
-```
-ralph/
-├── pyproject.toml
-├── README.md
-├── src/
-│   └── ralph/
-│       ├── __init__.py
-│       ├── cli.py              # Typer app, command definitions
-│       ├── commands/
-│       │   ├── __init__.py
-│       │   ├── init.py         # ralph init
-│       │   ├── prd.py          # ralph prd
-│       │   ├── tasks.py        # ralph tasks
-│       │   ├── once.py         # ralph once
-│       │   ├── loop.py         # ralph loop
-│       │   └── sync.py         # ralph sync
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── tasks.py        # TASKS.json Pydantic model
-│       │   └── config.py       # Configuration models
-│       ├── services/
-│       │   ├── __init__.py
-│       │   ├── claude.py       # Claude Code CLI wrapper
-│       │   ├── git.py          # Git operations
-│       │   ├── scaffold.py     # Project scaffolding
-│       │   └── skills.py       # Skill sync logic
-│       └── utils/
-│           ├── __init__.py
-│           ├── console.py      # Rich console utilities
-│           └── files.py        # File operations
-├── skills/
-│   ├── ralph-prd/
-│   │   └── SKILL.md
-│   ├── ralph-tasks/
-│   │   └── SKILL.md
-│   └── ralph-iteration/
-│       └── SKILL.md
-└── tests/
-    ├── __init__.py
-    ├── test_cli.py
-    ├── test_models.py
-    └── test_services/
-        ├── __init__.py
-        ├── test_claude.py
-        ├── test_git.py
-        └── test_scaffold.py
-```
-
-### 4.3 CLAUDE.md Quality Check Format
-
-`CLAUDE.md` contains a hybrid format: a structured block that Ralph parses, plus natural language context for Claude Code.
-
-**Structured section (parseable by Ralph):**
-
-```markdown
-## Quality Checks
-
-<!-- RALPH:CHECKS:START -->
-```yaml
-checks:
-  - name: typecheck
-    command: npm run typecheck
-    required: true
-  - name: lint
-    command: npm run lint
-    required: true
-  - name: test
-    command: npm test
-    required: true
-```
-<!-- RALPH:CHECKS:END -->
-
-Run all checks before committing. If any required check fails, fix the issue and re-run.
-```
-
-**Parsing rules:**
-- Ralph extracts YAML between `<!-- RALPH:CHECKS:START -->` and `<!-- RALPH:CHECKS:END -->`
-- Each check has: `name`, `command`, `required` (boolean)
-- Checks run in order; all `required: true` must pass
-
-### 4.4 TASKS.json Schema
-
-```json
-{
-  "project": "string",
-  "branchName": "string (e.g., ralph/feature-name)",
-  "description": "string",
-  "userStories": [
-    {
-      "id": "string (e.g., US-001)",
-      "title": "string",
-      "description": "string",
-      "acceptanceCriteria": ["string"],
-      "priority": "integer (1 = highest)",
-      "passes": "boolean",
-      "notes": "string"
-    }
-  ]
-}
-```
-
-**Pydantic model:**
-
-```python
-from pydantic import BaseModel
-
-class UserStory(BaseModel):
-    id: str
-    title: str
-    description: str
-    acceptanceCriteria: list[str]
-    priority: int
-    passes: bool = False
-    notes: str = ""
-
-class TasksFile(BaseModel):
-    project: str
-    branchName: str
-    description: str
-    userStories: list[UserStory]
-```
-
-### 4.5 Claude Code Integration
-
-**Invocation patterns:**
-
-| Command | Claude Code Invocation |
-|---------|------------------------|
-| `ralph prd` | `claude` (interactive) with stdin prompt |
-| `ralph tasks` | `claude -p "..."` (print mode) |
-| `ralph once` | `claude -p "..."` (print mode) |
-| `ralph loop` | Repeated `claude -p "..."` calls |
-
-**Prompt structure:**
-
-```
-Use the {skill-name} skill to {task description}.
-
-{Additional context as needed}
-```
-
-**Output handling:**
-
-- Default: Parse Claude Code's streaming output, display text portions
-- Verbose: Display full JSON stream, pretty-printed with Rich
-
-### 4.6 Skill Definitions
-
-Skills are stored in `skills/` directory and synced to `~/.claude/skills/`.
-
-**ralph-prd/SKILL.md:**
-
-```markdown
----
-name: ralph-prd
-description: "Create a detailed Product Requirements Document (PRD). Use when the user wants to define a new feature, write requirements, or create a specification. Outputs to plans/SPEC.md."
----
-
-# PRD Generator
-
-[Detailed instructions for PRD creation, based on original skill]
-```
-
-**ralph-tasks/SKILL.md:**
-
-```markdown
----
-name: ralph-tasks
-description: "Convert a PRD/specification document into TASKS.json format for Ralph autonomous execution. Use when converting specs to executable tasks."
----
-
-# Task Converter
-
-[Detailed instructions for spec-to-tasks conversion, based on original skill]
-```
-
-**ralph-iteration/SKILL.md:**
-
-```markdown
----
-name: ralph-iteration
-description: "Execute a single user story from TASKS.json. Implements the story, runs quality checks, fixes failures, commits on success, and updates progress files."
----
-
-# Ralph Iteration
-
-[Detailed instructions for single iteration execution, based on original prompt.md]
-```
-
-### 4.7 Development Standards
-
-| Standard | Specification |
-|----------|---------------|
-| Python version | 3.11+ |
-| Formatting | ruff format |
-| Linting | ruff check |
-| Type checking | pyright or mypy (optional, recommended) |
-| Testing | pytest with pytest-cov |
-| Commit style | Conventional commits |
-
----
-
-## 5. Open Questions
-
-| ID | Question | Impact | Owner |
-|----|----------|--------|-------|
-| OQ-01 | Should `ralph init` prompt interactively for project type, or always auto-detect? | UX for edge cases | TBD |
-| OQ-02 | What happens if user runs `ralph loop` without running `ralph init` first? | Error handling | TBD |
-| OQ-03 | Should there be a `ralph status` command to show current progress? | Feature scope | TBD |
-| OQ-04 | How should `ralph sync` handle skill version conflicts? | Sync behavior | TBD |
-| OQ-05 | Should skills include bundled scripts (e.g., for validation), or be pure markdown? | Skill complexity | TBD |
-
----
-
-## Appendix A: Command Reference
-
-```
-ralph init                      Scaffold project for Ralph workflow
-ralph prd                       Interactive PRD creation session
-ralph tasks <spec-file>         Convert spec to TASKS.json
-ralph once                      Execute single iteration
-ralph loop [iterations]         Run loop (default: 10 iterations)
-ralph sync                      Sync skills to ~/.claude/skills/
-
-Global flags:
-  --help, -h                    Show help message
-  --version                     Show version
-
-Loop/Once flags:
-  --verbose, -v                 Show full JSON stream output
-  --max-fix-attempts N          Max quality check fix attempts (default: 3)
-```
-
----
-
-## Appendix B: File Templates
-
-### plans/SPEC.md (placeholder)
-
-```markdown
-# Specification
-
-> **This file will be overwritten.** Run `ralph prd` to generate your specification.
-
-## Instructions
-
-1. Run `ralph prd` to start an interactive PRD session
-2. Answer Claude's clarifying questions
-3. Review the generated specification
-4. Run `ralph tasks plans/SPEC.md` to convert to tasks
-```
-
-### plans/TASKS.json (placeholder)
-
-```json
-{
-  "_comment": "This file will be overwritten. Run 'ralph tasks plans/SPEC.md' to generate tasks.",
-  "project": "",
-  "branchName": "",
-  "description": "",
-  "userStories": []
-}
-```
-
-### plans/PROGRESS.txt (placeholder)
-
-```
-# Ralph Progress Log
-
-> **This file will be overwritten.** Progress entries are appended automatically during iterations.
-
-## Codebase Patterns
-
-(Patterns discovered during iterations will be consolidated here)
-
----
-```
-
----
-
-## Appendix C: Success Criteria Checklist
-
-| # | Criterion | Verified |
-|---|-----------|----------|
-| 1 | `ralph init` scaffolds project with all expected files | ☐ |
-| 2 | `ralph prd` launches Claude Code, user creates spec, outputs to `plans/SPEC.md` | ☐ |
-| 3 | `ralph tasks plans/SPEC.md` converts spec to valid `plans/TASKS.json` | ☐ |
-| 4 | `ralph once` completes one story (or fails gracefully with clear error) | ☐ |
-| 5 | `ralph loop` runs to completion on a small test PRD (3-4 stories) | ☐ |
-| 6 | `ralph sync` copies skills to `~/.claude/skills/` successfully | ☐ |
-| 7 | All commands have `--help` with clear documentation | ☐ |
-| 8 | Test suite passes with reasonable coverage (>70%) | ☐ |
-
----
-
-## 6. Version 1.1: Bug Fixes & Automation Improvements
-
-**Status:** Draft
-**Date:** 2026-01-17
-
-### 6.1 Overview
-
-Testing revealed three issues preventing reliable autonomous operation and automation workflows. This section addresses bugs that block the core autonomous iteration loop from functioning properly.
-
-**Problem Statement:**
-1. The `ralph prd` command requires interactive terminal input, preventing automation
-2. The `ralph prd` command reports success even when no changes were made
-3. The `ralph loop` and `ralph once` commands fail because the Claude subprocess lacks write permissions
-
-### 6.2 Goals
-
-1. **Enable autonomous iteration** - The `ralph loop` and `ralph once` commands must run Claude with appropriate permissions without human intervention
-2. **Support PRD automation** - Allow `ralph prd` to accept input programmatically for CI/CD and scripting
-3. **Improve feedback accuracy** - Ensure command output reflects what actually happened
-
-### 6.3 Non-Goals
-
-- Changing the default interactive behavior of `ralph prd`
-- Adding a global configuration system
-- Modifying the TASKS.json schema or iteration logic
-
-### 6.4 Functional Requirements
-
-#### FR-FIX-01: Add `--dangerously-skip-permissions` Support for Autonomous Commands
+### 2.1 Bug Fix: Stream-JSON Without Verbose Flag (Issue #7)
 
 **Priority: Critical**
 
+The root cause is that Claude Code CLI requires `--verbose` when using `--output-format=stream-json` with `--print` mode. The current implementation always uses stream-json format but doesn't always pass verbose.
+
 | ID | Requirement |
 |----|-------------|
-| FR-FIX-01.1 | Add `skip_permissions: bool = False` parameter to `ClaudeService.run_print_mode()` |
-| FR-FIX-01.2 | When `skip_permissions=True`, include `--dangerously-skip-permissions` in Claude CLI args |
-| FR-FIX-01.3 | `ralph once` calls `run_print_mode()` with `skip_permissions=True` by default |
-| FR-FIX-01.4 | `ralph loop` calls `run_print_mode()` with `skip_permissions=True` by default |
-| FR-FIX-01.5 | Display one-time info message: "Running Claude with auto-approved permissions for autonomous iteration" |
-| FR-FIX-01.6 | The flag is NOT applied to other commands (`prd`, `tasks`, etc.) |
+| FR-BUG7-01 | When `stream=True` in `run_print_mode()`, always include `--verbose` in CLI args |
+| FR-BUG7-02 | The `--verbose` flag controls output *display*, not the underlying stream format |
+| FR-BUG7-03 | In non-verbose mode, parse stream-json but only display text content |
+| FR-BUG7-04 | In verbose mode, display the full JSON stream (current behavior) |
+| FR-BUG7-05 | Commands `ralph once` and `ralph loop` must work without any flags |
 
-**File:** `src/ralph/services/claude.py` (line ~186, `run_print_mode` method)
+**Files to Modify:**
+- `src/ralph/services/claude.py` - `_build_base_args()` and `run_print_mode()`
 
-#### FR-FIX-02: Add Non-Interactive Input Options to `ralph prd`
+**Technical Solution:**
+```python
+# Always use --verbose when streaming, as stream-json requires it
+# The parse_json parameter controls what gets displayed, not the underlying format
+if stream:
+    args.extend(["--verbose", "--output-format", "stream-json"])
+```
+
+### 2.2 Bug Fix: Output Formatting with Newlines (Issue #6)
 
 **Priority: High**
 
+Text chunks from stream-json events are written directly without newlines, creating unreadable output.
+
 | ID | Requirement |
 |----|-------------|
-| FR-FIX-02.1 | Add `--input` / `-i` option accepting a feature description string |
-| FR-FIX-02.2 | Add `--file` / `-f` option accepting a path to a file with the description |
-| FR-FIX-02.3 | `--input` and `--file` are mutually exclusive; error if both provided |
-| FR-FIX-02.4 | When either flag is provided, run in non-interactive mode (single prompt) |
-| FR-FIX-02.5 | When neither flag is provided, maintain current interactive behavior |
+| FR-BUG6-01 | Detect message boundaries in the JSON stream |
+| FR-BUG6-02 | Add newline after each complete assistant message/turn |
+| FR-BUG6-03 | Preserve inline text flow within a single message |
+| FR-BUG6-04 | Output should be readable without requiring verbose mode |
 
-**Examples:**
-```bash
-ralph prd --input "A pomodoro timer CLI with Rich output"
-ralph prd --file ./feature-idea.txt
+**Files to Modify:**
+- `src/ralph/services/claude.py` - `_stream_output()` and `_parse_stream_event()`
+
+**Technical Solution:**
+The stream-json format includes event types. Track when a message completes and add newlines:
+```python
+def _parse_stream_event(self, line: str) -> tuple[str | None, bool]:
+    """Parse a stream event, return (text, is_message_complete)."""
+    # Return is_message_complete=True when we see end-of-turn markers
 ```
 
-#### FR-FIX-03: Accurate Success/Failure Reporting for `ralph prd`
+### 2.3 Bug Fix: Skip Permissions for Interactive Commands (Issue #4)
+
+**Priority: High**
+
+The `ralph prd` command should use `--dangerously-skip-permissions` like `ralph once` and `ralph loop`.
+
+| ID | Requirement |
+|----|-------------|
+| FR-BUG4-01 | Add `skip_permissions: bool = False` parameter to `run_interactive()` |
+| FR-BUG4-02 | When `skip_permissions=True`, include `--dangerously-skip-permissions` in args |
+| FR-BUG4-03 | `ralph prd` calls `run_interactive()` with `skip_permissions=True` |
+| FR-BUG4-04 | Display info message about auto-approved permissions |
+
+**Files to Modify:**
+- `src/ralph/services/claude.py` - `run_interactive()`
+- `src/ralph/commands/prd.py`
+
+### 2.4 Enhancement: Implement CHANGELOG.md (Issue #9)
 
 **Priority: Medium**
 
+Add a CHANGELOG.md file that persists across feature development cycles, following the Keep a Changelog format.
+
 | ID | Requirement |
 |----|-------------|
-| FR-FIX-03.1 | Before running Claude, record the mtime of `plans/SPEC.md` (if it exists) |
-| FR-FIX-03.2 | After Claude completes, compare the new mtime or check if file now exists |
-| FR-FIX-03.3 | If file was created/modified: display "PRD saved to plans/SPEC.md" |
-| FR-FIX-03.4 | If file was NOT modified: display warning "Warning: PRD file was not modified. The session may have ended before completion." |
-| FR-FIX-03.5 | Exit with code 0 in both cases (warning only, not error) |
-| FR-FIX-03.6 | Warning message uses Rich warning styling (yellow) |
+| FR-ENH9-01 | `ralph init` creates `CHANGELOG.md` in project root if it doesn't exist |
+| FR-ENH9-02 | Use [Keep a Changelog](https://keepachangelog.com/) format |
+| FR-ENH9-03 | Template includes: Unreleased section, category headers (Added, Changed, etc.) |
+| FR-ENH9-04 | Add CHANGELOG guidelines section to `CLAUDE.md` |
+| FR-ENH9-05 | Add same CHANGELOG guidelines section to `AGENTS.md` (keep in sync) |
+| FR-ENH9-06 | Update iteration prompt to mention CHANGELOG for significant changes |
 
-### 6.5 Technical Considerations
+**CHANGELOG.md Template:**
+```markdown
+# Changelog
 
-#### Files to Modify
+All notable changes to this project will be documented in this file.
 
-| Requirement | File(s) |
-|-------------|---------|
-| FR-FIX-01 | `src/ralph/services/claude.py`, `src/ralph/commands/once.py`, `src/ralph/commands/loop.py` |
-| FR-FIX-02 | `src/ralph/commands/prd.py`, `src/ralph/cli.py` |
-| FR-FIX-03 | `src/ralph/commands/prd.py` |
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-#### Testing Strategy
+## [Unreleased]
 
-- Unit tests for `ClaudeService.run_print_mode()` with `skip_permissions=True`
-- Integration tests for `ralph prd --input` and `ralph prd --file`
-- Tests for file modification detection logic
-- Manual testing of full autonomous loop
+### Added
+- Initial project setup
 
-### 6.6 Success Criteria
+```
 
-| # | Criterion | Verified |
-|---|-----------|----------|
-| 1 | `ralph once` completes an iteration without permission prompts | ☐ |
-| 2 | `ralph loop 3` completes 3 iterations without human intervention | ☐ |
-| 3 | `ralph prd --input "description"` generates a complete PRD | ☐ |
-| 4 | `ralph prd --file path.txt` reads file and generates PRD | ☐ |
-| 5 | Failed/incomplete PRD session shows warning message | ☐ |
-| 6 | Existing interactive `ralph prd` workflow unchanged | ☐ |
+**CLAUDE.md/AGENTS.md Section to Add:**
+```markdown
+## CHANGELOG.md
 
-### 6.7 Reference
+This project maintains a CHANGELOG.md following Keep a Changelog format.
 
-- Original bug reports: `/Users/jack/Projects/ralph_cli/TESTING.txt`
+**When to update:**
+- After implementing significant features
+- When fixing important bugs
+- When making breaking changes
+- When deprecating functionality
+
+**How to update:**
+1. Add entries under the `[Unreleased]` section
+2. Use appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
+3. Write user-facing descriptions (not implementation details)
+4. Reference story IDs when applicable
+
+**Do NOT update CHANGELOG.md for:**
+- Minor refactorings
+- Internal code reorganization
+- Test additions (unless significant new test infrastructure)
+```
+
+**Files to Modify:**
+- `src/ralph/commands/init_cmd.py` - Add CHANGELOG.md creation
+- `src/ralph/services/scaffold.py` - Add template
+- `skills/ralph-iteration/SKILL.md` - Update iteration instructions
+
+### 2.5 Enhancement: Clear PROGRESS.txt on New Tasks (Issue #8)
+
+**Priority: Medium**
+
+When `ralph tasks` generates a new TASKS.json, archive the existing PROGRESS.txt to prevent stale context from confusing Claude.
+
+| ID | Requirement |
+|----|-------------|
+| FR-ENH8-01 | After writing new TASKS.json, check if PROGRESS.txt exists |
+| FR-ENH8-02 | If exists, archive to `plans/PROGRESS.{timestamp}.txt` |
+| FR-ENH8-03 | Timestamp format: `YYYYMMDD_HHMMSS` |
+| FR-ENH8-04 | Create fresh empty PROGRESS.txt with header template |
+| FR-ENH8-05 | Display message: "Archived previous progress to PROGRESS.{timestamp}.txt" |
+
+**Files to Modify:**
+- `src/ralph/commands/tasks.py` - Add archival logic after `save_tasks()`
+
+**Implementation:**
+```python
+# After save_tasks(tasks_model, output_path)
+progress_path = project_root / "plans" / "PROGRESS.txt"
+if progress_path.exists() and progress_path.stat().st_size > 0:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archive_path = project_root / "plans" / f"PROGRESS.{timestamp}.txt"
+    progress_path.rename(archive_path)
+    console.print(f"[dim]Archived previous progress to {archive_path.name}[/dim]")
+    # Create fresh PROGRESS.txt
+    progress_path.write_text(PROGRESS_TEMPLATE)
+```
+
+### 2.6 Enhancement: Stream Output for `ralph tasks` (Issue #5)
+
+**Priority: Low**
+
+Enable streaming output for the `ralph tasks` command to provide feedback during generation.
+
+| ID | Requirement |
+|----|-------------|
+| FR-ENH5-01 | Change `stream=False` to `stream=True` in `ralph tasks` |
+| FR-ENH5-02 | Users see Claude's progress as it generates the task breakdown |
+| FR-ENH5-03 | JSON extraction still works correctly from streamed output |
+
+**Files to Modify:**
+- `src/ralph/commands/tasks.py` - Line ~86
+
+**Change:**
+```python
+# Before
+output_text, exit_code = claude.run_print_mode(prompt, stream=False)
+
+# After
+output_text, exit_code = claude.run_print_mode(prompt, stream=True)
+```
+
+---
+
+## 3. Technical Considerations
+
+### 3.1 Claude Code CLI Behavior
+
+The key insight from Issue #7 is that Claude Code's `--output-format=stream-json` flag requires `--verbose` when used with `--print` mode. This is a Claude Code requirement, not a bug in ralph-cli. The fix is to always pass `--verbose` internally when streaming, then control what gets *displayed* based on the user's verbose preference.
+
+### 3.2 Stream Event Types
+
+Claude Code stream-json outputs different event types:
+- `assistant` - Contains text content from Claude
+- `tool_use` - Tool invocation
+- `tool_result` - Tool execution result
+- `error` - Error messages
+
+For newline insertion, we should add newlines when transitioning between major message blocks, particularly after a complete assistant response before a new tool use or vice versa.
+
+### 3.3 File Modification Summary
+
+| File | Changes |
+|------|---------|
+| `src/ralph/services/claude.py` | Fix stream args, improve output parsing |
+| `src/ralph/commands/tasks.py` | Enable streaming, add PROGRESS.txt archival |
+| `src/ralph/commands/prd.py` | Add skip_permissions to interactive mode |
+| `src/ralph/commands/init_cmd.py` | Create CHANGELOG.md |
+| `src/ralph/services/scaffold.py` | Add CHANGELOG template |
+| `skills/ralph-iteration/SKILL.md` | Update iteration instructions |
+| `CLAUDE.md` | Add CHANGELOG guidelines |
+| `AGENTS.md` | Add CHANGELOG guidelines (keep in sync) |
+
+---
+
+## 4. Success Criteria
+
+| # | Criterion | Issue |
+|---|-----------|-------|
+| 1 | `ralph once` works without `-v` flag | #7 |
+| 2 | `ralph loop 3` completes without `-v` flag | #7 |
+| 3 | Output shows proper newlines between message blocks | #6 |
+| 4 | Output is readable without verbose mode | #6 |
+| 5 | `ralph prd` runs without permission prompts | #4 |
+| 6 | `ralph init` creates CHANGELOG.md with proper template | #9 |
+| 7 | CLAUDE.md and AGENTS.md contain CHANGELOG guidelines | #9 |
+| 8 | `ralph tasks` archives existing PROGRESS.txt | #8 |
+| 9 | `ralph tasks` streams output in real-time | #5 |
+| 10 | All existing tests continue to pass | - |
+
+---
+
+## 5. Testing Strategy
+
+### 5.1 Unit Tests
+
+- Test `_build_base_args()` always includes `--verbose` when streaming
+- Test `_parse_stream_event()` returns newline markers correctly
+- Test `run_interactive()` with `skip_permissions=True`
+- Test PROGRESS.txt archival with timestamp format
+
+### 5.2 Integration Tests
+
+- Run `ralph once` without flags, verify no crash
+- Run `ralph loop 2` without flags, verify completion
+- Run `ralph tasks` and verify streaming output
+- Run `ralph init` and verify CHANGELOG.md created
+
+### 5.3 Manual Testing
+
+- Visual inspection of output formatting
+- Verify CHANGELOG.md template follows Keep a Changelog format
+- Verify archived PROGRESS.txt files are created correctly
+
+---
+
+## Appendix A: Issue Reference
+
+| Issue | Title | Type | Priority |
+|-------|-------|------|----------|
+| #7 | ralph once/loop crash when -v flag is not passed | Bug | Critical |
+| #6 | ralph once/loop output formatting: need newlines | Bug | High |
+| #4 | Enable skip permissions for interactive commands | Bug | High |
+| #9 | Implement CHANGELOG.md for long-term memory | Enhancement | Medium |
+| #8 | ralph tasks should clear PROGRESS.txt | Enhancement | Medium |
+| #5 | ralph tasks does not stream output | Enhancement | Low |

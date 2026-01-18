@@ -1466,32 +1466,53 @@
 
 [Ralph Loop] 2026-01-18 UTC - Iteration 10: US-010 (Add integration tests for commands) completed
 
-## 2026-01-18 - Issue #6 Fix (v1.2.1)
+## 2026-01-18 - Issue #6 Fix (v1.2.1) - INCOMPLETE
 
 **Issue:** Output formatting - newlines not appearing between Claude's thoughts
 
-### Root Cause
-The original fix (US-002) detected `message_stop` and `result` events to add newlines, but these events only fire at the end of the entire message. Multiple Claude "thoughts" within the same message are separate **content blocks**, separated by `content_block_stop` events that were not being detected.
+### Root Cause (Initial Analysis - INCORRECT)
+The original fix (US-002) detected `message_stop` and `result` events to add newlines. The v1.2.1 fix added `content_block_stop` detection, but this was based on the **Anthropic API** streaming format, not the **Claude Code CLI** streaming format.
+
+**The Claude CLI's `stream-json` format is different from the Anthropic API:**
+- Anthropic API streaming: `content_block_delta`, `content_block_stop`, `message_stop` events
+- Claude CLI stream-json: Full `{"type":"assistant","message":{...}}` events with complete content
+
+The `content_block_stop` events don't exist in Claude CLI output - they are from the API format.
+
+---
+
+## 2026-01-18 - Issue #6 Fix (v1.2.2) - CORRECT FIX
+
+**Issue:** Output formatting - newlines not appearing between Claude's thoughts
+
+### Root Cause (Correct Analysis)
+The Claude Code CLI's `stream-json` format outputs complete `assistant` events, not streaming deltas. Each `{"type":"assistant","message":{...}}` event contains a full turn (text or tool_use). Multiple Claude "thoughts" separated by tool calls appear as separate `assistant` events.
 
 ### What was implemented
-- Added `content_block_stop` to the event types that trigger `MESSAGE_BOUNDARY` in `_parse_stream_event()`
-- Updated comments to explain the three event types:
-  - `content_block_stop`: fires after each content block (text, tool_use)
-  - `message_stop`: fires at the end of the entire message
-  - `result`: fires at the end of the conversation
+- Modified text extraction from `assistant` events to append a trailing newline
+- Each assistant turn's text now ends with `\n` for readability between turns
+- The fix is in `_parse_stream_event()` when extracting text from assistant events
 
-### Tests written
-- `test_returns_message_boundary_for_content_block_stop` - verifies content_block_stop returns MESSAGE_BOUNDARY
-- `test_stream_output_adds_newline_at_content_block_stop` - verifies newlines between content blocks
-- Updated `TestParseStreamEventNewlineMarkers` docstring to reference Issue #6
-- Added integration test `test_stream_output_writes_newline_at_content_block_stop` in test_bug_fixes.py
+### Code change
+```python
+# Before:
+return block.get("text", "")
+
+# After:
+text = block.get("text", "")
+return text + "\n" if text else None
+```
+
+### Tests updated
+- `test_parses_assistant_message_with_text` - now expects trailing newline
+- `test_assistant_message_returns_text_with_newline` - renamed and updated
 
 ### Files changed
-- src/ralph/services/claude.py (modified - added content_block_stop detection)
-- tests/test_services/test_claude.py (modified - added 2 new tests)
-- tests/test_bug_fixes.py (modified - added 2 new tests, updated docstrings)
-- pyproject.toml (modified - bumped version to 1.2.1)
-- src/ralph/__init__.py (modified - bumped __version__ to 1.2.1)
+- src/ralph/services/claude.py (modified - assistant events add trailing newline)
+- tests/test_services/test_claude.py (modified - updated test expectations)
+- tests/test_bug_fixes.py (modified - updated test expectations)
+- pyproject.toml (modified - bumped version to 1.2.2)
+- src/ralph/__init__.py (modified - bumped __version__ to 1.2.2)
 
 ### Expected output after fix
 ```
@@ -1500,7 +1521,7 @@ Now let me start implementing US-001.
 Now let me add the dependencies.
 ```
 
-Each content block now ends with a newline, making output readable.
+Each assistant turn now ends with a newline, making output readable.
 
 ---
 

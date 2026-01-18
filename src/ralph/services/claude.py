@@ -63,12 +63,15 @@ class ClaudeService(BaseModel):
                 return MESSAGE_BOUNDARY
 
             # Extract text from assistant message events
+            # Each assistant event is a complete turn - add newline after text
             if event_type == "assistant":
                 message = event.get("message", {})
                 content = message.get("content", [])
                 for block in content:
                     if block.get("type") == "text":
-                        return block.get("text", "")
+                        text = block.get("text", "")
+                        # Add newline after each assistant text turn for readability
+                        return text + "\n" if text else None
 
             # Also handle content_block_delta events for streaming text
             if event_type == "content_block_delta":

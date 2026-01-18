@@ -617,13 +617,14 @@ class TestParseStreamEvent:
     """Tests for _parse_stream_event method."""
 
     def test_parses_assistant_message_with_text(self) -> None:
-        """Test that assistant messages with text content are parsed."""
+        """Test that assistant messages with text content are parsed with trailing newline."""
         service = ClaudeService()
 
         line = '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}'
         result = service._parse_stream_event(line)
 
-        assert result == "Hello world"
+        # Assistant events get trailing newline for readability between turns
+        assert result == "Hello world\n"
 
     def test_parses_content_block_delta(self) -> None:
         """Test that content_block_delta events are parsed."""
