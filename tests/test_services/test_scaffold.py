@@ -291,6 +291,49 @@ class TestCreateClaudeMd:
         assert "cargo test" in content
 
 
+class TestCreateChangelog:
+    """Tests for ScaffoldService.create_changelog()."""
+
+    def test_creates_changelog_file(self, tmp_path: Path) -> None:
+        """Test that CHANGELOG.md file is created."""
+        service = ScaffoldService(project_root=tmp_path)
+        result = service.create_changelog()
+
+        assert result == tmp_path / "CHANGELOG.md"
+        assert result.exists()
+
+    def test_changelog_follows_keep_a_changelog_format(self, tmp_path: Path) -> None:
+        """Test that CHANGELOG.md follows Keep a Changelog format."""
+        service = ScaffoldService(project_root=tmp_path)
+        result = service.create_changelog()
+
+        content = result.read_text()
+        assert "# Changelog" in content
+        assert "Keep a Changelog" in content
+        assert "Semantic Versioning" in content
+
+    def test_changelog_has_unreleased_section(self, tmp_path: Path) -> None:
+        """Test that CHANGELOG.md has an Unreleased section."""
+        service = ScaffoldService(project_root=tmp_path)
+        result = service.create_changelog()
+
+        content = result.read_text()
+        assert "## [Unreleased]" in content
+
+    def test_changelog_has_category_headers(self, tmp_path: Path) -> None:
+        """Test that CHANGELOG.md has all standard category headers."""
+        service = ScaffoldService(project_root=tmp_path)
+        result = service.create_changelog()
+
+        content = result.read_text()
+        assert "### Added" in content
+        assert "### Changed" in content
+        assert "### Deprecated" in content
+        assert "### Removed" in content
+        assert "### Fixed" in content
+        assert "### Security" in content
+
+
 class TestCreateAgentsMd:
     """Tests for ScaffoldService.create_agents_md()."""
 
@@ -352,6 +395,7 @@ class TestScaffoldAll:
         assert "progress" in result
         assert "claude_md" in result
         assert "agents_md" in result
+        assert "changelog" in result
 
         assert (tmp_path / "plans").exists()
         assert (tmp_path / "plans" / "SPEC.md").exists()
@@ -359,6 +403,7 @@ class TestScaffoldAll:
         assert (tmp_path / "plans" / "PROGRESS.txt").exists()
         assert (tmp_path / "CLAUDE.md").exists()
         assert (tmp_path / "AGENTS.md").exists()
+        assert (tmp_path / "CHANGELOG.md").exists()
 
     def test_scaffold_all_uses_project_name(self, tmp_path: Path) -> None:
         """Test that scaffold_all passes project name to subcommands."""
@@ -382,6 +427,7 @@ class TestScaffoldAll:
         assert result["progress"] == tmp_path / "plans" / "PROGRESS.txt"
         assert result["claude_md"] == tmp_path / "CLAUDE.md"
         assert result["agents_md"] == tmp_path / "AGENTS.md"
+        assert result["changelog"] == tmp_path / "CHANGELOG.md"
 
 
 class TestGetQualityChecksYaml:

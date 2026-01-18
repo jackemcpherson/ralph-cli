@@ -256,6 +256,40 @@ Run all checks before committing. Fix any failures before proceeding.
         write_file(claude_md_path, content)
         return claude_md_path
 
+    def create_changelog(self) -> Path:
+        """Create a CHANGELOG.md file following Keep a Changelog format.
+
+        The template includes an Unreleased section with standard category
+        headers (Added, Changed, Deprecated, Removed, Fixed, Security).
+
+        Returns:
+            Path to the created CHANGELOG.md file.
+        """
+        changelog_path = self.project_root / "CHANGELOG.md"
+        content = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+"""
+        write_file(changelog_path, content)
+        return changelog_path
+
     def create_agents_md(self, project_name: str | None = None) -> Path:
         """Create an AGENTS.md file with Ralph workflow instructions.
 
@@ -333,6 +367,7 @@ This project uses the Ralph autonomous iteration pattern.
             "progress": self.create_progress_placeholder(),
             "claude_md": self.create_claude_md(project_name),
             "agents_md": self.create_agents_md(project_name),
+            "changelog": self.create_changelog(),
         }
 
     def _get_quality_checks_yaml(self, project_type: ProjectType) -> str:
