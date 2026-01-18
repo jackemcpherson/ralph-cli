@@ -35,7 +35,8 @@ You are an autonomous coding agent executing a single user story from the Ralph 
 1. **Commit changes** with the proper message format
 2. **Update TASKS.json** to mark the story as passed
 3. **Append to PROGRESS.txt** with your iteration summary
-4. **Update CLAUDE.md and AGENTS.md** if you discovered reusable patterns
+4. **Update CHANGELOG.md** if you made significant user-facing changes
+5. **Update CLAUDE.md and AGENTS.md** if you discovered reusable patterns
 
 ## Quality Checks
 
@@ -227,6 +228,49 @@ Do NOT add:
 - Temporary debugging notes
 - Information already in PROGRESS.txt
 
+### CHANGELOG.md
+
+Update `CHANGELOG.md` when your story includes **significant user-facing changes**. This serves as persistent memory across development cycles.
+
+#### When to Update
+
+Add a CHANGELOG entry for:
+- **New features**: Commands, options, or capabilities users will interact with
+- **Bug fixes**: Issues that affected user experience
+- **Breaking changes**: API changes, removed features, changed behavior
+- **Performance improvements**: Noticeable speed or memory improvements
+- **Security fixes**: Vulnerabilities or security enhancements
+- **Deprecations**: Features being phased out
+
+#### When NOT to Update
+
+Skip CHANGELOG for:
+- **Internal refactoring**: Code cleanup that doesn't change behavior
+- **Test additions**: New or modified tests
+- **Documentation updates**: README, inline comments (unless user-facing docs)
+- **Code style/formatting**: Linting or formatting fixes
+- **Dependency updates**: Unless they affect user-facing behavior
+- **WIP commits**: Incomplete or intermediate work
+
+#### How to Update
+
+1. Add entries under the `## [Unreleased]` section
+2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
+3. Write from the user's perspective (what changed for them)
+4. Be concise but specific (include command names, option flags, etc.)
+
+Example entry:
+```markdown
+## [Unreleased]
+
+### Added
+- `ralph prd --input` flag for non-interactive PRD generation
+- `--skip-permissions` support for autonomous iteration
+
+### Fixed
+- `ralph once` no longer requires `-v` flag when streaming output
+```
+
 ## Stop Condition
 
 After completing a story, check if ALL stories have `passes: true`.
@@ -280,4 +324,5 @@ Future iterations can pick up where you left off by reading PROGRESS.txt for con
 | `plans/PROGRESS.txt` | Iteration log | Read patterns, append summary |
 | `CLAUDE.md` | Quality checks | Read for checks, update with patterns |
 | `AGENTS.md` | Agent instructions | Update to match CLAUDE.md |
+| `CHANGELOG.md` | User-facing changes | Update for significant changes |
 | `plans/SPEC.md` | Original PRD | Reference for context if needed |
