@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ralph.services.claude import ClaudeError, ClaudeService
+from ralph.services.claude import MESSAGE_BOUNDARY, ClaudeError, ClaudeService
 
 
 class TestClaudeServiceInit:
@@ -262,6 +262,47 @@ class TestRunPrintMode:
             args = mock_run.call_args[0][0]
             assert "--output-format" not in args
 
+    def test_includes_verbose_when_streaming(self) -> None:
+        """Test that --verbose is always included when stream=True.
+
+        The stream-json output format requires --verbose flag to work.
+        """
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--verbose" in args
+
+    def test_excludes_verbose_when_not_streaming_and_not_verbose(self) -> None:
+        """Test that --verbose is NOT included when stream=False and verbose=False."""
+        service = ClaudeService(verbose=False)
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--verbose" not in args
+
+    def test_does_not_duplicate_verbose_when_already_set(self) -> None:
+        """Test that --verbose is not duplicated when service.verbose=True and stream=True."""
+        service = ClaudeService(verbose=True)
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            args = mock_run.call_args[0][0]
+            # Count occurrences of --verbose (should only be 1)
+            verbose_count = args.count("--verbose")
+            assert verbose_count == 1
+
 
 class TestRunWithOutputFormat:
     """Tests for run_with_output_format method."""
@@ -362,6 +403,55 @@ class TestRunInteractive:
                 service.run_interactive()
 
             assert "Failed to run Claude Code" in str(exc_info.value)
+
+    def test_includes_skip_permissions_when_true(self) -> None:
+        """Test that --dangerously-skip-permissions is included when skip_permissions=True."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+
+    def test_excludes_skip_permissions_when_false(self) -> None:
+        """Test that --dangerously-skip-permissions is NOT included when skip_permissions=False."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(skip_permissions=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_default_skip_permissions_is_false(self) -> None:
+        """Test that skip_permissions defaults to False in run_interactive."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive()
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" not in args
+
+    def test_skip_permissions_with_prompt(self) -> None:
+        """Test that skip_permissions works correctly with a prompt."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+
+            service.run_interactive(prompt="Hello", skip_permissions=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--dangerously-skip-permissions" in args
+            assert "Hello" in args
 
 
 class TestRunProcess:
@@ -527,13 +617,14 @@ class TestParseStreamEvent:
     """Tests for _parse_stream_event method."""
 
     def test_parses_assistant_message_with_text(self) -> None:
-        """Test that assistant messages with text content are parsed."""
+        """Test that assistant messages with text content are parsed with trailing blank line."""
         service = ClaudeService()
 
         line = '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello world"}]}}'
         result = service._parse_stream_event(line)
 
-        assert result == "Hello world"
+        # Assistant events get trailing blank line for readability between turns
+        assert result == "Hello world\n\n"
 
     def test_parses_content_block_delta(self) -> None:
         """Test that content_block_delta events are parsed."""
@@ -588,6 +679,164 @@ class TestParseStreamEvent:
         result = service._parse_stream_event(line)
 
         assert result is None
+
+    def test_returns_message_boundary_for_content_block_stop(self) -> None:
+        """Test that content_block_stop events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"content_block_stop","index":0}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
+    def test_returns_message_boundary_for_message_stop(self) -> None:
+        """Test that message_stop events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"message_stop"}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
+    def test_returns_message_boundary_for_result(self) -> None:
+        """Test that result events return MESSAGE_BOUNDARY."""
+        service = ClaudeService()
+
+        line = '{"type":"result","subtype":"success","result":{}}'
+        result = service._parse_stream_event(line)
+
+        assert result == MESSAGE_BOUNDARY
+
+    def test_message_boundary_is_newline(self) -> None:
+        """Test that MESSAGE_BOUNDARY is a newline character."""
+        assert MESSAGE_BOUNDARY == "\n"
+
+
+class TestStreamOutputMessageBoundary:
+    """Tests for _stream_output message boundary handling."""
+
+    def test_stream_output_adds_newline_at_message_boundary(self) -> None:
+        """Test that _stream_output adds a newline when encountering message_stop."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"World"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should include the newline between messages
+        assert stdout_content == "Hello\nWorld"
+        # Verify write calls
+        assert mock_stdout.write.call_count == 3
+        mock_stdout.write.assert_any_call("Hello")
+        mock_stdout.write.assert_any_call("\n")
+        mock_stdout.write.assert_any_call("World")
+
+    def test_stream_output_adds_newline_at_content_block_stop(self) -> None:
+        """Test that _stream_output adds a newline when encountering content_block_stop.
+
+        This is the key fix for issue #6 - newlines between content blocks within
+        the same message, not just between separate messages.
+        """
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        event1 = '{"type":"content_block_delta",'
+        event1 += '"delta":{"type":"text_delta","text":"First thought"}}\n'
+        event2 = '{"type":"content_block_stop","index":0}\n'
+        event3 = '{"type":"content_block_delta",'
+        event3 += '"delta":{"type":"text_delta","text":"Second thought"}}\n'
+        event4 = '{"type":"content_block_stop","index":1}\n'
+        mock_process.stdout = iter([event1, event2, event3, event4])
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should have newlines between content blocks
+        assert stdout_content == "First thought\nSecond thought\n"
+        # Verify write calls
+        mock_stdout.write.assert_any_call("First thought")
+        mock_stdout.write.assert_any_call("\n")
+        mock_stdout.write.assert_any_call("Second thought")
+
+    def test_stream_output_adds_newline_at_result_boundary(self) -> None:
+        """Test that _stream_output adds a newline when encountering result event."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"First"}}\n',
+                '{"type":"result","subtype":"success"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Second"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "First\nSecond"
+
+    def test_stream_output_preserves_inline_text_flow(self) -> None:
+        """Test that inline text within a single message flows without extra newlines."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part1 "}}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part2 "}}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Part3"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        # Should be concatenated without extra newlines
+        assert stdout_content == "Part1 Part2 Part3"
+
+    def test_stream_output_multiple_message_boundaries(self) -> None:
+        """Test that multiple message boundaries each add a newline."""
+        mock_stdout = MagicMock()
+        service = ClaudeService()
+        object.__setattr__(service, "stdout", mock_stdout)
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg1"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg2"}}\n',
+                '{"type":"message_stop"}\n',
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Msg3"}}\n',
+            ]
+        )
+        mock_process.stderr = MagicMock()
+        mock_process.stderr.read.return_value = ""
+
+        stdout_content, _ = service._stream_output(mock_process, parse_json=True)
+
+        assert stdout_content == "Msg1\nMsg2\nMsg3"
 
 
 class TestClaudeError:

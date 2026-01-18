@@ -244,12 +244,142 @@ class TestCheckExistingFiles:
         (plans_dir / "PROGRESS.txt").write_text("# Progress\n")
         (temp_project / "CLAUDE.md").write_text("# Claude\n")
         (temp_project / "AGENTS.md").write_text("# Agents\n")
+        (temp_project / "CHANGELOG.md").write_text("# Changelog\n")
 
         existing = _check_existing_files(temp_project)
 
-        assert len(existing) == 5
+        assert len(existing) == 6
         assert "plans/SPEC.md" in existing
         assert "plans/TASKS.json" in existing
         assert "plans/PROGRESS.txt" in existing
         assert "CLAUDE.md" in existing
         assert "AGENTS.md" in existing
+        assert "CHANGELOG.md" in existing
+
+    def test_finds_existing_changelog_md(self, temp_project: Path) -> None:
+        """Test that existing CHANGELOG.md is found."""
+        (temp_project / "CHANGELOG.md").write_text("# Changelog\n")
+
+        existing = _check_existing_files(temp_project)
+
+        assert "CHANGELOG.md" in existing
+
+
+class TestInitChangelogCreation:
+    """Tests for CHANGELOG.md creation in init command."""
+
+    def test_init_creates_changelog_md(self, runner: CliRunner, python_project: Path) -> None:
+        """Test that init creates CHANGELOG.md in project root."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init"])
+
+            assert result.exit_code == 0
+            assert (python_project / "CHANGELOG.md").exists()
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_changelog_follows_keep_a_changelog_format(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that created CHANGELOG.md follows Keep a Changelog format."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["init"])
+
+            changelog_content = (python_project / "CHANGELOG.md").read_text()
+            assert "# Changelog" in changelog_content
+            assert "Keep a Changelog" in changelog_content
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_changelog_has_unreleased_section(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that created CHANGELOG.md has Unreleased section with category headers."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["init"])
+
+            changelog_content = (python_project / "CHANGELOG.md").read_text()
+            assert "## [Unreleased]" in changelog_content
+            assert "### Added" in changelog_content
+            assert "### Changed" in changelog_content
+            assert "### Fixed" in changelog_content
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_does_not_overwrite_existing_changelog(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init does NOT overwrite existing CHANGELOG.md even with --force."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            # Create an existing CHANGELOG.md with custom content
+            existing_content = "# My Custom Changelog\n\n## v1.0.0\n\n- Initial release\n"
+            (python_project / "CHANGELOG.md").write_text(existing_content)
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                # Use --force to overwrite other files
+                result = runner.invoke(app, ["init", "--force"])
+
+            assert result.exit_code == 0
+
+            # Verify CHANGELOG.md was NOT overwritten
+            changelog_content = (python_project / "CHANGELOG.md").read_text()
+            assert changelog_content == existing_content
+            assert "My Custom Changelog" in changelog_content
+            assert "v1.0.0" in changelog_content
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_shows_skipped_message_for_existing_changelog(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init shows 'Skipped' message for existing CHANGELOG.md."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            # Create an existing CHANGELOG.md
+            (python_project / "CHANGELOG.md").write_text("# Existing changelog\n")
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init", "--force"])
+
+            assert result.exit_code == 0
+            assert "Skipped CHANGELOG.md" in result.output
+            assert "already exists" in result.output
+        finally:
+            os.chdir(original_cwd)

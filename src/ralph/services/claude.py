@@ -15,6 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
+# Sentinel value to indicate a message boundary (end of an assistant turn)
+MESSAGE_BOUNDARY = "\n"
+
 
 class ClaudeError(Exception):
     """Exception raised for Claude Code operation failures.
@@ -45,22 +48,37 @@ class ClaudeService(BaseModel):
             line: A single line from stream-json output.
 
         Returns:
-            Extracted text for display, or None if no displayable text.
+            Extracted text for display, MESSAGE_BOUNDARY for message end,
+            or None if no displayable text.
         """
         try:
             event = json.loads(line)
+            event_type = event.get("type")
+
+            # Detect message boundaries - end of content block or assistant turn
+            # content_block_stop fires after each content block (text, tool_use)
+            # message_stop fires at the end of the entire message
+            # result fires at the end of the conversation
+            if event_type in ("content_block_stop", "message_stop", "result"):
+                return MESSAGE_BOUNDARY
+
             # Extract text from assistant message events
-            if event.get("type") == "assistant":
+            # Each assistant event is a complete turn - add newline after text
+            if event_type == "assistant":
                 message = event.get("message", {})
                 content = message.get("content", [])
                 for block in content:
                     if block.get("type") == "text":
-                        return block.get("text", "")
+                        text = block.get("text", "")
+                        # Add blank line after each assistant text turn for readability
+                        return text + "\n\n" if text else None
+
             # Also handle content_block_delta events for streaming text
-            if event.get("type") == "content_block_delta":
+            if event_type == "content_block_delta":
                 delta = event.get("delta", {})
                 if delta.get("type") == "text_delta":
                     return delta.get("text", "")
+
         except json.JSONDecodeError:
             pass
         return None
@@ -161,7 +179,12 @@ class ClaudeService(BaseModel):
         except subprocess.SubprocessError as e:
             raise ClaudeError(f"Failed to run Claude Code: {e}") from e
 
-    def run_interactive(self, prompt: str | None = None) -> int:
+    def run_interactive(
+        self,
+        prompt: str | None = None,
+        *,
+        skip_permissions: bool = False,
+    ) -> int:
         """Run Claude Code in interactive mode.
 
         Launches Claude Code interactively, allowing user input.
@@ -169,6 +192,7 @@ class ClaudeService(BaseModel):
 
         Args:
             prompt: Optional initial prompt to start the conversation.
+            skip_permissions: Whether to skip permission prompts (default: False).
 
         Returns:
             Exit code from the Claude process.
@@ -177,6 +201,9 @@ class ClaudeService(BaseModel):
             ClaudeError: If Claude Code is not installed or fails to start.
         """
         args = self._build_base_args()
+
+        if skip_permissions:
+            args.append("--dangerously-skip-permissions")
 
         if prompt:
             args.append(prompt)
@@ -230,6 +257,12 @@ class ClaudeService(BaseModel):
         """
         args = self._build_base_args()
         args.extend(["--print", prompt])
+
+        # stream-json output format requires --verbose flag.
+        # We always add it when streaming, but only display raw JSON when
+        # self.verbose=True (handled by parse_json logic in _stream_output).
+        if stream and "--verbose" not in args:
+            args.append("--verbose")
 
         if skip_permissions:
             args.append("--dangerously-skip-permissions")

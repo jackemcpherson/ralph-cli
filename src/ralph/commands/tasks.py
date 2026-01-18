@@ -7,6 +7,8 @@ a specification file into a structured TASKS.json file using Claude.
 import json
 import logging
 import re
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -14,7 +16,8 @@ from pydantic import ValidationError
 
 from ralph.models import TasksFile, save_tasks
 from ralph.services import ClaudeError, ClaudeService
-from ralph.utils import console, print_error, print_success, read_file
+from ralph.services.scaffold import PROGRESS_TEMPLATE
+from ralph.utils import console, print_error, print_success, read_file, write_file
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +86,7 @@ def tasks(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=False)
+        output_text, exit_code = claude.run_print_mode(prompt, stream=True)
 
         if exit_code != 0:
             print_error(f"Claude exited with code {exit_code}")
@@ -113,6 +116,14 @@ def tasks(
             raise typer.Exit(1) from e
 
         save_tasks(tasks_model, output_path)
+
+        # Archive PROGRESS.txt if it exists and has content
+        archived_path = _archive_progress_file(project_root)
+        if archived_path:
+            console.print()
+            console.print(
+                f"[dim]Archived previous progress to[/dim] [cyan]{archived_path.name}[/cyan]"
+            )
 
         story_count = len(tasks_model.user_stories)
         console.print()
@@ -238,3 +249,39 @@ def _is_valid_json(text: str) -> bool:
         return True
     except json.JSONDecodeError:
         return False
+
+
+def _archive_progress_file(project_root: Path) -> Path | None:
+    """Archive existing PROGRESS.txt if it exists and has content.
+
+    Archives the file to plans/PROGRESS.{timestamp}.txt and creates
+    a fresh PROGRESS.txt with the header template.
+
+    Args:
+        project_root: Path to the project root directory.
+
+    Returns:
+        Path to the archived file, or None if no archive was created.
+    """
+    progress_path = project_root / "plans" / "PROGRESS.txt"
+
+    # Check if file exists
+    if not progress_path.exists():
+        return None
+
+    # Check if file has content (non-empty)
+    content = progress_path.read_text()
+    if not content.strip():
+        return None
+
+    # Generate timestamp in YYYYMMDD_HHMMSS format
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    archive_path = project_root / "plans" / f"PROGRESS.{timestamp}.txt"
+
+    # Archive the file
+    shutil.copy2(progress_path, archive_path)
+
+    # Create fresh PROGRESS.txt with header template
+    write_file(progress_path, PROGRESS_TEMPLATE)
+
+    return archive_path
