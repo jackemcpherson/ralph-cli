@@ -70,8 +70,8 @@ class ClaudeService(BaseModel):
                 for block in content:
                     if block.get("type") == "text":
                         text = block.get("text", "")
-                        # Add newline after each assistant text turn for readability
-                        return text + "\n" if text else None
+                        # Add blank line after each assistant text turn for readability
+                        return text + "\n\n" if text else None
 
             # Also handle content_block_delta events for streaming text
             if event_type == "content_block_delta":

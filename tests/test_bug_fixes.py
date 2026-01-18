@@ -180,16 +180,16 @@ class TestParseStreamEventNewlineMarkers:
         assert result == "Hello"
         assert result != MESSAGE_BOUNDARY
 
-    def test_assistant_message_returns_text_with_newline(self) -> None:
-        """Test that assistant messages with text return text with trailing newline."""
+    def test_assistant_message_returns_text_with_blank_line(self) -> None:
+        """Test that assistant messages with text return text with trailing blank line."""
         service = ClaudeService()
 
         line = '{"type":"assistant","message":{"content":[{"type":"text","text":"Response"}]}}'
         result = service._parse_stream_event(line)
 
-        # Assistant events get trailing newline for readability between turns
-        assert result == "Response\n"
-        assert result != MESSAGE_BOUNDARY  # It's text + newline, not just newline
+        # Assistant events get trailing blank line for readability between turns
+        assert result == "Response\n\n"
+        assert result != MESSAGE_BOUNDARY  # It's text + blank line, not just newline
 
     def test_tool_use_events_return_none(self) -> None:
         """Test that tool_use events return None (not written to output)."""
