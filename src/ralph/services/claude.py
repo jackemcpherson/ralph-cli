@@ -231,6 +231,12 @@ class ClaudeService(BaseModel):
         args = self._build_base_args()
         args.extend(["--print", prompt])
 
+        # stream-json output format requires --verbose flag.
+        # We always add it when streaming, but only display raw JSON when
+        # self.verbose=True (handled by parse_json logic in _stream_output).
+        if stream and "--verbose" not in args:
+            args.append("--verbose")
+
         if skip_permissions:
             args.append("--dangerously-skip-permissions")
 

@@ -262,6 +262,47 @@ class TestRunPrintMode:
             args = mock_run.call_args[0][0]
             assert "--output-format" not in args
 
+    def test_includes_verbose_when_streaming(self) -> None:
+        """Test that --verbose is always included when stream=True.
+
+        The stream-json output format requires --verbose flag to work.
+        """
+        service = ClaudeService()
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            args = mock_run.call_args[0][0]
+            assert "--verbose" in args
+
+    def test_excludes_verbose_when_not_streaming_and_not_verbose(self) -> None:
+        """Test that --verbose is NOT included when stream=False and verbose=False."""
+        service = ClaudeService(verbose=False)
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=False)
+
+            args = mock_run.call_args[0][0]
+            assert "--verbose" not in args
+
+    def test_does_not_duplicate_verbose_when_already_set(self) -> None:
+        """Test that --verbose is not duplicated when service.verbose=True and stream=True."""
+        service = ClaudeService(verbose=True)
+
+        with patch.object(service, "_run_process") as mock_run:
+            mock_run.return_value = ("output", 0)
+
+            service.run_print_mode("prompt", stream=True)
+
+            args = mock_run.call_args[0][0]
+            # Count occurrences of --verbose (should only be 1)
+            verbose_count = args.count("--verbose")
+            assert verbose_count == 1
+
 
 class TestRunWithOutputFormat:
     """Tests for run_with_output_format method."""
