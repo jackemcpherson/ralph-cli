@@ -440,15 +440,14 @@ class TestBugFixesIntegration:
 
         # Simulate a realistic streaming session with multiple messages
         mock_process = MagicMock()
-        mock_process.stdout = iter(
-            [
-                '{"type":"assistant","message":{"content":[{"type":"text","text":"First message"}]}}\n',
-                '{"type":"message_stop"}\n',
-                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Second "}}\n',
-                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"message"}}\n',
-                '{"type":"result","subtype":"success"}\n',
-            ]
+        event1 = (
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"First message"}]}}\n'
         )
+        event2 = '{"type":"message_stop"}\n'
+        event3 = '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Second "}}\n'
+        event4 = '{"type":"content_block_delta","delta":{"type":"text_delta","text":"message"}}\n'
+        event5 = '{"type":"result","subtype":"success"}\n'
+        mock_process.stdout = iter([event1, event2, event3, event4, event5])
         mock_process.stderr = MagicMock()
         mock_process.stderr.read.return_value = ""
 
