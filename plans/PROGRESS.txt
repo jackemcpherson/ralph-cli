@@ -1102,3 +1102,104 @@
 - Integration tests should verify the prompt content by extracting from captured args
 
 ---
+
+## 2026-01-18 - US-001
+
+**Story:** Fix stream-json requires verbose flag
+
+### What was implemented
+- Added conditional `--verbose` flag in `run_print_mode()` when `stream=True`
+- The stream-json output format requires the `--verbose` flag to work properly
+- The code checks if `--verbose` is already in args to avoid duplication when `self.verbose=True`
+- In non-verbose mode, stream-json is parsed and only text content is displayed (via existing `parse_json` logic)
+- In verbose mode, full JSON stream is displayed (current behavior preserved)
+
+### Tests written
+- `test_includes_verbose_when_streaming` - verifies --verbose is always included when stream=True
+- `test_excludes_verbose_when_not_streaming_and_not_verbose` - verifies --verbose is NOT included when stream=False and verbose=False
+- `test_does_not_duplicate_verbose_when_already_set` - verifies --verbose is not duplicated when service.verbose=True and stream=True
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The `--output-format stream-json` requires `--verbose` flag when using `--print` mode
+- Always check for existing flags in args before adding to avoid duplication (`"--verbose" not in args`)
+- The existing `parse_json` logic in `_stream_output()` handles text display vs JSON display correctly
+
+---
+
+[Ralph Loop] 2026-01-18 01:41 UTC - Iteration 1: US-001 (Fix stream-json requires verbose flag) completed
+
+---
+
+## 2026-01-18 - US-002
+
+**Story:** Add newlines between message blocks in output
+
+### What was implemented
+- Added `MESSAGE_BOUNDARY` constant (set to `"\n"`) in `src/ralph/services/claude.py`
+- Modified `_parse_stream_event()` to detect message boundaries via `message_stop` and `result` event types
+- When a message boundary is detected, the method returns `MESSAGE_BOUNDARY` (a newline)
+- The `_stream_output()` method already writes returned text, so newlines are automatically added
+- Inline text flow is preserved because `content_block_delta` events continue to return text without newlines
+
+### Tests written
+- `test_returns_message_boundary_for_message_stop` - verifies `message_stop` events return `MESSAGE_BOUNDARY`
+- `test_returns_message_boundary_for_result` - verifies `result` events return `MESSAGE_BOUNDARY`
+- `test_message_boundary_is_newline` - verifies `MESSAGE_BOUNDARY` is `"\n"`
+- `TestStreamOutputMessageBoundary` class with 4 integration tests:
+  - `test_stream_output_adds_newline_at_message_boundary` - verifies newline added after `message_stop`
+  - `test_stream_output_adds_newline_at_result_boundary` - verifies newline added after `result`
+  - `test_stream_output_preserves_inline_text_flow` - verifies text chunks concatenate without extra newlines
+  - `test_stream_output_multiple_message_boundaries` - verifies multiple boundaries work correctly
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- tests/test_services/test_claude.py (modified)
+
+### Learnings for future iterations
+- The stream-json format uses `message_stop` and `result` event types to indicate message boundaries
+- Returning special sentinel values from parsing functions is a clean way to signal metadata to callers
+- The existing `_stream_output()` code handles any returned string, so the newline is automatically written
+
+---
+
+[Ralph Loop] 2026-01-18 01:44 UTC - Iteration 2: US-002 (Add newlines between message blocks in output) completed
+
+[Ralph Loop] 2026-01-18 01:45 UTC - Iteration 2: US-002 (Add newlines between message blocks in output) completed
+
+## 2026-01-18 - US-003
+
+**Story:** Enable skip permissions for ralph prd
+
+### What was implemented
+- Added `skip_permissions: bool = False` parameter to `run_interactive()` in `src/ralph/services/claude.py`
+- When `skip_permissions=True`, `--dangerously-skip-permissions` flag is added to CLI args
+- Updated `ralph prd` command to call `run_interactive()` with `skip_permissions=True`
+- Added info message: "Running with auto-approved permissions for PRD creation"
+
+### Tests written
+- `TestRunInteractive` class extended with 4 new tests:
+  - `test_includes_skip_permissions_when_true` - verifies flag is included when True
+  - `test_excludes_skip_permissions_when_false` - verifies flag is NOT included when False
+  - `test_default_skip_permissions_is_false` - verifies default behavior
+  - `test_skip_permissions_with_prompt` - verifies flag works with prompt
+- `TestPrdSkipPermissions` class (new) with 2 tests:
+  - `test_prd_passes_skip_permissions_true` - verifies prd passes skip_permissions=True
+  - `test_prd_displays_permissions_message` - verifies info message is displayed
+- Fixed 2 existing tests to handle new skip_permissions parameter signature
+
+### Files changed
+- src/ralph/services/claude.py (modified)
+- src/ralph/commands/prd.py (modified)
+- tests/test_services/test_claude.py (modified)
+- tests/test_commands/test_prd.py (modified)
+
+### Learnings for future iterations
+- When adding parameters to `run_interactive()`, use `*` to make them keyword-only: `def run_interactive(self, prompt: str | None = None, *, skip_permissions: bool = False)`
+- Tests using `side_effect` functions must match the new method signature (accept `skip_permissions` kwarg)
+- Info messages about permissions should be displayed before launching Claude for user awareness
+
+---
