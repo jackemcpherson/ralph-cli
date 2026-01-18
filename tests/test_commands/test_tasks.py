@@ -80,10 +80,10 @@ class TestTasksCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_tasks_launches_claude_in_print_mode(
+    def test_tasks_launches_claude_in_print_mode_with_streaming(
         self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
-        """Test that tasks launches Claude Code in print mode."""
+        """Test that tasks launches Claude Code in print mode with streaming enabled."""
         original_cwd = os.getcwd()
         try:
             os.chdir(initialized_project_with_spec)
@@ -99,9 +99,9 @@ class TestTasksCommand:
             mock_claude.assert_called_once()
             mock_instance.run_print_mode.assert_called_once()
 
-            # Verify stream=False was passed
+            # Verify stream=True was passed (US-008: Enable streaming for ralph tasks)
             call_kwargs = mock_instance.run_print_mode.call_args.kwargs
-            assert call_kwargs.get("stream") is False
+            assert call_kwargs.get("stream") is True
         finally:
             os.chdir(original_cwd)
 
@@ -692,6 +692,139 @@ class TestTasksCommandProgressArchival:
 
             assert result.exit_code == 0
             assert "Archived previous progress" not in result.output
+
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestTasksCommandStreaming:
+    """Tests for streaming behavior in ralph tasks command (US-008)."""
+
+    def test_tasks_streaming_extracts_json_from_text_output(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that JSON extraction works when streaming is enabled.
+
+        When streaming is enabled, the ClaudeService returns extracted text content
+        (not raw JSON events). The _extract_json function should still be able to
+        extract the TASKS.json from this output.
+        """
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            # Simulate streamed output - the ClaudeService extracts text from events
+            # and returns it as plain text
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+
+            # Verify file was created with valid content
+            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            assert tasks_file.exists()
+            content = json.loads(tasks_file.read_text())
+            assert content["project"] == "TestProject"
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_streaming_handles_json_in_code_block(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that JSON extraction handles code blocks in streamed output.
+
+        Claude may output JSON wrapped in markdown code blocks even when streaming.
+        The extraction should handle this case.
+        """
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            # Simulate streamed output with JSON in a code block
+            streamed_output = f"Here's the TASKS.json:\n```json\n{valid_tasks_json_str}\n```"
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (streamed_output, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+
+            # Verify file was created with valid content
+            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            assert tasks_file.exists()
+            content = json.loads(tasks_file.read_text())
+            assert content["project"] == "TestProject"
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_streaming_handles_text_with_embedded_json(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that JSON extraction handles JSON embedded in text.
+
+        Claude may output explanatory text before/after the JSON when streaming.
+        The extraction should find and extract the JSON.
+        """
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            # Simulate streamed output with text before and after JSON
+            streamed_output = (
+                "I've analyzed the specification and created the following "
+                f"task breakdown:\n\n{valid_tasks_json_str}\n\n"
+                "This covers all the requirements from your PRD."
+            )
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (streamed_output, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+
+            # Verify file was created with valid content
+            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            assert tasks_file.exists()
+            content = json.loads(tasks_file.read_text())
+            assert content["project"] == "TestProject"
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_streaming_shows_progress_during_generation(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that streaming output message is displayed.
+
+        When streaming is enabled, the user should see a message indicating
+        that Claude is generating tasks.
+        """
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+            # Verify informational message is shown before generation
+            assert "Running Claude to generate tasks" in result.output
 
         finally:
             os.chdir(original_cwd)

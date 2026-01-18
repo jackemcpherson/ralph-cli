@@ -105,8 +105,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "Issue #8. Modify src/ralph/commands/tasks.py"
+      "passes": true,
+      "notes": "Issue #8. Added _archive_progress_file() helper to tasks.py that archives existing PROGRESS.txt with YYYYMMDD_HHMMSS timestamp and creates fresh template."
     },
     {
       "id": "US-008",
@@ -119,8 +119,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Issue #5. Modify src/ralph/commands/tasks.py"
+      "passes": true,
+      "notes": "Issue #5. Changed stream=False to stream=True in tasks.py. Added TestTasksCommandStreaming test class with 4 tests verifying JSON extraction works with streamed output."
     },
     {
       "id": "US-009",
