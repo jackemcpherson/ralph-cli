@@ -121,8 +121,8 @@
         "All existing tests pass"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Enhancement #12 - depends on US-007"
+      "passes": true,
+      "notes": "Enhancement #12 - Updated init, prd (non-interactive), and tasks to use skip_permissions=True. once/loop already had it."
     },
     {
       "id": "US-009",

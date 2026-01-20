@@ -267,3 +267,37 @@
 ---
 
 [Ralph Loop] 2026-01-20 - Iteration 6: US-007 (Centralize Claude CLI flag handling) completed
+
+[Ralph Loop] 2026-01-20 03:55 UTC - Iteration 6: US-007 (Centralize Claude CLI flag handling) completed
+
+## 2026-01-20 - US-008
+
+**Story:** Apply consistent Claude flags across all commands
+
+### What was implemented
+- Updated `ralph init` to pass `skip_permissions=True` to `run_interactive()` in `src/ralph/commands/init_cmd.py`
+- Updated `ralph prd` non-interactive mode to pass `skip_permissions=True` to `run_print_mode()` in `src/ralph/commands/prd.py`
+- Updated `ralph tasks` to pass `skip_permissions=True` to `run_print_mode()` in `src/ralph/commands/tasks.py`
+- Verified that `ralph once` and `ralph loop` already use `skip_permissions=True`
+- All Claude invocations now consistently include `--dangerously-skip-permissions` flag
+
+### Tests written
+- `TestInitSkipPermissions.test_init_passes_skip_permissions_true` - Verifies init uses skip_permissions=True
+- `TestTasksSkipPermissions.test_tasks_passes_skip_permissions_true` - Verifies tasks uses skip_permissions=True
+- `TestPrdSkipPermissions.test_prd_non_interactive_passes_skip_permissions_true` - Verifies prd --input uses skip_permissions=True
+- Updated 3 existing tests in test_prd.py to accept the skip_permissions kwarg in side_effect functions
+
+### Files changed
+- `src/ralph/commands/init_cmd.py` - Added skip_permissions=True to run_interactive()
+- `src/ralph/commands/prd.py` - Added skip_permissions=True to run_print_mode() in non-interactive mode
+- `src/ralph/commands/tasks.py` - Added skip_permissions=True to run_print_mode()
+- `tests/test_commands/test_init_cmd.py` - Added TestInitSkipPermissions class
+- `tests/test_commands/test_prd.py` - Added test_prd_non_interactive_passes_skip_permissions_true, fixed 3 existing tests
+- `tests/test_commands/test_tasks.py` - Added TestTasksSkipPermissions class
+
+### Learnings for future iterations
+- When adding skip_permissions=True to a Claude call, update any mocked side_effect functions in tests to accept the kwarg
+- The prd command has two modes: interactive (run_interactive) and non-interactive (run_print_mode) - both need the flag
+- Existing tests for once/loop already verified skip_permissions was working, so no changes needed there
+
+---
