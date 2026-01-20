@@ -47,3 +47,30 @@
 - Use `MagicMock(spec=[])` to create a mock without an `encoding` attribute for testing edge cases
 
 ---
+
+[Ralph CLI] 2026-01-20 03:01 UTC - US-001 (Windows encoding detection for Rich console) completed successfully
+
+## 2026-01-20 - US-002
+
+**Story:** Update codebase to use centralized console
+
+### What was implemented
+- Verified that all modules already import console from `ralph.utils.console` (established in US-001)
+- Verified no direct `Console()` instantiation exists outside of `create_console()`
+- Added enforcement tests to prevent future regressions of the centralized console pattern
+
+### Tests written
+- `TestCentralizedConsolePattern` class with 3 test cases:
+  - `test_no_direct_console_instantiation_outside_create_console` - AST-based analysis that scans all Python files in `src/ralph/` and fails if `Console()` is called outside of `create_console()`
+  - `test_console_module_exports_shared_instance` - Verifies the shared console instance is exported
+  - `test_utils_init_re_exports_console` - Verifies `ralph.utils` re-exports the same console instance
+
+### Files changed
+- `tests/test_utils/test_console.py` - Added `TestCentralizedConsolePattern` test class
+
+### Learnings for future iterations
+- Use Python's `ast` module to enforce code patterns in tests (more reliable than regex)
+- The codebase was already compliant from US-001, so this story focused on enforcement
+- AST node's `end_lineno` attribute helps determine if code is inside a function
+
+---
