@@ -66,6 +66,8 @@ ralph init --skip-claude      # Skip Claude Code enhancement
 ralph init --force            # Overwrite existing files
 ```
 
+If no PRD exists at `plans/SPEC.md`, you'll be prompted to create one interactively before proceeding.
+
 Creates:
 - `plans/SPEC.md` - Specification template
 - `plans/TASKS.json` - Task list (empty)
