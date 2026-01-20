@@ -13,6 +13,43 @@ def strip_ansi(text: str) -> str:
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
+def normalize_paths(text: str) -> str:
+    r"""Normalize path separators for cross-platform comparison.
+
+    Converts Windows-style backslashes to forward slashes so that
+    path-related test assertions work consistently on both Windows
+    and Unix platforms.
+
+    Args:
+        text: Text containing paths with potentially mixed separators.
+
+    Returns:
+        Text with all backslashes converted to forward slashes.
+
+    Example:
+        >>> normalize_paths("plans\\TASKS.json")
+        'plans/TASKS.json'
+        >>> normalize_paths("C:\\Users\\test\\file.py")
+        'C:/Users/test/file.py'
+    """
+    return text.replace("\\", "/")
+
+
+@pytest.fixture
+def path_normalizer():
+    """Provide normalize_paths function as a fixture.
+
+    Returns:
+        The normalize_paths function for path separator normalization.
+
+    Example:
+        def test_path_output(path_normalizer):
+            actual = some_function_returning_path()
+            assert path_normalizer(actual) == "expected/path/here"
+    """
+    return normalize_paths
+
+
 @pytest.fixture
 def runner() -> CliRunner:
     """Create a CliRunner for testing commands."""
