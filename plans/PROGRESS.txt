@@ -5,6 +5,8 @@
 - Use `create_console()` from `ralph.utils.console` for consistent Windows encoding handling
 - When mocking `sys.platform` for Windows tests, use `"win32"` (not `"windows"`)
 - Normalize encoding strings by lowercasing and removing hyphens for comparison (e.g., `"UTF-8"` -> `"utf8"`)
+- Use `normalize_paths()` from `tests.conftest` or the `path_normalizer` fixture for cross-platform path comparison in tests
+- Use raw docstrings (`r"""..."""`) when the docstring contains backslash characters to avoid ruff D301 lint errors
 
 ---
 
@@ -74,3 +76,42 @@
 - AST node's `end_lineno` attribute helps determine if code is inside a function
 
 ---
+
+[Ralph Loop] 2026-01-20 03:36 UTC - Iteration 1: US-002 (Update codebase to use centralized console) completed
+
+## 2026-01-20 - US-003
+
+**Story:** Path normalization test utility
+
+### What was implemented
+- Added `normalize_paths()` function to `tests/conftest.py` that converts backslashes to forward slashes
+- Added `path_normalizer` pytest fixture that returns the `normalize_paths` function
+- Function and fixture are both available for cross-platform path comparison in tests
+
+### Tests written
+- `TestNormalizePaths` class with 9 test cases:
+  - `test_converts_single_backslash` - Single backslash conversion
+  - `test_converts_multiple_backslashes` - Multiple backslash conversion
+  - `test_handles_windows_absolute_path` - Windows paths like `C:\Users\...`
+  - `test_preserves_forward_slashes` - Forward slashes unchanged
+  - `test_handles_mixed_separators` - Mixed forward/backslash handling
+  - `test_handles_empty_string` - Edge case for empty input
+  - `test_handles_no_path_separators` - Plain filenames unchanged
+  - `test_handles_double_backslashes` - Double backslash handling
+  - `test_handles_trailing_backslash` - Trailing backslash handling
+- `TestPathNormalizerFixture` class with 3 test cases:
+  - `test_fixture_returns_normalize_paths_function` - Fixture returns correct function
+  - `test_fixture_can_be_used_for_normalization` - Fixture works for simple paths
+  - `test_fixture_works_with_complex_paths` - Fixture handles complex Windows paths
+
+### Files changed
+- `tests/conftest.py` - Added `normalize_paths()` function and `path_normalizer` fixture
+- `tests/test_utils/test_conftest_utils.py` - New test file for conftest utilities
+
+### Learnings for future iterations
+- Use raw docstring (`r"""..."""`) when docstring contains backslash examples to avoid ruff D301 lint error
+- The `normalize_paths` function can be imported directly from `tests.conftest` or used via the `path_normalizer` fixture
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 2: US-003 (Path normalization test utility) completed

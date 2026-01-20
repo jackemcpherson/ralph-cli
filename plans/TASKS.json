@@ -44,8 +44,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Foundation for US-004"
+      "passes": true,
+      "notes": "Foundation for US-004. Added normalize_paths() function and path_normalizer fixture."
     },
     {
       "id": "US-004",
