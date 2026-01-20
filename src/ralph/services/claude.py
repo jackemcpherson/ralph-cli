@@ -6,6 +6,7 @@ with support for interactive and print modes.
 
 import json
 import logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -128,8 +129,17 @@ class ClaudeService(BaseModel):
 
         Returns:
             List of base arguments.
+
+        Raises:
+            ClaudeError: If Claude Code CLI is not found in PATH.
         """
-        args = [self.claude_command]
+        claude_path = shutil.which(self.claude_command)
+        if claude_path is None:
+            msg = "Claude Code CLI not found. "
+            msg += f"Ensure '{self.claude_command}' is installed and in PATH."
+            raise ClaudeError(msg)
+
+        args = [claude_path]
 
         if self.verbose:
             args.append("--verbose")
