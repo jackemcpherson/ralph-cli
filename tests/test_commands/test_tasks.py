@@ -17,6 +17,7 @@ from ralph.commands.tasks import (
     _is_valid_json,
 )
 from ralph.services import ClaudeError
+from tests.conftest import normalize_paths
 
 
 class TestTasksCommand:
@@ -76,7 +77,7 @@ class TestTasksCommand:
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
 
             assert "Converting Spec to Tasks" in result.output
-            assert "plans/SPEC.md" in result.output
+            assert "plans/SPEC.md" in normalize_paths(result.output)
         finally:
             os.chdir(original_cwd)
 
@@ -125,7 +126,7 @@ class TestTasksCommand:
 
             # Verify prompt includes spec content
             assert "test specification" in prompt
-            assert "TASKS.json" in prompt
+            assert "TASKS.json" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -283,7 +284,7 @@ class TestTasksCommand:
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md", "--output", custom_output])
 
             assert result.exit_code == 0
-            assert custom_output in result.output
+            assert normalize_paths(custom_output) in normalize_paths(result.output)
 
             # Verify file was created at custom path
             tasks_file = initialized_project_with_spec / custom_output

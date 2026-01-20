@@ -15,6 +15,7 @@ from ralph.commands.prd import (
     _get_file_mtime,
 )
 from ralph.services import ClaudeError
+from tests.conftest import normalize_paths
 
 
 @pytest.fixture
@@ -117,7 +118,7 @@ class TestPrdCommand:
             assert "Overview" in prompt
             assert "Goals" in prompt
             assert "Requirements" in prompt
-            assert "plans/SPEC.md" in prompt
+            assert "plans/SPEC.md" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -134,7 +135,7 @@ class TestPrdCommand:
 
                 result = runner.invoke(app, ["prd"])
 
-            assert "plans/SPEC.md" in result.output
+            assert "plans/SPEC.md" in normalize_paths(result.output)
         finally:
             os.chdir(original_cwd)
 
@@ -265,12 +266,12 @@ class TestPrdCommand:
 
                 result = runner.invoke(app, ["prd", "--output", custom_output])
 
-            assert custom_output in result.output
+            assert normalize_paths(custom_output) in normalize_paths(result.output)
 
             # Verify the prompt includes the custom path
             call_args = mock_instance.run_interactive.call_args
             prompt = call_args[0][0]
-            assert "CUSTOM_SPEC.md" in prompt
+            assert "CUSTOM_SPEC.md" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -346,7 +347,7 @@ class TestBuildPrdPrompt:
         output_path = Path("/project/plans/SPEC.md")
         prompt = _build_prd_prompt(output_path)
 
-        assert str(output_path) in prompt
+        assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
     def test_prompt_includes_prd_structure(self) -> None:
         """Test that prompt includes PRD structure guidance."""
@@ -716,7 +717,7 @@ class TestBuildNonInteractivePrdPrompt:
         output_path = Path("/project/plans/SPEC.md")
         prompt = _build_non_interactive_prd_prompt(output_path, "Some feature")
 
-        assert str(output_path) in prompt
+        assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
     def test_prompt_includes_prd_structure(self) -> None:
         """Test that prompt includes PRD structure guidance."""
