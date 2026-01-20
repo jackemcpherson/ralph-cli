@@ -251,6 +251,34 @@ def _is_valid_json(text: str) -> bool:
         return False
 
 
+def _has_meaningful_content(content: str) -> bool:
+    """Check if PROGRESS.txt content contains real iteration data.
+
+    Detects whether the file contains actual iteration content beyond
+    just the template boilerplate. Used to avoid archiving template-only files.
+
+    Args:
+        content: The content of the PROGRESS.txt file.
+
+    Returns:
+        True if meaningful iteration content is present, False otherwise.
+    """
+    # Iteration markers that indicate real progress entries
+    iteration_markers = [
+        "## Iteration",  # Iteration section header
+        "### Story:",  # Story section header
+        "**Status:**",  # Status marker in entries
+        "**Completed:**",  # Completed marker in entries
+        "### What was implemented",  # Implementation details section
+        "### Tests written",  # Tests section
+        "### Files changed",  # Files changed section
+        "### Learnings",  # Learnings section
+    ]
+
+    # Check for any iteration marker in the content
+    return any(marker in content for marker in iteration_markers)
+
+
 def _archive_progress_file(project_root: Path) -> Path | None:
     """Archive existing PROGRESS.txt if it exists and has content.
 

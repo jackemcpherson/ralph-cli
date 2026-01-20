@@ -14,6 +14,7 @@ from ralph.commands.tasks import (
     _archive_progress_file,
     _build_tasks_prompt,
     _extract_json,
+    _has_meaningful_content,
     _is_valid_json,
 )
 from ralph.services import ClaudeError
@@ -471,6 +472,144 @@ class TestBuildTasksPrompt:
         prompt = _build_tasks_prompt("Test spec")
 
         assert "ONLY valid JSON" in prompt or "JSON only" in prompt
+
+
+class TestHasMeaningfulContent:
+    """Tests for the _has_meaningful_content helper function."""
+
+    def test_returns_false_for_empty_string(self) -> None:
+        """Test that empty content returns False."""
+        assert not _has_meaningful_content("")
+
+    def test_returns_false_for_whitespace_only(self) -> None:
+        """Test that whitespace-only content returns False."""
+        assert not _has_meaningful_content("   \n\n   \t  ")
+
+    def test_returns_false_for_template_only(self) -> None:
+        """Test that template-only content returns False."""
+        assert not _has_meaningful_content(PROGRESS_TEMPLATE)
+
+    def test_returns_true_for_iteration_section(self) -> None:
+        """Test that content with ## Iteration marker returns True."""
+        content = PROGRESS_TEMPLATE + "\n## Iteration 1\nSome content here"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_story_marker(self) -> None:
+        """Test that content with ### Story: marker returns True."""
+        content = "# Progress Log\n\n### Story: US-001\n\nCompleted the task."
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_status_marker(self) -> None:
+        """Test that content with **Status:** marker returns True."""
+        content = "# Progress Log\n\n**Status:** Completed\n"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_completed_marker(self) -> None:
+        """Test that content with **Completed:** marker returns True."""
+        content = "# Progress\n\n**Completed:** US-001 - Fix bug\n"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_what_was_implemented_section(self) -> None:
+        """Test that content with ### What was implemented marker returns True."""
+        content = """# Ralph Progress Log
+
+## 2026-01-20 - US-001
+
+### What was implemented
+- Added new feature
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_tests_written_section(self) -> None:
+        """Test that content with ### Tests written marker returns True."""
+        content = """# Ralph Progress Log
+
+## 2026-01-20 - US-001
+
+### Tests written
+- test_new_feature
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_files_changed_section(self) -> None:
+        """Test that content with ### Files changed marker returns True."""
+        content = """# Ralph Progress Log
+
+### Files changed
+- src/main.py
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_learnings_section(self) -> None:
+        """Test that content with ### Learnings marker returns True."""
+        content = """# Ralph Progress Log
+
+### Learnings for future iterations
+- Important pattern discovered
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_false_for_similar_but_not_matching_text(self) -> None:
+        """Test that similar but non-matching text returns False."""
+        content = "# Progress\n\nIteration notes\nStory details\nStatus update"
+        assert not _has_meaningful_content(content)
+
+    def test_handles_real_progress_file_from_codebase(self) -> None:
+        """Test with realistic progress file content similar to actual usage."""
+        content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+
+## 2026-01-20 - US-001
+
+**Story:** Windows encoding detection for Rich console
+
+### What was implemented
+- Created `create_console()` function in `src/ralph/utils/console.py`
+
+### Tests written
+- `TestCreateConsole` class with 10 test cases
+
+### Files changed
+- `src/ralph/utils/console.py`
+- `tests/test_utils/test_console.py`
+
+### Learnings for future iterations
+- Rich Console's `legacy_windows` parameter disables Unicode characters
+
+---
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_false_for_modified_template_without_iterations(self) -> None:
+        """Test that modified template without iterations returns False."""
+        # Template with patterns section filled in but no iterations
+        content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+- Important pattern here
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+"""
+        assert not _has_meaningful_content(content)
 
 
 class TestArchiveProgressFile:
