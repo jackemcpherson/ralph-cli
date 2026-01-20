@@ -108,7 +108,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 # Run WITHOUT the -v flag - this is the key test
                 result = runner.invoke(app, ["once"])
 
@@ -140,7 +143,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once", "--verbose"])
 
             assert "--verbose" in captured_args
@@ -174,7 +180,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])  # No -v flag
 
             # Should still use stream-json format
@@ -216,7 +225,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should not crash
@@ -723,7 +735,10 @@ class TestMessageBoundaryNewlines:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should not crash

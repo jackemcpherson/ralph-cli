@@ -62,7 +62,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["prd", "--input", "Add user authentication"])
 
             # Should use --print mode for non-interactive
@@ -87,7 +90,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["prd", "--input", "Add dark mode toggle"])
 
             assert "Non-Interactive PRD Generation" in result.output
@@ -111,7 +117,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["prd", "--input", feature])
 
             assert feature in result.output
@@ -137,7 +146,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["prd", "--input", feature])
 
             # Find the prompt argument (comes after --print)
@@ -169,7 +181,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_creates_file):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_creates_file),
+            ):
                 result = runner.invoke(app, ["prd", "--input", "New feature"])
 
             assert "PRD saved to" in result.output
@@ -189,7 +204,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_error):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_error),
+            ):
                 result = runner.invoke(app, ["prd", "--input", "Some feature"])
 
             assert result.exit_code == 1
@@ -213,7 +231,10 @@ class TestPrdInputFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_failure):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_failure),
+            ):
                 result = runner.invoke(app, ["prd", "--input", "Feature"])
 
             # Should exit with non-zero code
@@ -248,7 +269,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             assert "--print" in captured_args
@@ -276,7 +300,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             assert "Non-Interactive PRD Generation" in result.output
@@ -306,7 +333,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             # Find the prompt argument
@@ -375,7 +405,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             # Find the prompt argument
@@ -411,7 +444,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_creates_file):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_creates_file),
+            ):
                 result = runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             assert "PRD saved to" in result.output
@@ -435,7 +471,10 @@ class TestPrdFileFlagIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_error):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_error),
+            ):
                 result = runner.invoke(app, ["prd", "--file", "feature.txt"])
 
             assert result.exit_code == 1
@@ -508,7 +547,10 @@ class TestPrdMutualExclusivityIntegration:
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["prd", "--input", "Input", "--file", "feature.txt"])
 
             assert not claude_called, "Claude should not be invoked when both flags provided"
@@ -585,7 +627,10 @@ This document describes the requirements for adding user authentication.
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_creates_spec):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_creates_spec),
+            ):
                 result = runner.invoke(
                     app, ["prd", "--input", "Add user authentication to the app"]
                 )
@@ -639,7 +684,10 @@ The cart should persist between sessions and work across devices for logged-in u
         try:
             os.chdir(project_with_plans)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_creates_spec):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_creates_spec),
+            ):
                 result = runner.invoke(app, ["prd", "--file", "shopping_cart_feature.md"])
 
             assert result.exit_code == 0
@@ -668,7 +716,10 @@ The cart should persist between sessions and work across devices for logged-in u
         try:
             os.chdir(project_with_spec)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_updates_spec):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_updates_spec),
+            ):
                 result = runner.invoke(
                     app, ["prd", "--input", "Add more requirements to the existing PRD"]
                 )

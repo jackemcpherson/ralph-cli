@@ -34,7 +34,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("test prompt", stream=True)
@@ -46,7 +49,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose is added for streaming even if service.verbose=False."""
         service = ClaudeService(verbose=False)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -62,7 +68,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """
         service = ClaudeService(verbose=True)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -75,7 +84,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose is NOT included when stream=False and verbose=False."""
         service = ClaudeService(verbose=False)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=False)
@@ -89,7 +101,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --output-format stream-json is only added when streaming."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             # When streaming
@@ -108,7 +123,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose and --output-format stream-json are both present."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -296,7 +314,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions=True adds --dangerously-skip-permissions."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=True)
@@ -308,7 +329,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions=False does NOT add the flag."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=False)
@@ -320,7 +344,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions defaults to False."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive()
@@ -332,7 +359,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions works correctly with a prompt."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(prompt="Hello", skip_permissions=True)
@@ -345,7 +375,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions works with verbose service."""
         service = ClaudeService(verbose=True)
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=True)
@@ -358,7 +391,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions flag appears before the prompt."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(prompt="my prompt", skip_permissions=True)
