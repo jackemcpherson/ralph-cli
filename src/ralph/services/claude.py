@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import TextIO
+from typing import ClassVar, TextIO
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +35,9 @@ class ClaudeService(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Flag constants for consistent CLI argument handling
+    SKIP_PERMISSIONS_FLAG: ClassVar[str] = "--dangerously-skip-permissions"
 
     working_dir: Path | None = None
     verbose: bool = False
@@ -124,11 +127,16 @@ class ClaudeService(BaseModel):
 
         return "".join(collected_text), "".join(stderr_lines)
 
-    def _build_base_args(self) -> list[str]:
+    def _build_base_args(self, *, skip_permissions: bool = True) -> list[str]:
         """Build base command arguments for Claude CLI.
 
+        Args:
+            skip_permissions: Whether to include the skip-permissions flag.
+                Defaults to True for autonomous operation.
+
         Returns:
-            List of base arguments.
+            List of base arguments including the Claude CLI path and
+            common flags.
 
         Raises:
             ClaudeError: If Claude Code CLI is not found in PATH.
@@ -143,6 +151,9 @@ class ClaudeService(BaseModel):
 
         if self.verbose:
             args.append("--verbose")
+
+        if skip_permissions:
+            args.append(self.SKIP_PERMISSIONS_FLAG)
 
         return args
 
@@ -210,10 +221,7 @@ class ClaudeService(BaseModel):
         Raises:
             ClaudeError: If Claude Code is not installed or fails to start.
         """
-        args = self._build_base_args()
-
-        if skip_permissions:
-            args.append("--dangerously-skip-permissions")
+        args = self._build_base_args(skip_permissions=skip_permissions)
 
         if prompt:
             args.append(prompt)
@@ -265,7 +273,7 @@ class ClaudeService(BaseModel):
         Raises:
             ClaudeError: If Claude Code is not installed or command fails.
         """
-        args = self._build_base_args()
+        args = self._build_base_args(skip_permissions=skip_permissions)
         args.extend(["--print", prompt])
 
         # stream-json output format requires --verbose flag.
@@ -273,9 +281,6 @@ class ClaudeService(BaseModel):
         # self.verbose=True (handled by parse_json logic in _stream_output).
         if stream and "--verbose" not in args:
             args.append("--verbose")
-
-        if skip_permissions:
-            args.append("--dangerously-skip-permissions")
 
         if model:
             args.extend(["--model", model])
@@ -306,6 +311,7 @@ class ClaudeService(BaseModel):
         stream: bool = True,
         model: str | None = None,
         max_turns: int | None = None,
+        skip_permissions: bool = False,
     ) -> tuple[str, int]:
         """Run Claude Code with a specific output format.
 
@@ -315,6 +321,7 @@ class ClaudeService(BaseModel):
             stream: Whether to stream output to terminal.
             model: Optional model to use.
             max_turns: Optional maximum number of agentic turns.
+            skip_permissions: Whether to skip permission prompts (default: False).
 
         Returns:
             Tuple of (output_text, exit_code).
@@ -322,7 +329,7 @@ class ClaudeService(BaseModel):
         Raises:
             ClaudeError: If Claude Code is not installed or command fails.
         """
-        args = self._build_base_args()
+        args = self._build_base_args(skip_permissions=skip_permissions)
         args.extend(["--print", prompt])
         args.extend(["--output-format", output_format])
 

@@ -105,7 +105,12 @@ class TestClaudeServiceSkipPermissions:
         assert "--dangerously-skip-permissions" not in captured_args
 
     def test_skip_permissions_flag_position_in_args(self) -> None:
-        """Test that --dangerously-skip-permissions is positioned correctly."""
+        """Test that --dangerously-skip-permissions is positioned correctly.
+
+        With centralized flag handling, the skip-permissions flag is added
+        as part of the base args, so it comes BEFORE command-specific args
+        like --print.
+        """
         service = ClaudeService()
         captured_args: list[str] = []
 
@@ -118,12 +123,12 @@ class TestClaudeServiceSkipPermissions:
         with patch.object(service, "_run_process", side_effect=mock_run_process):
             service.run_print_mode("Test prompt", skip_permissions=True, model="sonnet")
 
-        # Verify the flag comes after --print and prompt
+        # Verify the flag is present and comes before --print (as a base arg)
         print_index = captured_args.index("--print")
         skip_index = captured_args.index("--dangerously-skip-permissions")
 
-        # --dangerously-skip-permissions should come after --print and its argument
-        assert skip_index > print_index + 1
+        # --dangerously-skip-permissions is now part of base args, so comes before --print
+        assert skip_index < print_index
 
 
 class TestOnceCommandAutonomousIteration:
