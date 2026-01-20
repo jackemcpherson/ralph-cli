@@ -115,3 +115,32 @@
 ---
 
 [Ralph Loop] 2026-01-20 - Iteration 2: US-003 (Path normalization test utility) completed
+
+[Ralph Loop] 2026-01-20 03:39 UTC - Iteration 2: US-003 (Path normalization test utility) completed
+
+## 2026-01-20 - US-004
+
+**Story:** Fix path separator mismatches in tests
+
+### What was implemented
+- Updated `tests/test_commands/test_prd.py` to use `normalize_paths()` for path-related assertions
+- Updated `tests/test_commands/test_tasks.py` to use `normalize_paths()` for path-related assertions
+- Applied normalization to 9 path-related assertions total (6 in test_prd.py, 3 in test_tasks.py)
+- No changes to production code - paths still display using native platform separators
+
+### Tests written
+- No new tests required - this story updates existing tests to use the path normalization utility from US-003
+- All existing tests continue to pass with the path normalization applied
+
+### Files changed
+- `tests/test_commands/test_prd.py` - Added import of `normalize_paths` and applied to 6 assertions
+- `tests/test_commands/test_tasks.py` - Added import of `normalize_paths` and applied to 3 assertions
+
+### Learnings for future iterations
+- When adding path assertions to tests, always wrap path strings in `normalize_paths()` for cross-platform compatibility
+- Import `normalize_paths` directly from `tests.conftest` rather than using the fixture when not in a test class context
+- The `ruff check --fix` command can auto-sort imports when adding new imports
+
+---
+
+[Ralph Loop] 2026-01-20 03:55 UTC - Iteration 3: US-004 (Fix path separator mismatches in tests) completed
