@@ -193,3 +193,41 @@
 ---
 
 [Ralph Loop] 2026-01-20 - Iteration 4: US-005 (Detect meaningful content in PROGRESS.txt) completed
+
+[Ralph Loop] 2026-01-20 03:45 UTC - Iteration 4: US-005 (Detect meaningful content in PROGRESS.txt) completed
+
+## 2026-01-20 - US-006
+
+**Story:** Skip archiving template-only PROGRESS.txt
+
+### What was implemented
+- Updated `_archive_progress_file()` in `src/ralph/commands/tasks.py` to check for meaningful content before archiving
+- Added call to `_has_meaningful_content()` (from US-005) after checking for non-empty content
+- Function now returns `None` when file contains only template content without iteration markers
+- Function archives and returns path only when file has actual iteration content
+- Updated existing tests in `tests/test_bug_fixes.py` to use meaningful content to trigger archival
+
+### Tests written
+- `TestArchiveProgressFile` class updates and additions:
+  - `test_returns_none_if_progress_is_template_only` - Template-only content returns None, no archive created
+  - `test_returns_none_if_progress_is_modified_template_without_iterations` - Modified template without iterations returns None
+  - `test_archives_progress_with_iteration_content` - Full iteration content triggers archival
+  - `test_does_not_archive_template_preserves_original_file` - Template-only preserves original file unchanged
+  - Updated existing tests to use meaningful content (iteration markers) to trigger archival
+- `TestTasksCommandProgressArchival` class:
+  - `test_tasks_archives_progress_file_with_meaningful_content` - Renamed and updated to use iteration content
+  - `test_tasks_does_not_archive_template_only_progress` - New test for template-only behavior in command
+
+### Files changed
+- `src/ralph/commands/tasks.py` - Added meaningful content check to `_archive_progress_file()`
+- `tests/test_commands/test_tasks.py` - Added 5 new tests, updated 3 existing tests
+- `tests/test_bug_fixes.py` - Updated 6 existing tests to use meaningful content
+
+### Learnings for future iterations
+- When modifying archive behavior, update all related tests across test files
+- Tests that expect archival to occur must include iteration markers in their test content
+- The `_has_meaningful_content()` function from US-005 provides a clean integration point
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 5: US-006 (Skip archiving template-only PROGRESS.txt) completed
