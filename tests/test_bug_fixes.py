@@ -380,7 +380,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that archived file uses YYYYMMDD_HHMMSS format."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Original content")
+        # Use meaningful content (contains iteration marker) to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Original\n\n### What was implemented\n- X")
 
         result = _archive_progress_file(tmp_path)
 
@@ -395,7 +396,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that the timestamp in archive filename is a valid datetime."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Content")
+        # Use meaningful content (contains iteration marker) to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Content\n\n### What was implemented\n- Y")
 
         result = _archive_progress_file(tmp_path)
 
@@ -418,7 +420,10 @@ class TestProgressArchivalTimestampFormat:
         """Test that archived file contains the original content."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        original_content = "# Progress Log\n\n## US-001\nCompleted the story\n\nDetails here."
+        # Use meaningful content with iteration marker
+        original_content = (
+            "# Progress Log\n\n### What was implemented\n- Completed the story\n\nDetails."
+        )
         (plans_dir / "PROGRESS.txt").write_text(original_content)
 
         result = _archive_progress_file(tmp_path)
@@ -430,7 +435,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt is created with standard template."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old content\n\n### What was implemented\n- Z")
 
         _archive_progress_file(tmp_path)
 
@@ -473,7 +479,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt includes Codebase Patterns section."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- A")
 
         _archive_progress_file(tmp_path)
 
@@ -484,7 +491,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt includes Log section."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- B")
 
         _archive_progress_file(tmp_path)
 

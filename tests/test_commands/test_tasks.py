@@ -644,11 +644,91 @@ class TestArchiveProgressFile:
 
         assert result is None
 
-    def test_archives_existing_progress_file(self, temp_project: Path) -> None:
-        """Test that existing PROGRESS.txt is archived correctly."""
+    def test_returns_none_if_progress_is_template_only(self, temp_project: Path) -> None:
+        """Test that function returns None if PROGRESS.txt contains only template content."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        original_content = "# Progress Log\n\n## US-001\nCompleted story"
+        (plans_dir / "PROGRESS.txt").write_text(PROGRESS_TEMPLATE)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+        # Verify no archive was created
+        archived_files = list(plans_dir.glob("PROGRESS.*.txt"))
+        assert len(archived_files) == 0
+
+    def test_returns_none_if_progress_is_modified_template_without_iterations(
+        self, temp_project: Path
+    ) -> None:
+        """Test function returns None for modified template without iteration content."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        # Template with patterns filled in but no iteration entries
+        modified_template = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+- Important pattern here
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+"""
+        (plans_dir / "PROGRESS.txt").write_text(modified_template)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+
+    def test_archives_progress_with_iteration_content(self, temp_project: Path) -> None:
+        """Test that PROGRESS.txt with iteration content is archived correctly."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        original_content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+---
+
+## Log
+
+---
+
+## 2026-01-20 - US-001
+
+**Story:** Implement feature
+
+### What was implemented
+- Added new feature
+
+### Tests written
+- test_new_feature
+
+### Files changed
+- src/main.py
+
+### Learnings for future iterations
+- Important discovery
+"""
+        (plans_dir / "PROGRESS.txt").write_text(original_content)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is not None
+        assert result.exists()
+        assert result.read_text() == original_content
+
+    def test_archives_existing_progress_file(self, temp_project: Path) -> None:
+        """Test that existing PROGRESS.txt with meaningful content is archived correctly."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        # Content with iteration marker
+        original_content = "# Progress Log\n\n### What was implemented\n- Completed story"
         (plans_dir / "PROGRESS.txt").write_text(original_content)
 
         result = _archive_progress_file(temp_project)
@@ -661,7 +741,8 @@ class TestArchiveProgressFile:
         """Test that archive filename uses YYYYMMDD_HHMMSS format."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Progress")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Progress\n\n### What was implemented\n- Work")
 
         result = _archive_progress_file(temp_project)
 
@@ -674,7 +755,8 @@ class TestArchiveProgressFile:
         """Test that fresh PROGRESS.txt is created with header template."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old Progress")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old Progress\n\n### What was implemented\n- X")
 
         _archive_progress_file(temp_project)
 
@@ -686,7 +768,8 @@ class TestArchiveProgressFile:
         """Test that fresh PROGRESS.txt has expected sections."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old Content")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old Content\n\n### What was implemented\n- Y")
 
         _archive_progress_file(temp_project)
 
@@ -695,22 +778,40 @@ class TestArchiveProgressFile:
         assert "## Codebase Patterns" in content
         assert "## Log" in content
 
+    def test_does_not_archive_template_preserves_original_file(self, temp_project: Path) -> None:
+        """Test that when template-only, original file is preserved unchanged."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        original_content = PROGRESS_TEMPLATE
+        progress_file = plans_dir / "PROGRESS.txt"
+        progress_file.write_text(original_content)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+        # Original file should be unchanged
+        assert progress_file.read_text() == original_content
+
 
 class TestTasksCommandProgressArchival:
     """Integration tests for PROGRESS.txt archival in tasks command."""
 
-    def test_tasks_archives_progress_file(
+    def test_tasks_archives_progress_file_with_meaningful_content(
         self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
-        """Test that tasks command archives existing PROGRESS.txt."""
+        """Test that tasks command archives PROGRESS.txt with iteration content."""
         original_cwd = os.getcwd()
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful iteration content
             plans_dir = initialized_project_with_spec / "plans"
             progress_file = plans_dir / "PROGRESS.txt"
-            original_content = "# Progress Log\n\n## US-001\nCompleted implementation"
+            original_content = """# Progress Log
+
+### What was implemented
+- Completed implementation
+"""
             progress_file.write_text(original_content)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -738,9 +839,9 @@ class TestTasksCommandProgressArchival:
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful content
             plans_dir = initialized_project_with_spec / "plans"
-            (plans_dir / "PROGRESS.txt").write_text("# Existing progress")
+            (plans_dir / "PROGRESS.txt").write_text("# Progress\n\n### What was implemented\n- X")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -764,9 +865,9 @@ class TestTasksCommandProgressArchival:
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful content
             plans_dir = initialized_project_with_spec / "plans"
-            (plans_dir / "PROGRESS.txt").write_text("# Old progress content")
+            (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- Old")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -832,6 +933,35 @@ class TestTasksCommandProgressArchival:
 
             assert result.exit_code == 0
             assert "Archived previous progress" not in result.output
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_does_not_archive_template_only_progress(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that tasks command does not archive template-only PROGRESS.txt."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            # Create PROGRESS.txt with only template content
+            plans_dir = initialized_project_with_spec / "plans"
+            (plans_dir / "PROGRESS.txt").write_text(PROGRESS_TEMPLATE)
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+            assert "Archived previous progress" not in result.output
+
+            # No archive file should be created
+            archived_files = list(plans_dir.glob("PROGRESS.*.txt"))
+            assert len(archived_files) == 0
 
         finally:
             os.chdir(original_cwd)

@@ -280,10 +280,11 @@ def _has_meaningful_content(content: str) -> bool:
 
 
 def _archive_progress_file(project_root: Path) -> Path | None:
-    """Archive existing PROGRESS.txt if it exists and has content.
+    """Archive existing PROGRESS.txt if it exists and has meaningful content.
 
     Archives the file to plans/PROGRESS.{timestamp}.txt and creates
-    a fresh PROGRESS.txt with the header template.
+    a fresh PROGRESS.txt with the header template. Skips archiving if the file
+    only contains template boilerplate without any actual iteration content.
 
     Args:
         project_root: Path to the project root directory.
@@ -300,6 +301,10 @@ def _archive_progress_file(project_root: Path) -> Path | None:
     # Check if file has content (non-empty)
     content = progress_path.read_text()
     if not content.strip():
+        return None
+
+    # Check if file has meaningful iteration content beyond template
+    if not _has_meaningful_content(content):
         return None
 
     # Generate timestamp in YYYYMMDD_HHMMSS format
