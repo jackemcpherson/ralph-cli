@@ -301,3 +301,56 @@
 - Existing tests for once/loop already verified skip_permissions was working, so no changes needed there
 
 ---
+
+[Ralph Loop] 2026-01-20 03:58 UTC - Iteration 7: US-008 (Apply consistent Claude flags across all commands) completed
+
+## 2026-01-20 - US-009
+
+**Story:** Auto-PRD prompt in ralph init
+
+### What was implemented
+- Added check for PRD content at `plans/SPEC.md` before running `claude init`
+- Display warning message when PRD is missing or has only template content
+- Prompt user with `Confirm.ask()` option to create PRD first
+- If user confirms, invoke the `prd` command to create the specification
+- If user declines, display informational message and proceed with init
+- Added `_has_prd_content()` helper function to detect template vs real content
+- Added `_handle_missing_prd()` helper function to handle the prompt flow
+- PRD content check happens BEFORE scaffolding to preserve existing real content
+
+### Tests written
+- `TestHasPrdContent` class with 8 test cases:
+  - `test_returns_false_for_nonexistent_file` - Nonexistent file returns False
+  - `test_returns_false_for_empty_file` - Empty file returns False
+  - `test_returns_false_for_whitespace_only` - Whitespace-only file returns False
+  - `test_returns_false_for_template_only` - Template-only content returns False
+  - `test_returns_true_for_real_content` - File with real content returns True
+  - `test_returns_true_for_requirements_section` - Requirements section content detected
+  - `test_returns_false_for_placeholder_markers` - Placeholder markers detected
+- `TestHandleMissingPrd` class with 3 test cases:
+  - `test_prompts_user_to_create_prd` - User is prompted when PRD missing
+  - `test_invokes_prd_command_when_confirmed` - prd command invoked on confirm
+  - `test_shows_message_when_declined` - Message shown when declined
+- `TestInitPrdPrompt` class with 5 integration tests:
+  - `test_init_prompts_for_prd_when_missing` - Init prompts when PRD missing
+  - `test_init_invokes_prd_when_user_confirms` - Init invokes prd on confirm
+  - `test_init_shows_message_when_user_declines_prd` - Message on decline
+  - `test_init_skips_prd_prompt_when_spec_has_content` - No prompt if PRD exists
+  - `test_init_handles_prd_command_error_gracefully` - Error handling works
+- Updated 12 existing tests across 3 test files to mock `Confirm.ask`
+
+### Files changed
+- `src/ralph/commands/init_cmd.py` - Added PRD check, helper functions, imports
+- `tests/test_commands/test_init_cmd.py` - Added 16 new tests, updated 12 existing
+- `tests/test_cli.py` - Updated 4 existing tests to mock Confirm.ask
+- `tests/test_integration/test_command_integration.py` - Updated 5 existing tests
+
+### Learnings for future iterations
+- When adding user prompts (Confirm.ask) to commands, ALL existing tests that run the command must mock the prompt to avoid EOFError
+- Check for existing content BEFORE scaffolding when the scaffold might overwrite user content
+- Use `Confirm.ask()` from `rich.prompt` for interactive Y/n prompts - it integrates well with Rich console
+- Detection of template content can be done by checking for placeholder patterns like `[Goal 1]` and `[Describe the feature...]`
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 8: US-009 (Auto-PRD prompt in ralph init) completed

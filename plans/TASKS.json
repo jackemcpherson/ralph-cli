@@ -139,8 +139,8 @@
         "All existing tests pass"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Enhancement #11"
+      "passes": true,
+      "notes": "Enhancement #11 - Added _has_prd_content() and _handle_missing_prd() helpers. Uses Confirm.ask() from Rich."
     },
     {
       "id": "US-010",
