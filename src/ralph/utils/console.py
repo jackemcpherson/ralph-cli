@@ -5,6 +5,7 @@ for displaying formatted terminal output with consistent styling.
 """
 
 import logging
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -12,7 +13,37 @@ from rich.console import Console
 
 logger = logging.getLogger(__name__)
 
-console = Console()
+# Legacy Windows encodings that require special handling
+LEGACY_WINDOWS_ENCODINGS = frozenset({"cp1252", "cp437", "ascii"})
+
+
+def create_console() -> Console:
+    """Create a Rich Console with appropriate settings for the current terminal.
+
+    On Windows terminals with legacy encodings (cp1252, cp437, ascii), enables
+    legacy_windows mode to avoid unicode encoding errors. On UTF-8 terminals
+    and non-Windows platforms, uses default Console settings.
+
+    Returns:
+        Console: A configured Rich Console instance.
+    """
+    # Only apply legacy mode on Windows with non-UTF-8 encodings
+    if sys.platform == "win32":
+        # Get stdout encoding, defaulting to utf-8 if not available
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        encoding = encoding.lower().replace("-", "")  # Normalize: UTF-8 -> utf8
+
+        if encoding in LEGACY_WINDOWS_ENCODINGS:
+            logger.debug(
+                "Detected legacy Windows encoding '%s', enabling legacy_windows mode",
+                encoding,
+            )
+            return Console(legacy_windows=True)
+
+    return Console()
+
+
+console = create_console()
 
 
 def print_success(message: str) -> None:

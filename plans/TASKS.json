@@ -1,158 +1,177 @@
 {
-  "project": "Ralph CLI v1.2",
-  "branchName": "ralph/v1.2-bug-fixes-memory",
-  "description": "Bug fixes for streaming output and memory system improvements including CHANGELOG.md",
+  "project": "ralph-cli-v1.2.5",
+  "branchName": "ralph/windows-compat-ux-improvements",
+  "description": "Windows compatibility fixes and UX improvements for Ralph CLI v1.2.5",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Fix stream-json requires verbose flag",
-      "description": "As a developer, I want ralph once and ralph loop to work without the -v flag so that commands don't crash in normal usage",
+      "title": "Windows encoding detection for Rich console",
+      "description": "As a Windows user, I want Ralph CLI to detect my terminal encoding so that unicode symbols display correctly without encoding errors",
       "acceptanceCriteria": [
-        "When stream=True in run_print_mode(), --verbose is always included in CLI args",
-        "ralph once works without any flags",
-        "ralph loop works without any flags",
-        "In non-verbose mode, stream-json is parsed but only text content is displayed",
-        "In verbose mode, full JSON stream is displayed (current behavior preserved)",
-        "Typecheck passes"
+        "Create `create_console()` function in `src/ralph/utils/console.py` that detects Windows legacy encodings",
+        "Console uses `legacy_windows=True` for cp1252, cp437, and ascii encodings on Windows",
+        "Console uses default settings for utf-8 terminals and non-Windows platforms",
+        "Add unit tests for `create_console()` with various encoding scenarios",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Critical bug - Issue #7. Fixed by adding conditional --verbose in run_print_mode() when streaming."
+      "notes": "Critical bug #15 - affects all Windows users with legacy encodings"
     },
     {
       "id": "US-002",
-      "title": "Add newlines between message blocks in output",
-      "description": "As a developer, I want proper newlines between response blocks so that output is readable without verbose mode",
+      "title": "Update codebase to use centralized console",
+      "description": "As a developer, I want all Ralph commands to use the centralized console so that encoding handling is consistent",
       "acceptanceCriteria": [
-        "_parse_stream_event() detects message boundaries in JSON stream",
-        "Newline is added after each complete assistant message/turn",
-        "Inline text flow is preserved within a single message",
-        "Output is readable without requiring verbose mode",
-        "Typecheck passes"
+        "All modules import console from `ralph.utils.console` instead of creating their own",
+        "No direct `Console()` instantiation outside of `create_console()`",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Issue #6. Fixed by detecting content_block_stop, message_stop, and result events and returning MESSAGE_BOUNDARY newline. v1.2.1 added content_block_stop detection to properly handle newlines between content blocks within the same message."
+      "passes": false,
+      "notes": "Depends on US-001"
     },
     {
       "id": "US-003",
-      "title": "Enable skip permissions for ralph prd",
-      "description": "As a developer, I want ralph prd to skip permission prompts so that PRD creation runs autonomously",
+      "title": "Path normalization test utility",
+      "description": "As a developer, I want a test utility for normalizing paths so that tests pass on both Windows and Unix",
       "acceptanceCriteria": [
-        "run_interactive() accepts skip_permissions: bool = False parameter",
-        "When skip_permissions=True, --dangerously-skip-permissions is included in args",
-        "ralph prd calls run_interactive() with skip_permissions=True",
-        "Info message displayed about auto-approved permissions",
+        "Add `normalize_paths()` function to `tests/conftest.py`",
+        "Function converts backslashes to forward slashes for comparison",
+        "Function is available as a pytest fixture or importable utility",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Issue #4. Added skip_permissions parameter to run_interactive() and ralph prd now uses it with skip_permissions=True."
+      "passes": false,
+      "notes": "Foundation for US-004"
     },
     {
       "id": "US-004",
-      "title": "Create CHANGELOG.md on ralph init",
-      "description": "As a developer, I want ralph init to create a CHANGELOG.md file so that I have persistent memory across feature cycles",
+      "title": "Fix path separator mismatches in tests",
+      "description": "As a developer, I want tests to handle path separators correctly so that the test suite passes on Windows",
       "acceptanceCriteria": [
-        "ralph init creates CHANGELOG.md in project root if it doesn't exist",
-        "Template follows Keep a Changelog format",
-        "Template includes Unreleased section with category headers",
-        "Existing CHANGELOG.md is not overwritten",
-        "Typecheck passes"
+        "Update `tests/test_commands/test_prd.py` to use path normalization",
+        "Update `tests/test_commands/test_tasks.py` to use path normalization",
+        "All path-related assertions use normalized comparison",
+        "Tests pass on both Windows and Unix platforms",
+        "No changes to production code path output"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Issue #9. Added create_changelog() to ScaffoldService with Keep a Changelog format and all category headers. Init command preserves existing CHANGELOG.md."
+      "passes": false,
+      "notes": "Bug #14 - depends on US-003"
     },
     {
       "id": "US-005",
-      "title": "Add CHANGELOG guidelines to CLAUDE.md and AGENTS.md",
-      "description": "As a developer, I want CHANGELOG guidelines in project docs so that Claude knows when and how to update the changelog",
+      "title": "Detect meaningful content in PROGRESS.txt",
+      "description": "As a user, I want Ralph to detect if PROGRESS.txt has real iteration content so that empty template files are not archived",
       "acceptanceCriteria": [
-        "CLAUDE.md template includes CHANGELOG.md section with when/how to update",
-        "AGENTS.md template includes same CHANGELOG.md section (kept in sync)",
-        "Guidelines specify which changes warrant CHANGELOG entries",
-        "Guidelines specify which changes should NOT be logged",
+        "Add `_has_meaningful_content()` function to `src/ralph/commands/tasks.py`",
+        "Function returns False for template-only content",
+        "Function returns True when iteration markers are present (## Iteration, ### Story:, **Status:**, **Completed:**)",
+        "Add unit tests for content detection with various inputs",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Issue #9. Added CHANGELOG.md section to both templates in scaffold.py with when/how/when-not guidelines."
+      "passes": false,
+      "notes": "Foundation for US-006"
     },
     {
       "id": "US-006",
-      "title": "Update iteration prompt for CHANGELOG",
-      "description": "As a developer, I want the iteration skill to mention CHANGELOG updates so that Claude remembers to document significant changes",
+      "title": "Skip archiving template-only PROGRESS.txt",
+      "description": "As a user, I want Ralph to skip archiving PROGRESS.txt when it only contains template boilerplate so that the plans directory stays clean",
       "acceptanceCriteria": [
-        "ralph-iteration/SKILL.md mentions updating CHANGELOG.md for significant changes",
-        "Instructions are clear about what constitutes a significant change",
-        "Typecheck passes"
+        "Update `_archive_progress_file()` to check for meaningful content before archiving",
+        "Function returns `None` when file contains only template content",
+        "Function archives and returns path when file has iteration content",
+        "Add unit tests for archive behavior with template vs real content",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Issue #9. Added CHANGELOG.md section to ralph-iteration/SKILL.md with when/when-not/how guidelines and file reference table entry."
+      "passes": false,
+      "notes": "Bug #13 - depends on US-005"
     },
     {
       "id": "US-007",
-      "title": "Archive PROGRESS.txt on new task generation",
-      "description": "As a developer, I want PROGRESS.txt archived when generating new tasks so that stale context doesn't confuse Claude",
+      "title": "Centralize Claude CLI flag handling",
+      "description": "As a developer, I want centralized Claude CLI flag handling so that all commands use consistent flags",
       "acceptanceCriteria": [
-        "After writing new TASKS.json, existing PROGRESS.txt is checked",
-        "If PROGRESS.txt exists and is non-empty, it is archived to plans/PROGRESS.{timestamp}.txt",
-        "Timestamp format is YYYYMMDD_HHMMSS",
-        "Fresh PROGRESS.txt is created with header template",
-        "Message displayed: Archived previous progress to PROGRESS.{timestamp}.txt",
+        "Add `SKIP_PERMISSIONS_FLAG` constant to `ClaudeService` in `src/ralph/services/claude.py`",
+        "Add `_build_base_args()` method that includes skip-permissions flag",
+        "Method accepts `skip_permissions` parameter defaulting to True",
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Issue #8. Added _archive_progress_file() helper to tasks.py that archives existing PROGRESS.txt with YYYYMMDD_HHMMSS timestamp and creates fresh template."
+      "passes": false,
+      "notes": "Foundation for US-008"
     },
     {
       "id": "US-008",
-      "title": "Enable streaming for ralph tasks",
-      "description": "As a developer, I want ralph tasks to stream output so that I get feedback during generation",
+      "title": "Apply consistent Claude flags across all commands",
+      "description": "As a user, I want all Ralph commands to use the same Claude flags so that I don't get unexpected permission prompts",
       "acceptanceCriteria": [
-        "ralph tasks uses stream=True in run_print_mode()",
-        "Users see Claude's progress as it generates the task breakdown",
-        "JSON extraction still works correctly from streamed output",
-        "Typecheck passes"
+        "Update `ralph init` to use centralized flag handling",
+        "Update `ralph prd` to use centralized flag handling",
+        "Update `ralph tasks` to use centralized flag handling",
+        "Update `ralph once` and `ralph loop` to use centralized flag handling if not already",
+        "All Claude invocations include `--dangerously-skip-permissions` flag",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Issue #5. Changed stream=False to stream=True in tasks.py. Added TestTasksCommandStreaming test class with 4 tests verifying JSON extraction works with streamed output."
+      "passes": false,
+      "notes": "Enhancement #12 - depends on US-007"
     },
     {
       "id": "US-009",
-      "title": "Add unit tests for bug fixes",
-      "description": "As a developer, I want unit tests for the bug fixes so that regressions are prevented",
+      "title": "Auto-PRD prompt in ralph init",
+      "description": "As a user, I want Ralph to prompt me to create a PRD when running init without one so that claude init has a specification to work with",
       "acceptanceCriteria": [
-        "Test _build_base_args() always includes --verbose when streaming",
-        "Test _parse_stream_event() returns newline markers correctly",
-        "Test run_interactive() with skip_permissions=True",
-        "Test PROGRESS.txt archival with timestamp format",
-        "All tests pass",
-        "Typecheck passes"
+        "Check for PRD file at `plans/SPEC.md` before running `claude init`",
+        "Display warning message when PRD is missing",
+        "Prompt user with option to create PRD first",
+        "If user confirms, invoke PRD command to create specification",
+        "If user declines, proceed with init and display informational message",
+        "Add integration test for PRD prompt behavior",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Added tests/test_bug_fixes.py with 31 comprehensive tests covering: streaming verbose behavior (6 tests), newline markers (8 tests), skip_permissions (6 tests), archival timestamp (9 tests), and integration (2 tests)."
+      "passes": false,
+      "notes": "Enhancement #11"
     },
     {
       "id": "US-010",
-      "title": "Add integration tests for commands",
-      "description": "As a developer, I want integration tests for the fixed commands so that end-to-end behavior is verified",
+      "title": "Enable streaming for ralph tasks",
+      "description": "As a user, I want ralph tasks to stream output so that I can see progress during task generation",
       "acceptanceCriteria": [
-        "Test ralph once runs without -v flag (no crash)",
-        "Test ralph loop runs without -v flag (no crash)",
-        "Test ralph tasks streams output",
-        "Test ralph init creates CHANGELOG.md",
-        "All tests pass",
-        "Typecheck passes"
+        "Change `stream=False` to `stream=True` in `ralph tasks` Claude invocation",
+        "Users see real-time output during task breakdown",
+        "JSON extraction continues to work correctly from streamed output",
+        "Typecheck passes",
+        "All existing tests pass"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Added tests/test_integration/test_command_integration.py with 19 integration tests: TestOnceCommandWithoutVerboseFlag (4), TestLoopCommandWithoutVerboseFlag (4), TestTasksCommandStreaming (3), TestInitCommandChangelogCreation (5), TestMessageBoundaryNewlines (1), TestSkipPermissionsIntegration (2). All 565 tests pass."
+      "passes": false,
+      "notes": "Enhancement #5 - lowest priority"
+    },
+    {
+      "id": "US-011",
+      "title": "Final integration testing and quality checks",
+      "description": "As a developer, I want all quality checks to pass so that the release is ready",
+      "acceptanceCriteria": [
+        "All unit tests pass",
+        "All integration tests pass",
+        "Typecheck (pyright) passes with no errors",
+        "Lint (ruff check) passes with no errors",
+        "Format (ruff format --check) passes",
+        "Manual verification on Windows terminal with cp1252 encoding if available"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Final validation before release"
     }
   ]
 }

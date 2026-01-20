@@ -1,11 +1,14 @@
 """Tests for console utilities."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import pytest
 from rich.console import Console
 
 from ralph.utils.console import (
+    LEGACY_WINDOWS_ENCODINGS,
     console,
+    create_console,
     create_spinner,
     print_error,
     print_step,
@@ -20,6 +23,116 @@ class TestConsoleInstance:
     def test_console_is_rich_console(self) -> None:
         """Test that console is a Rich Console instance."""
         assert isinstance(console, Console)
+
+
+class TestCreateConsole:
+    """Tests for create_console function with various encoding scenarios."""
+
+    def test_returns_console_instance(self) -> None:
+        """Test that create_console returns a Console instance."""
+        result = create_console()
+        assert isinstance(result, Console)
+
+    def test_legacy_encodings_constant(self) -> None:
+        """Test that legacy encodings constant contains expected values."""
+        assert "cp1252" in LEGACY_WINDOWS_ENCODINGS
+        assert "cp437" in LEGACY_WINDOWS_ENCODINGS
+        assert "ascii" in LEGACY_WINDOWS_ENCODINGS
+        assert "utf8" not in LEGACY_WINDOWS_ENCODINGS
+
+    @pytest.mark.parametrize(
+        "encoding",
+        ["cp1252", "cp437", "ascii"],
+    )
+    def test_windows_legacy_encoding_enables_legacy_mode(self, encoding: str) -> None:
+        """Test that legacy encodings on Windows enable legacy_windows mode."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = encoding
+
+        with (
+            patch("ralph.utils.console.sys.platform", "win32"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            assert result.legacy_windows is True
+
+    @pytest.mark.parametrize(
+        "encoding",
+        ["utf-8", "UTF-8", "utf8", "UTF8"],
+    )
+    def test_windows_utf8_encoding_uses_default(self, encoding: str) -> None:
+        """Test that UTF-8 encoding on Windows uses default Console settings."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = encoding
+
+        with (
+            patch("ralph.utils.console.sys.platform", "win32"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            # Default Console has legacy_windows=False unless auto-detected
+            assert result.legacy_windows is False
+
+    def test_non_windows_platform_uses_default(self) -> None:
+        """Test that non-Windows platforms use default Console settings."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = "cp1252"  # Even with legacy encoding
+
+        with (
+            patch("ralph.utils.console.sys.platform", "darwin"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            assert result.legacy_windows is False
+
+    def test_linux_platform_uses_default(self) -> None:
+        """Test that Linux platform uses default Console settings."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = "ascii"
+
+        with (
+            patch("ralph.utils.console.sys.platform", "linux"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            assert result.legacy_windows is False
+
+    def test_missing_encoding_attribute_defaults_to_utf8(self) -> None:
+        """Test that missing encoding attribute defaults to UTF-8 behavior."""
+        mock_stdout = MagicMock(spec=[])  # No encoding attribute
+
+        with (
+            patch("ralph.utils.console.sys.platform", "win32"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            # Should default to UTF-8 behavior (no legacy mode)
+            assert result.legacy_windows is False
+
+    def test_none_encoding_defaults_to_utf8(self) -> None:
+        """Test that None encoding defaults to UTF-8 behavior."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = None
+
+        with (
+            patch("ralph.utils.console.sys.platform", "win32"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            assert result.legacy_windows is False
+
+    def test_encoding_normalization_removes_hyphen(self) -> None:
+        """Test that encoding normalization handles hyphens (UTF-8 -> utf8)."""
+        mock_stdout = MagicMock()
+        mock_stdout.encoding = "UTF-8"
+
+        with (
+            patch("ralph.utils.console.sys.platform", "win32"),
+            patch("ralph.utils.console.sys.stdout", mock_stdout),
+        ):
+            result = create_console()
+            # UTF-8 should NOT trigger legacy mode
+            assert result.legacy_windows is False
 
 
 class TestPrintSuccess:
