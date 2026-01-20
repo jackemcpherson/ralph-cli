@@ -354,3 +354,36 @@
 ---
 
 [Ralph Loop] 2026-01-20 - Iteration 8: US-009 (Auto-PRD prompt in ralph init) completed
+
+[Ralph Loop] 2026-01-20 04:08 UTC - Iteration 8: US-009 (Auto-PRD prompt in ralph init) completed
+
+## 2026-01-20 - US-010
+
+**Story:** Enable streaming for ralph tasks
+
+### What was implemented
+- Verified that streaming was already implemented in the v1.2 release (commit 50c5c7d)
+- Confirmed `stream=True` is set in `run_print_mode()` call at `src/ralph/commands/tasks.py:89`
+- Verified `_stream_output()` method in `ClaudeService` handles real-time output display
+- Verified `_extract_json()` function correctly extracts JSON from streamed text output
+- All acceptance criteria were already met by the existing implementation
+
+### Tests written
+- No new tests required - comprehensive streaming tests already exist in `TestTasksCommandStreaming` class:
+  - `test_tasks_launches_claude_in_print_mode_with_streaming` - Verifies stream=True is passed
+  - `test_tasks_streaming_extracts_json_from_text_output` - Tests JSON extraction works
+  - `test_tasks_streaming_handles_json_in_code_block` - Tests code block handling
+  - `test_tasks_streaming_handles_text_with_embedded_json` - Tests embedded JSON extraction
+  - `test_tasks_streaming_shows_progress_during_generation` - Tests progress message
+
+### Files changed
+- `plans/TASKS.json` - Marked US-010 as passes: true
+
+### Learnings for future iterations
+- The story description may reference an outdated state - streaming was changed from False to True in v1.2
+- Always verify current implementation state before making changes, as prior releases may have already addressed the issue
+- The `ClaudeService._stream_output()` method parses stream-json events and displays extracted text content in real-time
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 9: US-010 (Enable streaming for ralph tasks) completed
