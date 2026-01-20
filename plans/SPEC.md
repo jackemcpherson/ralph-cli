@@ -1,12 +1,12 @@
-# Ralph CLI v1.2 Specification: Bug Fixes & Memory System Improvements
+# Ralph CLI v1.2.5 Specification: Windows Compatibility & UX Improvements
 
 ## Metadata
 
 - **Status:** Draft
-- **Version:** 1.2.0
-- **Last Updated:** 2026-01-18
+- **Version:** 1.2.5
+- **Last Updated:** 2026-01-20
 - **Owner:** To be assigned
-- **Related Issues:** #4, #5, #6, #7, #8, #9
+- **Related Issues:** #5, #11, #12, #13, #14, #15
 
 ---
 
@@ -14,205 +14,233 @@
 
 ### 1.1 Problem Statement
 
-Ralph CLI v1.1 has several issues affecting reliability and developer experience:
+Ralph CLI v1.2 has several issues affecting Windows compatibility and user experience:
 
-1. **Critical Bug:** The `ralph once` and `ralph loop` commands crash when the `-v` (verbose) flag is not provided. The error message indicates that `--output-format=stream-json` requires `--verbose` when using `--print` mode.
+1. **Windows Encoding Bug (#15):** Rich unicode warning symbols fail on Windows systems using cp1252 encoding, causing encoding errors or corrupted output.
 
-2. **Output Formatting Bug:** When streaming output works, text chunks are written without proper newlines, creating a wall of text that is difficult to read.
+2. **Windows Path Bug (#14):** Tests fail on Windows due to path separator mismatches (forward vs backslashes), preventing CI from passing on Windows environments.
 
-3. **Permissions Bug:** The `ralph prd` interactive command does not use `--dangerously-skip-permissions`, causing Claude to prompt for permissions during autonomous execution.
+3. **Empty Archive Bug (#13):** The `ralph tasks` command archives PROGRESS.txt even when it only contains boilerplate template text with no actual iteration content, cluttering the plans directory.
 
-4. **Missing Feature:** No long-term memory persists across feature development cycles. PROGRESS.txt accumulates entries from previous features, causing confusion.
+4. **Inconsistent Permissions (#12):** Claude sessions invoked by different Ralph commands have inconsistent behavior regarding permission prompts and autonomous mode, causing unexpected interruptions.
 
-5. **UX Issue:** The `ralph tasks` command does not stream output, leaving users with no feedback during generation.
+5. **Missing Auto-PRD (#11):** Running `ralph init` without an existing PRD file causes `claude init` to fail or produce suboptimal results because there's no specification to work with.
+
+6. **No Streaming (#5):** The `ralph tasks` command doesn't stream output, leaving users with no feedback during task generation.
 
 ### 1.2 Goals
 
-1. **Fix crash on non-verbose mode** - Commands must work correctly with or without the `-v` flag
-2. **Improve output readability** - Add proper newlines between response blocks
-3. **Enable autonomous PRD creation** - Apply skip permissions to interactive commands
-4. **Implement persistent memory** - Add CHANGELOG.md for cross-feature learning
-5. **Clean slate for new features** - Archive PROGRESS.txt when starting new task sets
-6. **Better feedback** - Stream output for the `ralph tasks` command
+1. **Full Windows compatibility** - Commands work correctly on Windows with cp1252/legacy encodings
+2. **Cross-platform tests** - Test suite passes on both Unix and Windows
+3. **Smart archiving** - Only archive PROGRESS.txt when it has meaningful content
+4. **Consistent permissions** - All Claude invocations use the same flags
+5. **Guided initialization** - Auto-generate PRD if missing during init
+6. **Better feedback** - Stream output for all long-running commands
 
 ### 1.3 Non-Goals
 
 - Changing the TASKS.json schema
-- Adding new CLI commands
-- Modifying the iteration logic
-- Automatic version bumping
+- Adding new CLI commands (beyond enhancing existing ones)
+- Modifying the core iteration logic
+- Windows-specific installation procedures
 
 ---
 
 ## 2. Requirements
 
-### 2.1 Bug Fix: Stream-JSON Without Verbose Flag (Issue #7)
+### 2.1 Bug Fix: Rich Unicode on Windows (#15)
 
 **Priority: Critical**
 
-The root cause is that Claude Code CLI requires `--verbose` when using `--output-format=stream-json` with `--print` mode. The current implementation always uses stream-json format but doesn't always pass verbose.
+Rich console attempts to render unicode symbols (warning triangles, checkmarks) that Windows cp1252 encoding cannot display.
 
 | ID | Requirement |
 |----|-------------|
-| FR-BUG7-01 | When `stream=True` in `run_print_mode()`, always include `--verbose` in CLI args |
-| FR-BUG7-02 | The `--verbose` flag controls output *display*, not the underlying stream format |
-| FR-BUG7-03 | In non-verbose mode, parse stream-json but only display text content |
-| FR-BUG7-04 | In verbose mode, display the full JSON stream (current behavior) |
-| FR-BUG7-05 | Commands `ralph once` and `ralph loop` must work without any flags |
+| FR-WIN15-01 | Configure Rich console to handle Windows legacy encodings |
+| FR-WIN15-02 | Use ASCII fallbacks for warning/error symbols on Windows |
+| FR-WIN15-03 | Auto-detect terminal encoding capabilities |
+| FR-WIN15-04 | No encoding errors on Windows terminals |
 
 **Files to Modify:**
-- `src/ralph/services/claude.py` - `_build_base_args()` and `run_print_mode()`
+- `src/ralph/utils/console.py` - Rich console initialization
 
 **Technical Solution:**
 ```python
-# Always use --verbose when streaming, as stream-json requires it
-# The parse_json parameter controls what gets displayed, not the underlying format
-if stream:
-    args.extend(["--verbose", "--output-format", "stream-json"])
+import sys
+from rich.console import Console
+
+def create_console() -> Console:
+    """Create Rich console with cross-platform encoding support."""
+    # Check for Windows legacy encoding
+    legacy_windows = (
+        sys.platform == "win32"
+        and sys.stdout.encoding.lower() in ("cp1252", "cp437", "ascii")
+    )
+    return Console(legacy_windows=legacy_windows)
 ```
 
-### 2.2 Bug Fix: Output Formatting with Newlines (Issue #6)
+**Alternative:** Use `console.is_terminal` and `console.encoding` to conditionally substitute unicode symbols with ASCII equivalents.
+
+### 2.2 Bug Fix: Path Separators in Tests (#14)
 
 **Priority: High**
 
-Text chunks from stream-json events are written directly without newlines, creating unreadable output.
+Tests assert specific path strings like `plans/SPEC.md` but Windows outputs `plans\SPEC.md`.
 
 | ID | Requirement |
 |----|-------------|
-| FR-BUG6-01 | Detect message boundaries in the JSON stream |
-| FR-BUG6-02 | Add newline after each complete assistant message/turn |
-| FR-BUG6-03 | Preserve inline text flow within a single message |
-| FR-BUG6-04 | Output should be readable without requiring verbose mode |
+| FR-WIN14-01 | Test assertions handle both Unix and Windows path separators |
+| FR-WIN14-02 | Path comparisons use normalized paths or both separators |
+| FR-WIN14-03 | All path-related tests pass on Windows |
+| FR-WIN14-04 | No changes to actual command output (display native paths) |
 
-**Files to Modify:**
-- `src/ralph/services/claude.py` - `_stream_output()` and `_parse_stream_event()`
+**Affected Tests:**
+- `tests/test_commands/test_prd.py::test_prd_includes_prd_prompt`
+- `tests/test_commands/test_prd.py::test_prd_shows_output_path`
+- `tests/test_commands/test_prd.py::test_prd_with_custom_output_path`
+- `tests/test_commands/test_tasks.py::test_tasks_displays_informational_message`
+- `tests/test_commands/test_tasks.py::test_tasks_with_custom_output_path`
 
 **Technical Solution:**
-The stream-json format includes event types. Track when a message completes and add newlines:
 ```python
-def _parse_stream_event(self, line: str) -> tuple[str | None, bool]:
-    """Parse a stream event, return (text, is_message_complete)."""
-    # Return is_message_complete=True when we see end-of-turn markers
+# Option 1: Normalize output for comparison
+def normalize_paths(text: str) -> str:
+    """Normalize path separators for cross-platform comparison."""
+    return text.replace("\\", "/")
+
+assert "plans/SPEC.md" in normalize_paths(result.output)
+
+# Option 2: Check both separators
+assert "plans/SPEC.md" in result.output or "plans\\SPEC.md" in result.output
 ```
 
-### 2.3 Bug Fix: Skip Permissions for Interactive Commands (Issue #4)
+### 2.3 Bug Fix: Skip Empty PROGRESS.txt Archiving (#13)
 
 **Priority: High**
 
-The `ralph prd` command should use `--dangerously-skip-permissions` like `ralph once` and `ralph loop`.
+The archive logic triggers even when PROGRESS.txt contains only the boilerplate template with no actual iteration content.
 
 | ID | Requirement |
 |----|-------------|
-| FR-BUG4-01 | Add `skip_permissions: bool = False` parameter to `run_interactive()` |
-| FR-BUG4-02 | When `skip_permissions=True`, include `--dangerously-skip-permissions` in args |
-| FR-BUG4-03 | `ralph prd` calls `run_interactive()` with `skip_permissions=True` |
-| FR-BUG4-04 | Display info message about auto-approved permissions |
+| FR-ARCH13-01 | Detect if PROGRESS.txt contains only template boilerplate |
+| FR-ARCH13-02 | Skip archiving if no meaningful content exists |
+| FR-ARCH13-03 | Return `None` (no archive path) when file is template-only |
+| FR-ARCH13-04 | Only archive files with actual iteration entries |
 
 **Files to Modify:**
-- `src/ralph/services/claude.py` - `run_interactive()`
+- `src/ralph/commands/tasks.py` - `_archive_progress_file()` function
+
+**Technical Solution:**
+```python
+def _has_meaningful_content(progress_path: Path) -> bool:
+    """Check if PROGRESS.txt has content beyond the template."""
+    content = progress_path.read_text()
+
+    # Check for iteration markers that indicate actual work
+    iteration_markers = [
+        "## Iteration",
+        "### Story:",
+        "**Status:**",
+        "**Completed:**",
+    ]
+    return any(marker in content for marker in iteration_markers)
+
+def _archive_progress_file(progress_path: Path) -> Path | None:
+    """Archive PROGRESS.txt if it has meaningful content."""
+    if not progress_path.exists():
+        return None
+    if not _has_meaningful_content(progress_path):
+        return None  # Skip archiving template-only files
+    # ... existing archival logic
+```
+
+### 2.4 Enhancement: Consistent Claude Flags (#12)
+
+**Priority: High**
+
+Different commands use different Claude flags, causing inconsistent behavior with permissions and autonomous mode.
+
+| ID | Requirement |
+|----|-------------|
+| FR-FLAGS12-01 | All Claude invocations use `--dangerously-skip-permissions` |
+| FR-FLAGS12-02 | All Claude invocations include autonomous mode configuration |
+| FR-FLAGS12-03 | Create centralized function for building Claude CLI args |
+| FR-FLAGS12-04 | No unexpected permission prompts during any Ralph operation |
+| FR-FLAGS12-05 | Document consistent flag behavior |
+
+**Commands to Audit:**
+- `ralph init` - runs `claude init`
+- `ralph prd` - PRD agent sessions
+- `ralph tasks` - task generation sessions
+- `ralph once` - single iteration
+- `ralph loop` - multiple iterations
+
+**Files to Modify:**
+- `src/ralph/services/claude.py` - Centralize flag handling
+- `src/ralph/commands/init_cmd.py`
 - `src/ralph/commands/prd.py`
+- `src/ralph/commands/tasks.py`
 
-### 2.4 Enhancement: Implement CHANGELOG.md (Issue #9)
-
-**Priority: Medium**
-
-Add a CHANGELOG.md file that persists across feature development cycles, following the Keep a Changelog format.
-
-| ID | Requirement |
-|----|-------------|
-| FR-ENH9-01 | `ralph init` creates `CHANGELOG.md` in project root if it doesn't exist |
-| FR-ENH9-02 | Use [Keep a Changelog](https://keepachangelog.com/) format |
-| FR-ENH9-03 | Template includes: Unreleased section, category headers (Added, Changed, etc.) |
-| FR-ENH9-04 | Add CHANGELOG guidelines section to `CLAUDE.md` |
-| FR-ENH9-05 | Add same CHANGELOG guidelines section to `AGENTS.md` (keep in sync) |
-| FR-ENH9-06 | Update iteration prompt to mention CHANGELOG for significant changes |
-
-**CHANGELOG.md Template:**
-```markdown
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Added
-- Initial project setup
-
-```
-
-**CLAUDE.md/AGENTS.md Section to Add:**
-```markdown
-## CHANGELOG.md
-
-This project maintains a CHANGELOG.md following Keep a Changelog format.
-
-**When to update:**
-- After implementing significant features
-- When fixing important bugs
-- When making breaking changes
-- When deprecating functionality
-
-**How to update:**
-1. Add entries under the `[Unreleased]` section
-2. Use appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
-3. Write user-facing descriptions (not implementation details)
-4. Reference story IDs when applicable
-
-**Do NOT update CHANGELOG.md for:**
-- Minor refactorings
-- Internal code reorganization
-- Test additions (unless significant new test infrastructure)
-```
-
-**Files to Modify:**
-- `src/ralph/commands/init_cmd.py` - Add CHANGELOG.md creation
-- `src/ralph/services/scaffold.py` - Add template
-- `skills/ralph-iteration/SKILL.md` - Update iteration instructions
-
-### 2.5 Enhancement: Clear PROGRESS.txt on New Tasks (Issue #8)
-
-**Priority: Medium**
-
-When `ralph tasks` generates a new TASKS.json, archive the existing PROGRESS.txt to prevent stale context from confusing Claude.
-
-| ID | Requirement |
-|----|-------------|
-| FR-ENH8-01 | After writing new TASKS.json, check if PROGRESS.txt exists |
-| FR-ENH8-02 | If exists, archive to `plans/PROGRESS.{timestamp}.txt` |
-| FR-ENH8-03 | Timestamp format: `YYYYMMDD_HHMMSS` |
-| FR-ENH8-04 | Create fresh empty PROGRESS.txt with header template |
-| FR-ENH8-05 | Display message: "Archived previous progress to PROGRESS.{timestamp}.txt" |
-
-**Files to Modify:**
-- `src/ralph/commands/tasks.py` - Add archival logic after `save_tasks()`
-
-**Implementation:**
+**Technical Solution:**
 ```python
-# After save_tasks(tasks_model, output_path)
-progress_path = project_root / "plans" / "PROGRESS.txt"
-if progress_path.exists() and progress_path.stat().st_size > 0:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    archive_path = project_root / "plans" / f"PROGRESS.{timestamp}.txt"
-    progress_path.rename(archive_path)
-    console.print(f"[dim]Archived previous progress to {archive_path.name}[/dim]")
-    # Create fresh PROGRESS.txt
-    progress_path.write_text(PROGRESS_TEMPLATE)
+class ClaudeService:
+    # Centralized flags
+    SKIP_PERMISSIONS_FLAG = "--dangerously-skip-permissions"
+
+    def _build_base_args(self, skip_permissions: bool = True) -> list[str]:
+        """Build base args with consistent flag handling."""
+        args = ["claude"]
+        if skip_permissions:
+            args.append(self.SKIP_PERMISSIONS_FLAG)
+        return args
 ```
 
-### 2.6 Enhancement: Stream Output for `ralph tasks` (Issue #5)
+### 2.5 Enhancement: Auto-PRD in Init (#11)
+
+**Priority: Medium**
+
+`ralph init` fails or produces poor results when no PRD exists because `claude init` has no specification.
+
+| ID | Requirement |
+|----|-------------|
+| FR-INIT11-01 | Check for PRD file before running `claude init` |
+| FR-INIT11-02 | If PRD missing, prompt user to create one via PRD agent |
+| FR-INIT11-03 | Allow user to skip PRD creation and proceed anyway |
+| FR-INIT11-04 | Display clear feedback about the PRD generation step |
+| FR-INIT11-05 | Fail gracefully if PRD generation is cancelled |
+
+**Files to Modify:**
+- `src/ralph/commands/init_cmd.py`
+
+**Technical Solution:**
+```python
+def init_command():
+    # Check for PRD
+    prd_path = project_root / "plans" / "SPEC.md"
+    if not prd_path.exists():
+        console.print("[yellow]No PRD found at plans/SPEC.md[/yellow]")
+        if Confirm.ask("Would you like to create a PRD first?"):
+            # Run PRD flow
+            from ralph.commands.prd import prd_command
+            prd_command(output=prd_path)
+        else:
+            console.print("[dim]Proceeding without PRD...[/dim]")
+
+    # Continue with claude init
+    ...
+```
+
+### 2.6 Enhancement: Stream Output for Tasks (#5)
 
 **Priority: Low**
 
-Enable streaming output for the `ralph tasks` command to provide feedback during generation.
+`ralph tasks` runs with `stream=False`, providing no feedback during generation.
 
 | ID | Requirement |
 |----|-------------|
-| FR-ENH5-01 | Change `stream=False` to `stream=True` in `ralph tasks` |
-| FR-ENH5-02 | Users see Claude's progress as it generates the task breakdown |
-| FR-ENH5-03 | JSON extraction still works correctly from streamed output |
+| FR-STREAM5-01 | Change `stream=False` to `stream=True` in `ralph tasks` |
+| FR-STREAM5-02 | Users see Claude's progress during task breakdown |
+| FR-STREAM5-03 | JSON extraction continues to work from streamed output |
 
 **Files to Modify:**
 - `src/ralph/commands/tasks.py` - Line ~86
@@ -230,32 +258,52 @@ output_text, exit_code = claude.run_print_mode(prompt, stream=True)
 
 ## 3. Technical Considerations
 
-### 3.1 Claude Code CLI Behavior
+### 3.1 Windows Encoding Detection
 
-The key insight from Issue #7 is that Claude Code's `--output-format=stream-json` flag requires `--verbose` when used with `--print` mode. This is a Claude Code requirement, not a bug in ralph-cli. The fix is to always pass `--verbose` internally when streaming, then control what gets *displayed* based on the user's verbose preference.
+Windows terminals can use various encodings:
+- `cp1252` - Western European (common)
+- `cp437` - Original IBM PC
+- `utf-8` - Modern terminals (Windows Terminal, VS Code)
 
-### 3.2 Stream Event Types
+Rich provides `legacy_windows` parameter that forces ASCII-safe output. We should detect the encoding and apply this setting automatically.
 
-Claude Code stream-json outputs different event types:
-- `assistant` - Contains text content from Claude
-- `tool_use` - Tool invocation
-- `tool_result` - Tool execution result
-- `error` - Error messages
+### 3.2 Path Handling Strategy
 
-For newline insertion, we should add newlines when transitioning between major message blocks, particularly after a complete assistant response before a new tool use or vice versa.
+The fix should be in tests only, not in the production code. Commands should continue displaying native paths (backslashes on Windows). Test assertions should normalize for comparison.
 
-### 3.3 File Modification Summary
+Create a test utility function for path normalization to avoid duplicating logic across test files.
+
+### 3.3 Content Detection for Archiving
+
+The PROGRESS.txt template contains:
+```
+# Ralph Progress Log
+
+## Codebase Patterns
+...
+```
+
+Actual iteration content contains markers like:
+```
+## Iteration 1
+### Story: US-001
+**Status:** Completed
+```
+
+Detecting any iteration marker is a reliable heuristic for meaningful content.
+
+### 3.4 File Modification Summary
 
 | File | Changes |
 |------|---------|
-| `src/ralph/services/claude.py` | Fix stream args, improve output parsing |
-| `src/ralph/commands/tasks.py` | Enable streaming, add PROGRESS.txt archival |
-| `src/ralph/commands/prd.py` | Add skip_permissions to interactive mode |
-| `src/ralph/commands/init_cmd.py` | Create CHANGELOG.md |
-| `src/ralph/services/scaffold.py` | Add CHANGELOG template |
-| `skills/ralph-iteration/SKILL.md` | Update iteration instructions |
-| `CLAUDE.md` | Add CHANGELOG guidelines |
-| `AGENTS.md` | Add CHANGELOG guidelines (keep in sync) |
+| `src/ralph/utils/console.py` | Windows encoding detection |
+| `src/ralph/services/claude.py` | Centralized flag handling |
+| `src/ralph/commands/init_cmd.py` | Auto-PRD prompt |
+| `src/ralph/commands/prd.py` | Use consistent flags |
+| `src/ralph/commands/tasks.py` | Enable streaming, smart archiving |
+| `tests/test_commands/test_prd.py` | Path normalization |
+| `tests/test_commands/test_tasks.py` | Path normalization |
+| `tests/conftest.py` | Add path normalization utility |
 
 ---
 
@@ -263,16 +311,14 @@ For newline insertion, we should add newlines when transitioning between major m
 
 | # | Criterion | Issue |
 |---|-----------|-------|
-| 1 | `ralph once` works without `-v` flag | #7 |
-| 2 | `ralph loop 3` completes without `-v` flag | #7 |
-| 3 | Output shows proper newlines between message blocks | #6 |
-| 4 | Output is readable without verbose mode | #6 |
-| 5 | `ralph prd` runs without permission prompts | #4 |
-| 6 | `ralph init` creates CHANGELOG.md with proper template | #9 |
-| 7 | CLAUDE.md and AGENTS.md contain CHANGELOG guidelines | #9 |
-| 8 | `ralph tasks` archives existing PROGRESS.txt | #8 |
-| 9 | `ralph tasks` streams output in real-time | #5 |
-| 10 | All existing tests continue to pass | - |
+| 1 | No encoding errors on Windows cp1252 terminals | #15 |
+| 2 | All tests pass on Windows | #14 |
+| 3 | Empty/template PROGRESS.txt is not archived | #13 |
+| 4 | All Claude invocations skip permissions | #12 |
+| 5 | `ralph init` prompts for PRD if missing | #11 |
+| 6 | `ralph tasks` streams output in real-time | #5 |
+| 7 | All existing tests continue to pass on Unix | - |
+| 8 | Quality checks (typecheck, lint, format, test) pass | - |
 
 ---
 
@@ -280,23 +326,23 @@ For newline insertion, we should add newlines when transitioning between major m
 
 ### 5.1 Unit Tests
 
-- Test `_build_base_args()` always includes `--verbose` when streaming
-- Test `_parse_stream_event()` returns newline markers correctly
-- Test `run_interactive()` with `skip_permissions=True`
-- Test PROGRESS.txt archival with timestamp format
+- Test `create_console()` returns console with correct `legacy_windows` setting
+- Test `_has_meaningful_content()` with template-only and real content
+- Test `_archive_progress_file()` returns `None` for template-only files
+- Test path normalization utility function
 
 ### 5.2 Integration Tests
 
-- Run `ralph once` without flags, verify no crash
-- Run `ralph loop 2` without flags, verify completion
-- Run `ralph tasks` and verify streaming output
-- Run `ralph init` and verify CHANGELOG.md created
+- Test `ralph init` prompts for PRD when missing
+- Test `ralph tasks` archives only meaningful PROGRESS.txt
+- Test `ralph tasks` streams output
+- Run full test suite on Windows (CI)
 
 ### 5.3 Manual Testing
 
-- Visual inspection of output formatting
-- Verify CHANGELOG.md template follows Keep a Changelog format
-- Verify archived PROGRESS.txt files are created correctly
+- Run `ralph` commands on Windows with cp1252 encoding
+- Verify no unicode errors in terminal output
+- Verify archived files only created for real progress
 
 ---
 
@@ -304,9 +350,9 @@ For newline insertion, we should add newlines when transitioning between major m
 
 | Issue | Title | Type | Priority |
 |-------|-------|------|----------|
-| #7 | ralph once/loop crash when -v flag is not passed | Bug | Critical |
-| #6 | ralph once/loop output formatting: need newlines | Bug | High |
-| #4 | Enable skip permissions for interactive commands | Bug | High |
-| #9 | Implement CHANGELOG.md for long-term memory | Enhancement | Medium |
-| #8 | ralph tasks should clear PROGRESS.txt | Enhancement | Medium |
+| #15 | Rich unicode warning symbol fails on Windows cp1252 | Bug | Critical |
+| #14 | Windows: Path separator mismatches in tests | Bug | High |
+| #13 | PROGRESS.txt archiving should skip empty files | Bug | High |
+| #12 | Consistent Claude session flags across all commands | Enhancement | High |
+| #11 | ralph init: Auto-run PRD agent if no PRD file exists | Enhancement | Medium |
 | #5 | ralph tasks does not stream output | Enhancement | Low |

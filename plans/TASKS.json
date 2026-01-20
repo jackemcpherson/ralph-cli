@@ -170,8 +170,8 @@
         "Manual verification on Windows terminal with cp1252 encoding if available"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "Final validation before release"
+      "passes": true,
+      "notes": "All 640 tests pass, pyright 0 errors, ruff check/format pass. Windows manual testing not available on macOS."
     }
   ]
 }
