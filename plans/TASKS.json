@@ -74,8 +74,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Foundation for US-006"
+      "passes": true,
+      "notes": "Foundation for US-006. Added function with 8 iteration markers and 14 unit tests."
     },
     {
       "id": "US-006",

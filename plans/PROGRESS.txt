@@ -144,3 +144,52 @@
 ---
 
 [Ralph Loop] 2026-01-20 03:55 UTC - Iteration 3: US-004 (Fix path separator mismatches in tests) completed
+
+[Ralph Loop] 2026-01-20 03:42 UTC - Iteration 3: US-004 (Fix path separator mismatches in tests) completed
+
+## 2026-01-20 - US-005
+
+**Story:** Detect meaningful content in PROGRESS.txt
+
+### What was implemented
+- Added `_has_meaningful_content()` function to `src/ralph/commands/tasks.py`
+- Function checks for 8 iteration markers that indicate real progress entries:
+  - `## Iteration` - Iteration section header
+  - `### Story:` - Story section header
+  - `**Status:**` - Status marker in entries
+  - `**Completed:**` - Completed marker in entries
+  - `### What was implemented` - Implementation details section
+  - `### Tests written` - Tests section
+  - `### Files changed` - Files changed section
+  - `### Learnings` - Learnings section
+- Returns True if any marker is found, False otherwise
+- Foundation for US-006 which will use this to skip archiving template-only files
+
+### Tests written
+- `TestHasMeaningfulContent` class with 14 test cases:
+  - `test_returns_false_for_empty_string` - Empty content returns False
+  - `test_returns_false_for_whitespace_only` - Whitespace-only returns False
+  - `test_returns_false_for_template_only` - Template content returns False
+  - `test_returns_true_for_iteration_section` - ## Iteration marker detected
+  - `test_returns_true_for_story_marker` - ### Story: marker detected
+  - `test_returns_true_for_status_marker` - **Status:** marker detected
+  - `test_returns_true_for_completed_marker` - **Completed:** marker detected
+  - `test_returns_true_for_what_was_implemented_section` - Section header detected
+  - `test_returns_true_for_tests_written_section` - Section header detected
+  - `test_returns_true_for_files_changed_section` - Section header detected
+  - `test_returns_true_for_learnings_section` - Section header detected
+  - `test_returns_false_for_similar_but_not_matching_text` - Similar text not matched
+  - `test_handles_real_progress_file_from_codebase` - Real progress content detected
+  - `test_returns_false_for_modified_template_without_iterations` - Modified template without iterations returns False
+
+### Files changed
+- `src/ralph/commands/tasks.py` - Added `_has_meaningful_content()` function
+- `tests/test_commands/test_tasks.py` - Added `TestHasMeaningfulContent` test class with 14 tests
+
+### Learnings for future iterations
+- The `any()` builtin with a generator expression is a clean way to check for multiple string markers
+- Test both positive and negative cases for content detection to ensure accuracy
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 4: US-005 (Detect meaningful content in PROGRESS.txt) completed
