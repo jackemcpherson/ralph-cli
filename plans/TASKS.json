@@ -104,8 +104,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "Foundation for US-008"
+      "passes": true,
+      "notes": "Foundation for US-008. Added ClassVar constant and updated _build_base_args() with skip_permissions parameter."
     },
     {
       "id": "US-008",

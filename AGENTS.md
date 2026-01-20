@@ -70,6 +70,7 @@ ralph_cli/
 - Use `by_alias=True` in `model_dump_json()` to serialize back to the original JSON format
 - Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
 - Use `X | None` instead of `Optional[X]` for type annotations (ruff UP045)
+- Use `ClassVar[T]` from `typing` for class-level constants in Pydantic `BaseModel` classes to avoid them being treated as fields
 
 ## Project-Specific Instructions
 

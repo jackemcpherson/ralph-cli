@@ -7,6 +7,7 @@
 - Normalize encoding strings by lowercasing and removing hyphens for comparison (e.g., `"UTF-8"` -> `"utf8"`)
 - Use `normalize_paths()` from `tests.conftest` or the `path_normalizer` fixture for cross-platform path comparison in tests
 - Use raw docstrings (`r"""..."""`) when the docstring contains backslash characters to avoid ruff D301 lint errors
+- Use `ClassVar[T]` from `typing` for class-level constants in Pydantic `BaseModel` classes to avoid them being treated as fields
 
 ---
 
@@ -231,3 +232,38 @@
 ---
 
 [Ralph Loop] 2026-01-20 - Iteration 5: US-006 (Skip archiving template-only PROGRESS.txt) completed
+
+[Ralph Loop] 2026-01-20 03:49 UTC - Iteration 5: US-006 (Skip archiving template-only PROGRESS.txt) completed
+
+## 2026-01-20 - US-007
+
+**Story:** Centralize Claude CLI flag handling
+
+### What was implemented
+- Added `SKIP_PERMISSIONS_FLAG` class constant to `ClaudeService` using `ClassVar[str]`
+- Updated `_build_base_args()` method to accept `skip_permissions` parameter (defaults to `True`)
+- Updated `run_interactive()`, `run_print_mode()`, and `run_with_output_format()` to pass their `skip_permissions` parameter to `_build_base_args()` for centralized handling
+- Removed duplicate flag handling from individual methods - now all flags are managed through `_build_base_args()`
+
+### Tests written
+- `TestBuildBaseArgs` class updates and additions:
+  - `test_returns_resolved_command_path_with_skip_permissions_default` - Verifies default True adds flag
+  - `test_returns_resolved_command_path_without_skip_permissions` - Verifies False excludes flag
+  - `test_includes_verbose_and_skip_permissions_together` - Verifies both flags work together
+  - `test_skip_permissions_flag_constant_value` - Verifies class constant value
+  - `test_skip_permissions_uses_class_constant` - Verifies method uses the constant
+- Updated `test_skip_permissions_flag_position_in_args` in integration tests to reflect new flag position (now part of base args, comes before --print)
+
+### Files changed
+- `src/ralph/services/claude.py` - Added SKIP_PERMISSIONS_FLAG constant, updated _build_base_args() and method calls
+- `tests/test_services/test_claude.py` - Added 5 new tests for centralized flag handling
+- `tests/test_integration/test_autonomous_iteration.py` - Updated flag position test
+
+### Learnings for future iterations
+- Use `ClassVar[str]` for class-level constants in Pydantic models to avoid Pydantic treating them as fields
+- When centralizing flag handling, update all method calls to pass through the centralized method
+- Test flag position assertions may need updating when architecture changes
+
+---
+
+[Ralph Loop] 2026-01-20 - Iteration 6: US-007 (Centralize Claude CLI flag handling) completed
