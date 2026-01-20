@@ -532,14 +532,18 @@ class TestBugFixesIntegration:
         """Test that verbose flag is positioned correctly in streaming args."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which") as mock_which,
+            patch.object(service, "_run_process") as mock_run,
+        ):
+            mock_which.return_value = "/usr/bin/claude"
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("my prompt", stream=True)
 
             args = mock_run.call_args[0][0]
-            # claude should be first
-            assert args[0] == "claude"
+            # resolved claude path should be first
+            assert args[0] == "/usr/bin/claude"
             # --verbose should be present
             assert "--verbose" in args
             # --print should be present

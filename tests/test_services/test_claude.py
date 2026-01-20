@@ -39,26 +39,50 @@ class TestClaudeServiceInit:
 class TestBuildBaseArgs:
     """Tests for _build_base_args method."""
 
-    def test_returns_command_name(self) -> None:
-        """Test that base args include the claude command."""
+    def test_returns_resolved_command_path(self) -> None:
+        """Test that base args include the resolved claude command path."""
         service = ClaudeService()
-        args = service._build_base_args()
 
-        assert args == ["claude"]
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/usr/bin/claude"
+            args = service._build_base_args()
+
+            mock_which.assert_called_once_with("claude")
+            assert args == ["/usr/bin/claude"]
 
     def test_includes_verbose_flag_when_enabled(self) -> None:
         """Test that --verbose is included when verbose=True."""
         service = ClaudeService(verbose=True)
-        args = service._build_base_args()
 
-        assert args == ["claude", "--verbose"]
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/usr/bin/claude"
+            args = service._build_base_args()
+
+            assert args == ["/usr/bin/claude", "--verbose"]
 
     def test_custom_command_used(self) -> None:
-        """Test that custom claude_command is used."""
-        service = ClaudeService(claude_command="/path/to/claude")
-        args = service._build_base_args()
+        """Test that custom claude_command is resolved via shutil.which."""
+        service = ClaudeService(claude_command="custom-claude")
 
-        assert args == ["/path/to/claude"]
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/custom/path/custom-claude"
+            args = service._build_base_args()
+
+            mock_which.assert_called_once_with("custom-claude")
+            assert args == ["/custom/path/custom-claude"]
+
+    def test_raises_error_when_command_not_found(self) -> None:
+        """Test that ClaudeError is raised when command is not in PATH."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = None
+
+            with pytest.raises(ClaudeError) as exc_info:
+                service._build_base_args()
+
+            assert "Claude Code CLI not found" in str(exc_info.value)
+            assert "'claude'" in str(exc_info.value)
 
 
 class TestRunPrintMode:
@@ -68,14 +92,18 @@ class TestRunPrintMode:
         """Test that run_print_mode builds correct arguments."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which") as mock_which,
+            patch.object(service, "_run_process") as mock_run,
+        ):
+            mock_which.return_value = "/usr/bin/claude"
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("test prompt")
 
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
-            assert "claude" in args
+            assert "/usr/bin/claude" in args
             assert "--print" in args
             assert "test prompt" in args
 
@@ -346,7 +374,11 @@ class TestRunInteractive:
         """Test that run_interactive calls subprocess correctly."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which") as mock_which,
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
+            mock_which.return_value = "/usr/bin/claude"
             mock_run.return_value = MagicMock(returncode=0)
 
             result = service.run_interactive()
@@ -354,7 +386,7 @@ class TestRunInteractive:
             assert result == 0
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
-            assert args == ["claude"]
+            assert args == ["/usr/bin/claude"]
 
     def test_runs_claude_with_prompt(self) -> None:
         """Test that run_interactive passes prompt as argument."""
