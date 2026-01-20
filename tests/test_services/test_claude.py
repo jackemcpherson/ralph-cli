@@ -39,13 +39,24 @@ class TestClaudeServiceInit:
 class TestBuildBaseArgs:
     """Tests for _build_base_args method."""
 
-    def test_returns_resolved_command_path(self) -> None:
-        """Test that base args include the resolved claude command path."""
+    def test_returns_resolved_command_path_with_skip_permissions_default(self) -> None:
+        """Test that base args include claude path and skip-permissions by default."""
         service = ClaudeService()
 
         with patch("ralph.services.claude.shutil.which") as mock_which:
             mock_which.return_value = "/usr/bin/claude"
             args = service._build_base_args()
+
+            mock_which.assert_called_once_with("claude")
+            assert args == ["/usr/bin/claude", "--dangerously-skip-permissions"]
+
+    def test_returns_resolved_command_path_without_skip_permissions(self) -> None:
+        """Test that base args exclude skip-permissions when disabled."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/usr/bin/claude"
+            args = service._build_base_args(skip_permissions=False)
 
             mock_which.assert_called_once_with("claude")
             assert args == ["/usr/bin/claude"]
@@ -58,7 +69,23 @@ class TestBuildBaseArgs:
             mock_which.return_value = "/usr/bin/claude"
             args = service._build_base_args()
 
-            assert args == ["/usr/bin/claude", "--verbose"]
+            assert "/usr/bin/claude" in args
+            assert "--verbose" in args
+            assert "--dangerously-skip-permissions" in args
+
+    def test_includes_verbose_and_skip_permissions_together(self) -> None:
+        """Test that verbose and skip_permissions flags work together."""
+        service = ClaudeService(verbose=True)
+
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/usr/bin/claude"
+            args = service._build_base_args(skip_permissions=True)
+
+            assert args == [
+                "/usr/bin/claude",
+                "--verbose",
+                "--dangerously-skip-permissions",
+            ]
 
     def test_custom_command_used(self) -> None:
         """Test that custom claude_command is resolved via shutil.which."""
@@ -66,7 +93,7 @@ class TestBuildBaseArgs:
 
         with patch("ralph.services.claude.shutil.which") as mock_which:
             mock_which.return_value = "/custom/path/custom-claude"
-            args = service._build_base_args()
+            args = service._build_base_args(skip_permissions=False)
 
             mock_which.assert_called_once_with("custom-claude")
             assert args == ["/custom/path/custom-claude"]
@@ -83,6 +110,21 @@ class TestBuildBaseArgs:
 
             assert "Claude Code CLI not found" in str(exc_info.value)
             assert "'claude'" in str(exc_info.value)
+
+    def test_skip_permissions_flag_constant_value(self) -> None:
+        """Test that SKIP_PERMISSIONS_FLAG constant has correct value."""
+        assert ClaudeService.SKIP_PERMISSIONS_FLAG == "--dangerously-skip-permissions"
+
+    def test_skip_permissions_uses_class_constant(self) -> None:
+        """Test that _build_base_args uses the SKIP_PERMISSIONS_FLAG constant."""
+        service = ClaudeService()
+
+        with patch("ralph.services.claude.shutil.which") as mock_which:
+            mock_which.return_value = "/usr/bin/claude"
+            args = service._build_base_args(skip_permissions=True)
+
+            # The flag should be the same as the class constant
+            assert service.SKIP_PERMISSIONS_FLAG in args
 
 
 class TestRunPrintMode:

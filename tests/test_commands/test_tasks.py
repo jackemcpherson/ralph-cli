@@ -14,9 +14,11 @@ from ralph.commands.tasks import (
     _archive_progress_file,
     _build_tasks_prompt,
     _extract_json,
+    _has_meaningful_content,
     _is_valid_json,
 )
 from ralph.services import ClaudeError
+from tests.conftest import normalize_paths
 
 
 class TestTasksCommand:
@@ -76,7 +78,7 @@ class TestTasksCommand:
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
 
             assert "Converting Spec to Tasks" in result.output
-            assert "plans/SPEC.md" in result.output
+            assert "plans/SPEC.md" in normalize_paths(result.output)
         finally:
             os.chdir(original_cwd)
 
@@ -125,7 +127,7 @@ class TestTasksCommand:
 
             # Verify prompt includes spec content
             assert "test specification" in prompt
-            assert "TASKS.json" in prompt
+            assert "TASKS.json" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -283,7 +285,7 @@ class TestTasksCommand:
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md", "--output", custom_output])
 
             assert result.exit_code == 0
-            assert custom_output in result.output
+            assert normalize_paths(custom_output) in normalize_paths(result.output)
 
             # Verify file was created at custom path
             tasks_file = initialized_project_with_spec / custom_output
@@ -472,6 +474,144 @@ class TestBuildTasksPrompt:
         assert "ONLY valid JSON" in prompt or "JSON only" in prompt
 
 
+class TestHasMeaningfulContent:
+    """Tests for the _has_meaningful_content helper function."""
+
+    def test_returns_false_for_empty_string(self) -> None:
+        """Test that empty content returns False."""
+        assert not _has_meaningful_content("")
+
+    def test_returns_false_for_whitespace_only(self) -> None:
+        """Test that whitespace-only content returns False."""
+        assert not _has_meaningful_content("   \n\n   \t  ")
+
+    def test_returns_false_for_template_only(self) -> None:
+        """Test that template-only content returns False."""
+        assert not _has_meaningful_content(PROGRESS_TEMPLATE)
+
+    def test_returns_true_for_iteration_section(self) -> None:
+        """Test that content with ## Iteration marker returns True."""
+        content = PROGRESS_TEMPLATE + "\n## Iteration 1\nSome content here"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_story_marker(self) -> None:
+        """Test that content with ### Story: marker returns True."""
+        content = "# Progress Log\n\n### Story: US-001\n\nCompleted the task."
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_status_marker(self) -> None:
+        """Test that content with **Status:** marker returns True."""
+        content = "# Progress Log\n\n**Status:** Completed\n"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_completed_marker(self) -> None:
+        """Test that content with **Completed:** marker returns True."""
+        content = "# Progress\n\n**Completed:** US-001 - Fix bug\n"
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_what_was_implemented_section(self) -> None:
+        """Test that content with ### What was implemented marker returns True."""
+        content = """# Ralph Progress Log
+
+## 2026-01-20 - US-001
+
+### What was implemented
+- Added new feature
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_tests_written_section(self) -> None:
+        """Test that content with ### Tests written marker returns True."""
+        content = """# Ralph Progress Log
+
+## 2026-01-20 - US-001
+
+### Tests written
+- test_new_feature
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_files_changed_section(self) -> None:
+        """Test that content with ### Files changed marker returns True."""
+        content = """# Ralph Progress Log
+
+### Files changed
+- src/main.py
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_true_for_learnings_section(self) -> None:
+        """Test that content with ### Learnings marker returns True."""
+        content = """# Ralph Progress Log
+
+### Learnings for future iterations
+- Important pattern discovered
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_false_for_similar_but_not_matching_text(self) -> None:
+        """Test that similar but non-matching text returns False."""
+        content = "# Progress\n\nIteration notes\nStory details\nStatus update"
+        assert not _has_meaningful_content(content)
+
+    def test_handles_real_progress_file_from_codebase(self) -> None:
+        """Test with realistic progress file content similar to actual usage."""
+        content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+
+## 2026-01-20 - US-001
+
+**Story:** Windows encoding detection for Rich console
+
+### What was implemented
+- Created `create_console()` function in `src/ralph/utils/console.py`
+
+### Tests written
+- `TestCreateConsole` class with 10 test cases
+
+### Files changed
+- `src/ralph/utils/console.py`
+- `tests/test_utils/test_console.py`
+
+### Learnings for future iterations
+- Rich Console's `legacy_windows` parameter disables Unicode characters
+
+---
+"""
+        assert _has_meaningful_content(content)
+
+    def test_returns_false_for_modified_template_without_iterations(self) -> None:
+        """Test that modified template without iterations returns False."""
+        # Template with patterns section filled in but no iterations
+        content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+- Important pattern here
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+"""
+        assert not _has_meaningful_content(content)
+
+
 class TestArchiveProgressFile:
     """Tests for the _archive_progress_file helper function."""
 
@@ -504,11 +644,91 @@ class TestArchiveProgressFile:
 
         assert result is None
 
-    def test_archives_existing_progress_file(self, temp_project: Path) -> None:
-        """Test that existing PROGRESS.txt is archived correctly."""
+    def test_returns_none_if_progress_is_template_only(self, temp_project: Path) -> None:
+        """Test that function returns None if PROGRESS.txt contains only template content."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        original_content = "# Progress Log\n\n## US-001\nCompleted story"
+        (plans_dir / "PROGRESS.txt").write_text(PROGRESS_TEMPLATE)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+        # Verify no archive was created
+        archived_files = list(plans_dir.glob("PROGRESS.*.txt"))
+        assert len(archived_files) == 0
+
+    def test_returns_none_if_progress_is_modified_template_without_iterations(
+        self, temp_project: Path
+    ) -> None:
+        """Test function returns None for modified template without iteration content."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        # Template with patterns filled in but no iteration entries
+        modified_template = """# Ralph Progress Log
+
+## Codebase Patterns
+
+- Use `create_console()` from `ralph.utils.console`
+- Important pattern here
+
+---
+
+## Log
+
+(Iteration entries will be appended below)
+
+---
+"""
+        (plans_dir / "PROGRESS.txt").write_text(modified_template)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+
+    def test_archives_progress_with_iteration_content(self, temp_project: Path) -> None:
+        """Test that PROGRESS.txt with iteration content is archived correctly."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        original_content = """# Ralph Progress Log
+
+## Codebase Patterns
+
+---
+
+## Log
+
+---
+
+## 2026-01-20 - US-001
+
+**Story:** Implement feature
+
+### What was implemented
+- Added new feature
+
+### Tests written
+- test_new_feature
+
+### Files changed
+- src/main.py
+
+### Learnings for future iterations
+- Important discovery
+"""
+        (plans_dir / "PROGRESS.txt").write_text(original_content)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is not None
+        assert result.exists()
+        assert result.read_text() == original_content
+
+    def test_archives_existing_progress_file(self, temp_project: Path) -> None:
+        """Test that existing PROGRESS.txt with meaningful content is archived correctly."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        # Content with iteration marker
+        original_content = "# Progress Log\n\n### What was implemented\n- Completed story"
         (plans_dir / "PROGRESS.txt").write_text(original_content)
 
         result = _archive_progress_file(temp_project)
@@ -521,7 +741,8 @@ class TestArchiveProgressFile:
         """Test that archive filename uses YYYYMMDD_HHMMSS format."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Progress")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Progress\n\n### What was implemented\n- Work")
 
         result = _archive_progress_file(temp_project)
 
@@ -534,7 +755,8 @@ class TestArchiveProgressFile:
         """Test that fresh PROGRESS.txt is created with header template."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old Progress")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old Progress\n\n### What was implemented\n- X")
 
         _archive_progress_file(temp_project)
 
@@ -546,7 +768,8 @@ class TestArchiveProgressFile:
         """Test that fresh PROGRESS.txt has expected sections."""
         plans_dir = temp_project / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old Content")
+        # Use meaningful content to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old Content\n\n### What was implemented\n- Y")
 
         _archive_progress_file(temp_project)
 
@@ -555,22 +778,40 @@ class TestArchiveProgressFile:
         assert "## Codebase Patterns" in content
         assert "## Log" in content
 
+    def test_does_not_archive_template_preserves_original_file(self, temp_project: Path) -> None:
+        """Test that when template-only, original file is preserved unchanged."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        original_content = PROGRESS_TEMPLATE
+        progress_file = plans_dir / "PROGRESS.txt"
+        progress_file.write_text(original_content)
+
+        result = _archive_progress_file(temp_project)
+
+        assert result is None
+        # Original file should be unchanged
+        assert progress_file.read_text() == original_content
+
 
 class TestTasksCommandProgressArchival:
     """Integration tests for PROGRESS.txt archival in tasks command."""
 
-    def test_tasks_archives_progress_file(
+    def test_tasks_archives_progress_file_with_meaningful_content(
         self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
     ) -> None:
-        """Test that tasks command archives existing PROGRESS.txt."""
+        """Test that tasks command archives PROGRESS.txt with iteration content."""
         original_cwd = os.getcwd()
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful iteration content
             plans_dir = initialized_project_with_spec / "plans"
             progress_file = plans_dir / "PROGRESS.txt"
-            original_content = "# Progress Log\n\n## US-001\nCompleted implementation"
+            original_content = """# Progress Log
+
+### What was implemented
+- Completed implementation
+"""
             progress_file.write_text(original_content)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -598,9 +839,9 @@ class TestTasksCommandProgressArchival:
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful content
             plans_dir = initialized_project_with_spec / "plans"
-            (plans_dir / "PROGRESS.txt").write_text("# Existing progress")
+            (plans_dir / "PROGRESS.txt").write_text("# Progress\n\n### What was implemented\n- X")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -624,9 +865,9 @@ class TestTasksCommandProgressArchival:
         try:
             os.chdir(initialized_project_with_spec)
 
-            # Create existing PROGRESS.txt with content
+            # Create existing PROGRESS.txt with meaningful content
             plans_dir = initialized_project_with_spec / "plans"
-            (plans_dir / "PROGRESS.txt").write_text("# Old progress content")
+            (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- Old")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -693,6 +934,60 @@ class TestTasksCommandProgressArchival:
             assert result.exit_code == 0
             assert "Archived previous progress" not in result.output
 
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_does_not_archive_template_only_progress(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that tasks command does not archive template-only PROGRESS.txt."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            # Create PROGRESS.txt with only template content
+            plans_dir = initialized_project_with_spec / "plans"
+            (plans_dir / "PROGRESS.txt").write_text(PROGRESS_TEMPLATE)
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 0
+            assert "Archived previous progress" not in result.output
+
+            # No archive file should be created
+            archived_files = list(plans_dir.glob("PROGRESS.*.txt"))
+            assert len(archived_files) == 0
+
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestTasksSkipPermissions:
+    """Tests for skip_permissions functionality in tasks command."""
+
+    def test_tasks_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that tasks calls run_print_mode with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            # Verify run_print_mode was called with skip_permissions=True
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
         finally:
             os.chdir(original_cwd)
 

@@ -96,7 +96,10 @@ class TestInitIntegration:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -125,7 +128,10 @@ class TestInitIntegration:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -154,7 +160,10 @@ class TestInitIntegration:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -177,7 +186,10 @@ class TestInitIntegration:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 result = runner.invoke(app, ["init", "--skip-claude"])
 
             assert result.exit_code == 0

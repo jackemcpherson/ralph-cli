@@ -83,7 +83,10 @@ class TestClaudeServiceSkipPermissions:
             captured_args.extend(args)
             return ("Test output", 0)
 
-        with patch.object(service, "_run_process", side_effect=mock_run_process):
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process", side_effect=mock_run_process),
+        ):
             service.run_print_mode("Test prompt", skip_permissions=True)
 
         assert "--dangerously-skip-permissions" in captured_args
@@ -99,13 +102,21 @@ class TestClaudeServiceSkipPermissions:
             captured_args.extend(args)
             return ("Test output", 0)
 
-        with patch.object(service, "_run_process", side_effect=mock_run_process):
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process", side_effect=mock_run_process),
+        ):
             service.run_print_mode("Test prompt", skip_permissions=False)
 
         assert "--dangerously-skip-permissions" not in captured_args
 
     def test_skip_permissions_flag_position_in_args(self) -> None:
-        """Test that --dangerously-skip-permissions is positioned correctly."""
+        """Test that --dangerously-skip-permissions is positioned correctly.
+
+        With centralized flag handling, the skip-permissions flag is added
+        as part of the base args, so it comes BEFORE command-specific args
+        like --print.
+        """
         service = ClaudeService()
         captured_args: list[str] = []
 
@@ -115,15 +126,18 @@ class TestClaudeServiceSkipPermissions:
             captured_args.extend(args)
             return ("Test output", 0)
 
-        with patch.object(service, "_run_process", side_effect=mock_run_process):
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process", side_effect=mock_run_process),
+        ):
             service.run_print_mode("Test prompt", skip_permissions=True, model="sonnet")
 
-        # Verify the flag comes after --print and prompt
+        # Verify the flag is present and comes before --print (as a base arg)
         print_index = captured_args.index("--print")
         skip_index = captured_args.index("--dangerously-skip-permissions")
 
-        # --dangerously-skip-permissions should come after --print and its argument
-        assert skip_index > print_index + 1
+        # --dangerously-skip-permissions is now part of base args, so comes before --print
+        assert skip_index < print_index
 
 
 class TestOnceCommandAutonomousIteration:
@@ -147,7 +161,10 @@ class TestOnceCommandAutonomousIteration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             assert "--dangerously-skip-permissions" in captured_args
@@ -170,7 +187,10 @@ class TestOnceCommandAutonomousIteration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             assert "auto-approved permissions" in result.output
@@ -194,7 +214,10 @@ class TestOnceCommandAutonomousIteration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             assert "--print" in captured_args
@@ -219,7 +242,10 @@ class TestOnceCommandAutonomousIteration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             # Find the prompt argument (comes after --print)
@@ -254,7 +280,10 @@ class TestOnceCommandAutonomousIteration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_and_complete):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_and_complete),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should detect success
@@ -286,6 +315,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -312,6 +342,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -338,6 +369,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -378,6 +410,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -411,6 +444,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -465,6 +499,7 @@ class TestLoopCommandAutonomousIteration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -494,7 +529,10 @@ class TestAutonomousIterationErrorHandling:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_not_found):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_not_found),
+            ):
                 result = runner.invoke(app, ["once"])
 
             assert result.exit_code == 1
@@ -515,6 +553,7 @@ class TestAutonomousIterationErrorHandling:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen_not_found),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -541,7 +580,10 @@ class TestAutonomousIterationErrorHandling:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen_failure):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen_failure),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should warn about exit code
@@ -574,7 +616,10 @@ class TestStreamingOutputIntegration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             assert "--output-format" in captured_args
@@ -606,6 +651,7 @@ class TestStreamingOutputIntegration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -641,7 +687,10 @@ class TestStreamingOutputIntegration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # The output should contain the parsed text (not raw JSON)
@@ -677,7 +726,10 @@ class TestAppendSystemPromptIntegration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             assert "--append-system-prompt" in captured_args
@@ -707,6 +759,7 @@ class TestAppendSystemPromptIntegration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
@@ -737,7 +790,10 @@ class TestAppendSystemPromptIntegration:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])
 
             # Find the append_system_prompt value
@@ -774,6 +830,7 @@ class TestAppendSystemPromptIntegration:
             os.chdir(project_with_tasks)
 
             with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):

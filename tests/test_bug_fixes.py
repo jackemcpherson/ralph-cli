@@ -34,7 +34,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("test prompt", stream=True)
@@ -46,7 +49,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose is added for streaming even if service.verbose=False."""
         service = ClaudeService(verbose=False)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -62,7 +68,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """
         service = ClaudeService(verbose=True)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -75,7 +84,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose is NOT included when stream=False and verbose=False."""
         service = ClaudeService(verbose=False)
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=False)
@@ -89,7 +101,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --output-format stream-json is only added when streaming."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             # When streaming
@@ -108,7 +123,10 @@ class TestBuildBaseArgsStreamingVerbose:
         """Test that --verbose and --output-format stream-json are both present."""
         service = ClaudeService()
 
-        with patch.object(service, "_run_process") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch.object(service, "_run_process") as mock_run,
+        ):
             mock_run.return_value = ("output", 0)
 
             service.run_print_mode("prompt", stream=True)
@@ -296,7 +314,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions=True adds --dangerously-skip-permissions."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=True)
@@ -308,7 +329,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions=False does NOT add the flag."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=False)
@@ -320,7 +344,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions defaults to False."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive()
@@ -332,7 +359,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions works correctly with a prompt."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(prompt="Hello", skip_permissions=True)
@@ -345,7 +375,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions works with verbose service."""
         service = ClaudeService(verbose=True)
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(skip_permissions=True)
@@ -358,7 +391,10 @@ class TestRunInteractiveSkipPermissions:
         """Test that skip_permissions flag appears before the prompt."""
         service = ClaudeService()
 
-        with patch("ralph.services.claude.subprocess.run") as mock_run:
+        with (
+            patch("ralph.services.claude.shutil.which", return_value="/usr/bin/claude"),
+            patch("ralph.services.claude.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
 
             service.run_interactive(prompt="my prompt", skip_permissions=True)
@@ -380,7 +416,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that archived file uses YYYYMMDD_HHMMSS format."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Original content")
+        # Use meaningful content (contains iteration marker) to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Original\n\n### What was implemented\n- X")
 
         result = _archive_progress_file(tmp_path)
 
@@ -395,7 +432,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that the timestamp in archive filename is a valid datetime."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Content")
+        # Use meaningful content (contains iteration marker) to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Content\n\n### What was implemented\n- Y")
 
         result = _archive_progress_file(tmp_path)
 
@@ -418,7 +456,10 @@ class TestProgressArchivalTimestampFormat:
         """Test that archived file contains the original content."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        original_content = "# Progress Log\n\n## US-001\nCompleted the story\n\nDetails here."
+        # Use meaningful content with iteration marker
+        original_content = (
+            "# Progress Log\n\n### What was implemented\n- Completed the story\n\nDetails."
+        )
         (plans_dir / "PROGRESS.txt").write_text(original_content)
 
         result = _archive_progress_file(tmp_path)
@@ -430,7 +471,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt is created with standard template."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old content\n\n### What was implemented\n- Z")
 
         _archive_progress_file(tmp_path)
 
@@ -473,7 +515,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt includes Codebase Patterns section."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- A")
 
         _archive_progress_file(tmp_path)
 
@@ -484,7 +527,8 @@ class TestProgressArchivalTimestampFormat:
         """Test that fresh PROGRESS.txt includes Log section."""
         plans_dir = tmp_path / "plans"
         plans_dir.mkdir()
-        (plans_dir / "PROGRESS.txt").write_text("# Old content")
+        # Use meaningful content with iteration marker to trigger archival
+        (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- B")
 
         _archive_progress_file(tmp_path)
 

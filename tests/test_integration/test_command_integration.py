@@ -108,7 +108,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 # Run WITHOUT the -v flag - this is the key test
                 result = runner.invoke(app, ["once"])
 
@@ -140,7 +143,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once", "--verbose"])
 
             assert "--verbose" in captured_args
@@ -174,7 +180,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 runner.invoke(app, ["once"])  # No -v flag
 
             # Should still use stream-json format
@@ -216,7 +225,10 @@ class TestOnceCommandWithoutVerboseFlag:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should not crash
@@ -547,7 +559,10 @@ class TestInitCommandChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -568,7 +583,10 @@ class TestInitCommandChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -593,7 +611,10 @@ class TestInitCommandChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -625,7 +646,10 @@ class TestInitCommandChangelogCreation:
             existing_content = "# My Custom Changelog\n\n## v1.0.0\n\n- Initial release\n"
             (python_project / "CHANGELOG.md").write_text(existing_content)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -654,7 +678,10 @@ class TestInitCommandChangelogCreation:
             # Create existing CHANGELOG.md
             (python_project / "CHANGELOG.md").write_text("# Existing changelog\n")
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -708,7 +735,10 @@ class TestMessageBoundaryNewlines:
         try:
             os.chdir(project_with_tasks)
 
-            with patch("subprocess.Popen", side_effect=mock_popen):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
                 result = runner.invoke(app, ["once"])
 
             # Should not crash

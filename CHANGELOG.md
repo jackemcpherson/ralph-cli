@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-01-20
+
+### Added
+
+- Auto-PRD prompt in `ralph init` - prompts to create PRD if none exists (#11)
+- Windows encoding detection for Rich console with `legacy_windows` support (#15)
+- Path normalization test utility for cross-platform test compatibility (#14)
+- Centralized Claude CLI flag handling with `SKIP_PERMISSIONS_FLAG` constant (#12)
+
+### Fixed
+
+- Rich unicode symbols now fall back gracefully on Windows cp1252 terminals (#15)
+- Test suite now passes on Windows with proper path separator handling (#14)
+- PROGRESS.txt archiving now skips template-only files without iteration content (#13)
+- All Claude invocations now consistently use `--dangerously-skip-permissions` (#12)
+
+### Changed
+
+- `ClassVar` pattern added to codebase patterns for Pydantic class constants
+
 ## [1.2.4] - 2026-01-20
 
 ### Fixed

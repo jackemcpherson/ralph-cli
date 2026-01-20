@@ -86,7 +86,7 @@ def tasks(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True)
+        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
 
         if exit_code != 0:
             print_error(f"Claude exited with code {exit_code}")
@@ -251,11 +251,40 @@ def _is_valid_json(text: str) -> bool:
         return False
 
 
+def _has_meaningful_content(content: str) -> bool:
+    """Check if PROGRESS.txt content contains real iteration data.
+
+    Detects whether the file contains actual iteration content beyond
+    just the template boilerplate. Used to avoid archiving template-only files.
+
+    Args:
+        content: The content of the PROGRESS.txt file.
+
+    Returns:
+        True if meaningful iteration content is present, False otherwise.
+    """
+    # Iteration markers that indicate real progress entries
+    iteration_markers = [
+        "## Iteration",  # Iteration section header
+        "### Story:",  # Story section header
+        "**Status:**",  # Status marker in entries
+        "**Completed:**",  # Completed marker in entries
+        "### What was implemented",  # Implementation details section
+        "### Tests written",  # Tests section
+        "### Files changed",  # Files changed section
+        "### Learnings",  # Learnings section
+    ]
+
+    # Check for any iteration marker in the content
+    return any(marker in content for marker in iteration_markers)
+
+
 def _archive_progress_file(project_root: Path) -> Path | None:
-    """Archive existing PROGRESS.txt if it exists and has content.
+    """Archive existing PROGRESS.txt if it exists and has meaningful content.
 
     Archives the file to plans/PROGRESS.{timestamp}.txt and creates
-    a fresh PROGRESS.txt with the header template.
+    a fresh PROGRESS.txt with the header template. Skips archiving if the file
+    only contains template boilerplate without any actual iteration content.
 
     Args:
         project_root: Path to the project root directory.
@@ -272,6 +301,10 @@ def _archive_progress_file(project_root: Path) -> Path | None:
     # Check if file has content (non-empty)
     content = progress_path.read_text()
     if not content.strip():
+        return None
+
+    # Check if file has meaningful iteration content beyond template
+    if not _has_meaningful_content(content):
         return None
 
     # Generate timestamp in YYYYMMDD_HHMMSS format

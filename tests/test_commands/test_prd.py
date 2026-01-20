@@ -15,6 +15,7 @@ from ralph.commands.prd import (
     _get_file_mtime,
 )
 from ralph.services import ClaudeError
+from tests.conftest import normalize_paths
 
 
 @pytest.fixture
@@ -117,7 +118,7 @@ class TestPrdCommand:
             assert "Overview" in prompt
             assert "Goals" in prompt
             assert "Requirements" in prompt
-            assert "plans/SPEC.md" in prompt
+            assert "plans/SPEC.md" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -134,7 +135,7 @@ class TestPrdCommand:
 
                 result = runner.invoke(app, ["prd"])
 
-            assert "plans/SPEC.md" in result.output
+            assert "plans/SPEC.md" in normalize_paths(result.output)
         finally:
             os.chdir(original_cwd)
 
@@ -265,12 +266,12 @@ class TestPrdCommand:
 
                 result = runner.invoke(app, ["prd", "--output", custom_output])
 
-            assert custom_output in result.output
+            assert normalize_paths(custom_output) in normalize_paths(result.output)
 
             # Verify the prompt includes the custom path
             call_args = mock_instance.run_interactive.call_args
             prompt = call_args[0][0]
-            assert "CUSTOM_SPEC.md" in prompt
+            assert "CUSTOM_SPEC.md" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
 
@@ -337,6 +338,27 @@ class TestPrdSkipPermissions:
         finally:
             os.chdir(original_cwd)
 
+    def test_prd_non_interactive_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd with --input calls run_print_mode with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "--input", "Add a feature"])
+
+            # Verify run_print_mode was called with skip_permissions=True
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestBuildPrdPrompt:
     """Tests for the _build_prd_prompt helper function."""
@@ -346,7 +368,7 @@ class TestBuildPrdPrompt:
         output_path = Path("/project/plans/SPEC.md")
         prompt = _build_prd_prompt(output_path)
 
-        assert str(output_path) in prompt
+        assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
     def test_prompt_includes_prd_structure(self) -> None:
         """Test that prompt includes PRD structure guidance."""
@@ -471,7 +493,9 @@ class TestPrdInputFlag:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                def create_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     spec_path.write_text("# Feature Spec\n")
                     return ("output", 0)
 
@@ -656,7 +680,9 @@ class TestPrdFileFlag:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                def create_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     spec_path.write_text("# Feature Spec\n")
                     return ("output", 0)
 
@@ -716,7 +742,7 @@ class TestBuildNonInteractivePrdPrompt:
         output_path = Path("/project/plans/SPEC.md")
         prompt = _build_non_interactive_prd_prompt(output_path, "Some feature")
 
-        assert str(output_path) in prompt
+        assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
     def test_prompt_includes_prd_structure(self) -> None:
         """Test that prompt includes PRD structure guidance."""
@@ -1000,7 +1026,9 @@ class TestPrdFileModificationDetection:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def modify_spec_file(_prompt: str) -> tuple[str, int]:
+                def modify_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     time.sleep(0.01)  # Ensure mtime changes
                     spec_path.write_text("# Modified Spec\n")
                     return ("output", 0)
