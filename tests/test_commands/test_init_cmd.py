@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.init_cmd import _check_existing_files
+from ralph.commands.init_cmd import (
+    _check_existing_files,
+    _handle_missing_prd,
+    _has_prd_content,
+)
 
 
 class TestInitCommand:
@@ -19,8 +23,11 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            # Mock ClaudeService to avoid actually calling Claude
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            # Mock ClaudeService and Confirm to avoid actual calls
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -45,7 +52,10 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -68,7 +78,10 @@ class TestInitCommand:
         try:
             os.chdir(nodejs_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -114,7 +127,10 @@ class TestInitCommand:
             # Create an existing CLAUDE.md with known content
             (python_project / "CLAUDE.md").write_text("# Existing content\n")
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -136,7 +152,10 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 result = runner.invoke(app, ["init", "--skip-claude"])
 
             assert result.exit_code == 0
@@ -151,7 +170,10 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -172,7 +194,10 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -195,7 +220,10 @@ class TestInitCommand:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_claude.side_effect = Exception("Claude not installed")
 
                 result = runner.invoke(app, ["init"])
@@ -276,7 +304,10 @@ class TestInitSkipPermissions:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -299,7 +330,10 @@ class TestInitChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -319,7 +353,10 @@ class TestInitChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -340,7 +377,10 @@ class TestInitChangelogCreation:
         try:
             os.chdir(python_project)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -367,7 +407,10 @@ class TestInitChangelogCreation:
             existing_content = "# My Custom Changelog\n\n## v1.0.0\n\n- Initial release\n"
             (python_project / "CHANGELOG.md").write_text(existing_content)
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -396,7 +439,10 @@ class TestInitChangelogCreation:
             # Create an existing CHANGELOG.md
             (python_project / "CHANGELOG.md").write_text("# Existing changelog\n")
 
-            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
                 mock_instance = MagicMock()
                 mock_instance.run_interactive.return_value = 0
                 mock_claude.return_value = mock_instance
@@ -406,5 +452,269 @@ class TestInitChangelogCreation:
             assert result.exit_code == 0
             assert "Skipped CHANGELOG.md" in result.output
             assert "already exists" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestHasPrdContent:
+    """Tests for the _has_prd_content helper function."""
+
+    def test_returns_false_for_nonexistent_file(self, temp_project: Path) -> None:
+        """Test that nonexistent file returns False."""
+        prd_path = temp_project / "plans" / "SPEC.md"
+        assert _has_prd_content(prd_path) is False
+
+    def test_returns_false_for_empty_file(self, temp_project: Path) -> None:
+        """Test that empty file returns False."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text("")
+        assert _has_prd_content(prd_path) is False
+
+    def test_returns_false_for_whitespace_only(self, temp_project: Path) -> None:
+        """Test that whitespace-only file returns False."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text("   \n\n   ")
+        assert _has_prd_content(prd_path) is False
+
+    def test_returns_false_for_template_only(self, temp_project: Path) -> None:
+        """Test that template-only content returns False."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text(
+            "# Feature Specification\n\n"
+            "<!-- Replace this with your actual specification -->\n\n"
+            "## Overview\n\n"
+        )
+        assert _has_prd_content(prd_path) is False
+
+    def test_returns_true_for_real_content(self, temp_project: Path) -> None:
+        """Test that file with real content returns True."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text(
+            "# My Feature Specification\n\n"
+            "## Overview\n\n"
+            "This feature implements user authentication for the application.\n\n"
+            "## Goals\n\n"
+            "- Secure user login\n"
+            "- Session management\n"
+        )
+        assert _has_prd_content(prd_path) is True
+
+    def test_returns_true_for_requirements_section(self, temp_project: Path) -> None:
+        """Test that file with requirements content returns True."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text(
+            "# Specification\n\n## Requirements\n\nThe system must handle 1000 concurrent users.\n"
+        )
+        assert _has_prd_content(prd_path) is True
+
+    def test_returns_false_for_placeholder_markers(self, temp_project: Path) -> None:
+        """Test that placeholder markers are detected as template content."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+        prd_path.write_text("# Feature Specification\n\n[Your feature description here]\n")
+        assert _has_prd_content(prd_path) is False
+
+
+class TestHandleMissingPrd:
+    """Tests for the _handle_missing_prd helper function."""
+
+    def test_prompts_user_to_create_prd(self, temp_project: Path) -> None:
+        """Test that user is prompted when PRD is missing."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm:
+            _handle_missing_prd(prd_path, temp_project)
+
+        mock_confirm.assert_called_once()
+        # Verify the prompt message mentions creating a PRD
+        call_args = mock_confirm.call_args
+        assert "prd" in call_args[0][0].lower()
+
+    def test_invokes_prd_command_when_confirmed(self, temp_project: Path) -> None:
+        """Test that prd command is invoked when user confirms."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+
+        with (
+            patch("ralph.commands.init_cmd.Confirm.ask", return_value=True),
+            patch("ralph.commands.init_cmd.prd_command") as mock_prd,
+        ):
+            _handle_missing_prd(prd_path, temp_project)
+
+        mock_prd.assert_called_once()
+        # Verify it was called with the correct output path
+        call_kwargs = mock_prd.call_args.kwargs
+        assert call_kwargs.get("output") == Path("plans/SPEC.md")
+
+    def test_shows_message_when_declined(self, temp_project: Path) -> None:
+        """Test that informational message is shown when user declines."""
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False):
+            _handle_missing_prd(prd_path, temp_project)
+
+        # Output goes through Rich console which may not be captured
+        # This test primarily verifies no exception is raised when user declines
+
+
+class TestInitPrdPrompt:
+    """Integration tests for PRD prompt behavior in init command."""
+
+    def test_init_prompts_for_prd_when_missing(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init prompts for PRD when SPEC.md has no content."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            # Mock both ClaudeService and the Confirm prompt
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm,
+            ):
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init"])
+
+            assert result.exit_code == 0
+            # Confirm should have been called (asking about PRD)
+            mock_confirm.assert_called_once()
+            # Should show the warning about missing PRD
+            assert "No PRD found" in result.output
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_invokes_prd_when_user_confirms(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init invokes prd command when user confirms PRD creation."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=True),
+                patch("ralph.commands.init_cmd.prd_command") as mock_prd,
+            ):
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init"])
+
+            assert result.exit_code == 0
+            # prd command should have been invoked
+            mock_prd.assert_called_once()
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_shows_message_when_user_declines_prd(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init shows message when user declines PRD creation."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init"])
+
+            assert result.exit_code == 0
+            # Should show the "proceeding without PRD" message
+            assert "Proceeding without PRD" in result.output or "ralph prd" in result.output
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_skips_prd_prompt_when_spec_has_content(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init skips PRD prompt when SPEC.md already has content."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            # Create plans dir with a SPEC.md that has real content
+            plans_dir = python_project / "plans"
+            plans_dir.mkdir()
+            (plans_dir / "SPEC.md").write_text(
+                "# Feature Specification\n\n"
+                "## Overview\n\n"
+                "This is my actual specification content.\n"
+            )
+
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask") as mock_confirm,
+            ):
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init", "--force"])
+
+            assert result.exit_code == 0
+            # Confirm should NOT have been called (PRD exists with content)
+            mock_confirm.assert_not_called()
+
+        finally:
+            os.chdir(original_cwd)
+
+    def test_init_handles_prd_command_error_gracefully(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init handles PRD command errors gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=True),
+                patch(
+                    "ralph.commands.init_cmd.prd_command",
+                    side_effect=RuntimeError("PRD failed"),
+                ),
+            ):
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                result = runner.invoke(app, ["init"])
+
+            # Should still complete successfully
+            assert result.exit_code == 0
+            # Should show error message about PRD failure
+            assert "PRD creation failed" in result.output
+
         finally:
             os.chdir(original_cwd)
