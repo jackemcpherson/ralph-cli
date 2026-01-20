@@ -265,6 +265,31 @@ class TestCheckExistingFiles:
         assert "CHANGELOG.md" in existing
 
 
+class TestInitSkipPermissions:
+    """Tests for skip_permissions functionality in init command."""
+
+    def test_init_passes_skip_permissions_true(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that init calls run_interactive with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(python_project)
+
+            with patch("ralph.commands.init_cmd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_interactive.return_value = 0
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["init"])
+
+            # Verify run_interactive was called with skip_permissions=True
+            call_kwargs = mock_instance.run_interactive.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
+
 class TestInitChangelogCreation:
     """Tests for CHANGELOG.md creation in init command."""
 

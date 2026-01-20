@@ -967,6 +967,31 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
 
+class TestTasksSkipPermissions:
+    """Tests for skip_permissions functionality in tasks command."""
+
+    def test_tasks_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+    ) -> None:
+        """Test that tasks calls run_print_mode with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project_with_spec)
+
+            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = (valid_tasks_json_str, 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            # Verify run_print_mode was called with skip_permissions=True
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
+
 class TestTasksCommandStreaming:
     """Tests for streaming behavior in ralph tasks command (US-008)."""
 

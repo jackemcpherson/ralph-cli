@@ -76,7 +76,7 @@ def init(
 
         try:
             claude = ClaudeService(working_dir=project_root)
-            exit_code = claude.run_interactive("/init")
+            exit_code = claude.run_interactive("/init", skip_permissions=True)
             if exit_code != 0:
                 print_warning("Claude Code /init completed with non-zero exit code.")
         except Exception as e:

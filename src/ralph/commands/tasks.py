@@ -86,7 +86,7 @@ def tasks(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True)
+        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
 
         if exit_code != 0:
             print_error(f"Claude exited with code {exit_code}")

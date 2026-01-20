@@ -201,7 +201,7 @@ def _run_non_interactive(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        _, exit_code = claude.run_print_mode(prompt)
+        _, exit_code = claude.run_print_mode(prompt, skip_permissions=True)
 
         if exit_code == 0:
             console.print()

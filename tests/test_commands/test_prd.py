@@ -338,6 +338,27 @@ class TestPrdSkipPermissions:
         finally:
             os.chdir(original_cwd)
 
+    def test_prd_non_interactive_passes_skip_permissions_true(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that prd with --input calls run_print_mode with skip_permissions=True."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+                mock_instance.run_print_mode.return_value = ("output", 0)
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd", "--input", "Add a feature"])
+
+            # Verify run_print_mode was called with skip_permissions=True
+            call_kwargs = mock_instance.run_print_mode.call_args.kwargs
+            assert call_kwargs.get("skip_permissions") is True
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestBuildPrdPrompt:
     """Tests for the _build_prd_prompt helper function."""
@@ -472,7 +493,9 @@ class TestPrdInputFlag:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                def create_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     spec_path.write_text("# Feature Spec\n")
                     return ("output", 0)
 
@@ -657,7 +680,9 @@ class TestPrdFileFlag:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def create_spec_file(_prompt: str) -> tuple[str, int]:
+                def create_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     spec_path.write_text("# Feature Spec\n")
                     return ("output", 0)
 
@@ -1001,7 +1026,9 @@ class TestPrdFileModificationDetection:
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
 
-                def modify_spec_file(_prompt: str) -> tuple[str, int]:
+                def modify_spec_file(
+                    _prompt: str, *, skip_permissions: bool = False
+                ) -> tuple[str, int]:
                     time.sleep(0.01)  # Ensure mtime changes
                     spec_path.write_text("# Modified Spec\n")
                     return ("output", 0)
