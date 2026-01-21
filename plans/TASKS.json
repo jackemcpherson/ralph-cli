@@ -124,8 +124,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Shares skill with ralph once"
+      "passes": true,
+      "notes": "Already completed as part of US-007 - loop.py imports _build_prompt_from_skill from once.py which loads ralph-iteration skill"
     },
     {
       "id": "US-009",

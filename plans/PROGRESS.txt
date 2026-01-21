@@ -292,3 +292,34 @@
 - The skill loading pattern is consistent: load skill, build context section with parameters, concatenate and return
 
 ---
+
+[Ralph Loop] 2026-01-21 09:24 UTC - Iteration 7: US-007 (Refactor ralph once to use skill loading) completed
+
+---
+
+## 2026-01-21 - US-008
+
+**Story:** Refactor ralph loop to use skill loading
+
+### What was implemented
+- Verified that loop.py already uses skill loading via `_build_prompt_from_skill` imported from once.py
+- Confirmed no embedded prompt constants exist in loop.py
+- All quality checks pass (typecheck, lint, format, tests)
+
+### Tests written
+- No new tests needed - existing tests already cover skill loading:
+  - `test_loop_handles_skill_not_found` verifies error handling when skill is missing
+  - Integration tests use `initialized_project_with_skill` fixture
+
+### Files changed
+- `plans/TASKS.json` (marked US-008 as passes: true)
+- `plans/PROGRESS.txt` (this entry)
+
+### Learnings for future iterations
+- Some stories may already be complete due to work done in previous stories
+- When once.py and loop.py share functionality, refactoring once.py automatically updates loop.py
+- Always verify acceptance criteria are met even if no code changes are needed
+
+---
+
+[Ralph Loop] 2026-01-21 09:30 UTC - Iteration 8: US-008 (Refactor ralph loop to use skill loading) completed
