@@ -426,3 +426,39 @@ Total: 10 new tests (173 total)
 - The existing implementation already supported nested paths; this story just documents and tests it
 
 [Ralph Loop] 2026-01-22 - Iteration 10: US-010 (Update SkillLoader for nested paths) completed
+
+---
+
+## 2026-01-22 - US-011
+
+**Story:** Update command skill references to new paths
+
+### What was implemented
+- Updated `prd.py` command to use `ralph/prd` skill path instead of `ralph-prd`
+- Updated `tasks.py` command to use `ralph/tasks` skill path instead of `ralph-tasks`
+- Updated `once.py` command to use `ralph/iteration` skill path instead of `ralph-iteration`
+- The `loop.py` command imports from `once.py`, so it automatically uses the new path
+- Updated docstrings to reflect new nested skill paths
+- Updated test fixtures to create skills in nested directory structure (`skills/ralph/prd/`, etc.)
+- Updated `TestOnceCommandPromptFormat` assertion to check for `@skills/ralph/iteration/SKILL.md`
+
+### Tests written
+- `TestCommandSkillPaths.test_prd_command_uses_nested_skill_path`: Verifies prd uses ralph/prd path
+- `TestCommandSkillPaths.test_tasks_command_uses_nested_skill_path`: Verifies tasks uses ralph/tasks path
+- `TestCommandSkillPaths.test_once_command_uses_nested_skill_path`: Verifies once uses ralph/iteration path
+- `TestCommandSkillPaths.test_loop_command_uses_nested_skill_path`: Verifies loop uses ralph/iteration path
+
+Total: 4 new tests (177 total)
+
+### Files changed
+- `src/ralph/commands/prd.py` (updated skill path and docstring)
+- `src/ralph/commands/tasks.py` (updated skill path and docstring)
+- `src/ralph/commands/once.py` (updated skill path and docstring)
+- `tests/test_commands_integration.py` (updated fixtures and added TestCommandSkillPaths class)
+
+### Learnings for future iterations
+- The `build_skill_prompt` utility automatically handles nested paths via `SkillLoader`
+- Test fixtures must mirror the actual skill directory structure
+- The loop command doesn't have its own `_build_prompt_from_skill` - it imports from once.py
+
+[Ralph Loop] 2026-01-22 - Iteration 11: US-011 (Update command skill references to new paths) completed

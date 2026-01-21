@@ -176,8 +176,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated prd, tasks, and once commands to use ralph/prd, ralph/tasks, and ralph/iteration skill paths. Added 4 new tests in TestCommandSkillPaths class."
     },
     {
       "id": "US-012",
