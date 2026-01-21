@@ -6,19 +6,66 @@ import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
 from ralph.commands.tasks import (
     PROGRESS_TEMPLATE,
     _archive_progress_file,
-    _build_tasks_prompt,
+    _build_prompt_from_skill,
     _extract_json,
     _has_meaningful_content,
     _is_valid_json,
 )
-from ralph.services import ClaudeError
+from ralph.services import ClaudeError, SkillNotFoundError
 from tests.conftest import normalize_paths
+
+
+@pytest.fixture
+def initialized_project_with_spec_and_skill(temp_project: Path) -> Path:
+    """Create a temporary project with plans/ directory, SPEC.md, and ralph-tasks skill.
+
+    Args:
+        temp_project: Temporary project directory.
+
+    Returns:
+        Path to the initialized project directory.
+    """
+    plans_dir = temp_project / "plans"
+    plans_dir.mkdir()
+
+    spec_file = plans_dir / "SPEC.md"
+    spec_file.write_text("# Feature Spec\n\nThis is a test specification.")
+
+    # Create skills directory with ralph-tasks skill
+    skill_dir = temp_project / "skills" / "ralph-tasks"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: ralph-tasks
+description: Test tasks skill
+---
+
+# Ralph Tasks Skill
+
+You are converting a PRD into TASKS.json user stories.
+
+## Output Schema
+
+Your output MUST be valid JSON matching this exact schema.
+
+## Story Sizing Guidelines
+
+A good user story should be completable in a single iteration.
+
+## Typecheck passes
+
+Always include "Typecheck passes" in acceptance criteria.
+"""
+    )
+    return temp_project
 
 
 class TestTasksCommand:
@@ -63,12 +110,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_displays_informational_message(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks displays informational message."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -83,12 +133,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_launches_claude_in_print_mode_with_streaming(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks launches Claude Code in print mode with streaming enabled."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -108,12 +161,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_includes_spec_content_in_prompt(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks includes spec content in the prompt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -132,12 +188,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_validates_claude_output(
-        self, runner: CliRunner, initialized_project_with_spec: Path
+        self, runner: CliRunner, initialized_project_with_spec_and_skill: Path
     ) -> None:
         """Test that tasks validates Claude output against Pydantic model."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Return invalid JSON that doesn't match the model
             invalid_json = json.dumps({"invalid": "structure"})
@@ -155,12 +211,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_saves_valid_output(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks saves valid output to TASKS.json."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -172,7 +231,7 @@ class TestTasksCommand:
             assert result.exit_code == 0
 
             # Verify file was created
-            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_spec_and_skill / "plans" / "TASKS.json"
             assert tasks_file.exists()
 
             # Verify content is valid JSON
@@ -183,12 +242,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_shows_success_message_with_story_count(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks shows success message with story count."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -204,12 +266,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_handles_nonzero_exit_code(
-        self, runner: CliRunner, initialized_project_with_spec: Path
+        self, runner: CliRunner, initialized_project_with_spec_and_skill: Path
     ) -> None:
         """Test that tasks handles non-zero exit code from Claude."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -224,12 +286,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_handles_claude_error(
-        self, runner: CliRunner, initialized_project_with_spec: Path
+        self, runner: CliRunner, initialized_project_with_spec_and_skill: Path
     ) -> None:
         """Test that tasks handles ClaudeError gracefully."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -244,15 +306,18 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_notes_existing_tasks_json(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks notes when TASKS.json already exists."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create existing TASKS.json
-            tasks_path = initialized_project_with_spec / "plans" / "TASKS.json"
+            tasks_path = initialized_project_with_spec_and_skill / "plans" / "TASKS.json"
             tasks_path.write_text("{}")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -268,12 +333,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_with_custom_output_path(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks accepts custom output path."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             custom_output = "plans/CUSTOM_TASKS.json"
 
@@ -288,18 +356,21 @@ class TestTasksCommand:
             assert normalize_paths(custom_output) in normalize_paths(result.output)
 
             # Verify file was created at custom path
-            tasks_file = initialized_project_with_spec / custom_output
+            tasks_file = initialized_project_with_spec_and_skill / custom_output
             assert tasks_file.exists()
         finally:
             os.chdir(original_cwd)
 
     def test_tasks_with_verbose_flag(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks passes verbose flag to ClaudeService."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -315,12 +386,15 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_with_branch_name_flag(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks passes branch name to prompt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -338,12 +412,12 @@ class TestTasksCommand:
             os.chdir(original_cwd)
 
     def test_tasks_handles_no_json_in_output(
-        self, runner: CliRunner, initialized_project_with_spec: Path
+        self, runner: CliRunner, initialized_project_with_spec_and_skill: Path
     ) -> None:
         """Test that tasks handles Claude output with no valid JSON."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -354,6 +428,24 @@ class TestTasksCommand:
 
             assert result.exit_code == 1
             assert "Could not extract valid JSON" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+    def test_tasks_handles_skill_not_found(self, runner: CliRunner, temp_project: Path) -> None:
+        """Test that tasks handles missing skill gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            # Create only plans dir with SPEC.md, no skills dir
+            plans_dir = temp_project / "plans"
+            plans_dir.mkdir()
+            spec_file = plans_dir / "SPEC.md"
+            spec_file.write_text("# Test Spec\n\nSome content.")
+            os.chdir(temp_project)
+
+            result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
+
+            assert result.exit_code == 1
+            assert "Skill not found" in result.output
         finally:
             os.chdir(original_cwd)
 
@@ -429,49 +521,71 @@ class TestIsValidJson:
         assert not _is_valid_json('{"key": "value"')
 
 
-class TestBuildTasksPrompt:
-    """Tests for the _build_tasks_prompt helper function."""
+class TestBuildPromptFromSkill:
+    """Tests for the _build_prompt_from_skill helper function."""
 
-    def test_prompt_includes_spec_content(self) -> None:
+    def test_prompt_includes_spec_content(
+        self, initialized_project_with_spec_and_skill: Path
+    ) -> None:
         """Test that prompt includes the spec content."""
         spec_content = "# My Feature\n\nThis is the feature description."
-        prompt = _build_tasks_prompt(spec_content)
+        prompt = _build_prompt_from_skill(initialized_project_with_spec_and_skill, spec_content)
 
         assert spec_content in prompt
 
-    def test_prompt_includes_json_schema(self) -> None:
-        """Test that prompt includes JSON schema guidance."""
-        prompt = _build_tasks_prompt("Test spec")
+    def test_prompt_loads_skill_content(
+        self, initialized_project_with_spec_and_skill: Path
+    ) -> None:
+        """Test that prompt loads content from skill file."""
+        spec_content = "Test spec"
+        prompt = _build_prompt_from_skill(initialized_project_with_spec_and_skill, spec_content)
 
-        assert "project" in prompt
-        assert "branchName" in prompt
-        assert "userStories" in prompt
-        assert "acceptanceCriteria" in prompt
+        # Skill content should be in the prompt
+        assert "Ralph Tasks Skill" in prompt
+        assert "TASKS.json" in prompt
+        assert "Story Sizing Guidelines" in prompt
 
-    def test_prompt_includes_guidelines(self) -> None:
-        """Test that prompt includes story creation guidelines."""
-        prompt = _build_tasks_prompt("Test spec")
+    def test_prompt_includes_context_section(
+        self, initialized_project_with_spec_and_skill: Path
+    ) -> None:
+        """Test that prompt includes context section."""
+        spec_content = "Test spec"
+        prompt = _build_prompt_from_skill(initialized_project_with_spec_and_skill, spec_content)
 
-        assert "atomic" in prompt.lower() or "implementable" in prompt.lower()
-        assert "Typecheck passes" in prompt
+        assert "Context for This Session" in prompt
+        assert "Specification content:" in prompt
 
-    def test_prompt_with_custom_branch_name(self) -> None:
+    def test_prompt_with_custom_branch_name(
+        self, initialized_project_with_spec_and_skill: Path
+    ) -> None:
         """Test that prompt includes custom branch name when provided."""
-        prompt = _build_tasks_prompt("Test spec", branch_name="ralph/custom-feature")
+        prompt = _build_prompt_from_skill(
+            initialized_project_with_spec_and_skill,
+            "Test spec",
+            branch_name="ralph/custom-feature",
+        )
 
         assert "ralph/custom-feature" in prompt
 
-    def test_prompt_without_branch_name(self) -> None:
+    def test_prompt_without_branch_name(
+        self, initialized_project_with_spec_and_skill: Path
+    ) -> None:
         """Test that prompt includes branch derivation instruction when no branch provided."""
-        prompt = _build_tasks_prompt("Test spec")
+        prompt = _build_prompt_from_skill(initialized_project_with_spec_and_skill, "Test spec")
 
-        assert "Derive the branch name" in prompt
+        assert "Derive" in prompt
 
-    def test_prompt_asks_for_json_only(self) -> None:
+    def test_prompt_asks_for_json_only(self, initialized_project_with_spec_and_skill: Path) -> None:
         """Test that prompt explicitly asks for JSON only output."""
-        prompt = _build_tasks_prompt("Test spec")
+        prompt = _build_prompt_from_skill(initialized_project_with_spec_and_skill, "Test spec")
 
-        assert "ONLY valid JSON" in prompt or "JSON only" in prompt
+        # The context section should ask for JSON output
+        assert "JSON only" in prompt
+
+    def test_raises_when_skill_not_found(self, temp_project: Path) -> None:
+        """Test that raises SkillNotFoundError when skill is missing."""
+        with pytest.raises(SkillNotFoundError):
+            _build_prompt_from_skill(temp_project, "Test spec")
 
 
 class TestHasMeaningfulContent:
@@ -797,15 +911,18 @@ class TestTasksCommandProgressArchival:
     """Integration tests for PROGRESS.txt archival in tasks command."""
 
     def test_tasks_archives_progress_file_with_meaningful_content(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command archives PROGRESS.txt with iteration content."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create existing PROGRESS.txt with meaningful iteration content
-            plans_dir = initialized_project_with_spec / "plans"
+            plans_dir = initialized_project_with_spec_and_skill / "plans"
             progress_file = plans_dir / "PROGRESS.txt"
             original_content = """# Progress Log
 
@@ -832,15 +949,18 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
     def test_tasks_displays_archive_message(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command displays archive message."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create existing PROGRESS.txt with meaningful content
-            plans_dir = initialized_project_with_spec / "plans"
+            plans_dir = initialized_project_with_spec_and_skill / "plans"
             (plans_dir / "PROGRESS.txt").write_text("# Progress\n\n### What was implemented\n- X")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -858,15 +978,18 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
     def test_tasks_creates_fresh_progress_file(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command creates fresh PROGRESS.txt after archiving."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create existing PROGRESS.txt with meaningful content
-            plans_dir = initialized_project_with_spec / "plans"
+            plans_dir = initialized_project_with_spec_and_skill / "plans"
             (plans_dir / "PROGRESS.txt").write_text("# Old\n\n### What was implemented\n- Old")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -888,15 +1011,18 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
     def test_tasks_does_not_archive_empty_progress(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command does not archive empty PROGRESS.txt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create empty PROGRESS.txt
-            plans_dir = initialized_project_with_spec / "plans"
+            plans_dir = initialized_project_with_spec_and_skill / "plans"
             (plans_dir / "PROGRESS.txt").write_text("")
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -917,12 +1043,15 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
     def test_tasks_does_not_archive_nonexistent_progress(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command does not archive if PROGRESS.txt doesn't exist."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -938,15 +1067,18 @@ class TestTasksCommandProgressArchival:
             os.chdir(original_cwd)
 
     def test_tasks_does_not_archive_template_only_progress(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks command does not archive template-only PROGRESS.txt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Create PROGRESS.txt with only template content
-            plans_dir = initialized_project_with_spec / "plans"
+            plans_dir = initialized_project_with_spec_and_skill / "plans"
             (plans_dir / "PROGRESS.txt").write_text(PROGRESS_TEMPLATE)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
@@ -971,12 +1103,15 @@ class TestTasksSkipPermissions:
     """Tests for skip_permissions functionality in tasks command."""
 
     def test_tasks_passes_skip_permissions_true(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that tasks calls run_print_mode with skip_permissions=True."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -996,7 +1131,10 @@ class TestTasksCommandStreaming:
     """Tests for streaming behavior in ralph tasks command (US-008)."""
 
     def test_tasks_streaming_extracts_json_from_text_output(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that JSON extraction works when streaming is enabled.
 
@@ -1006,7 +1144,7 @@ class TestTasksCommandStreaming:
         """
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Simulate streamed output - the ClaudeService extracts text from events
             # and returns it as plain text
@@ -1020,7 +1158,7 @@ class TestTasksCommandStreaming:
             assert result.exit_code == 0
 
             # Verify file was created with valid content
-            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_spec_and_skill / "plans" / "TASKS.json"
             assert tasks_file.exists()
             content = json.loads(tasks_file.read_text())
             assert content["project"] == "TestProject"
@@ -1029,7 +1167,10 @@ class TestTasksCommandStreaming:
             os.chdir(original_cwd)
 
     def test_tasks_streaming_handles_json_in_code_block(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that JSON extraction handles code blocks in streamed output.
 
@@ -1038,7 +1179,7 @@ class TestTasksCommandStreaming:
         """
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Simulate streamed output with JSON in a code block
             streamed_output = f"Here's the TASKS.json:\n```json\n{valid_tasks_json_str}\n```"
@@ -1053,7 +1194,7 @@ class TestTasksCommandStreaming:
             assert result.exit_code == 0
 
             # Verify file was created with valid content
-            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_spec_and_skill / "plans" / "TASKS.json"
             assert tasks_file.exists()
             content = json.loads(tasks_file.read_text())
             assert content["project"] == "TestProject"
@@ -1062,7 +1203,10 @@ class TestTasksCommandStreaming:
             os.chdir(original_cwd)
 
     def test_tasks_streaming_handles_text_with_embedded_json(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that JSON extraction handles JSON embedded in text.
 
@@ -1071,7 +1215,7 @@ class TestTasksCommandStreaming:
         """
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             # Simulate streamed output with text before and after JSON
             streamed_output = (
@@ -1090,7 +1234,7 @@ class TestTasksCommandStreaming:
             assert result.exit_code == 0
 
             # Verify file was created with valid content
-            tasks_file = initialized_project_with_spec / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_spec_and_skill / "plans" / "TASKS.json"
             assert tasks_file.exists()
             content = json.loads(tasks_file.read_text())
             assert content["project"] == "TestProject"
@@ -1099,7 +1243,10 @@ class TestTasksCommandStreaming:
             os.chdir(original_cwd)
 
     def test_tasks_streaming_shows_progress_during_generation(
-        self, runner: CliRunner, initialized_project_with_spec: Path, valid_tasks_json_str: str
+        self,
+        runner: CliRunner,
+        initialized_project_with_spec_and_skill: Path,
+        valid_tasks_json_str: str,
     ) -> None:
         """Test that streaming output message is displayed.
 
@@ -1108,7 +1255,7 @@ class TestTasksCommandStreaming:
         """
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project_with_spec)
+            os.chdir(initialized_project_with_spec_and_skill)
 
             with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()

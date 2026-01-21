@@ -88,12 +88,28 @@ def python_project(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def project_with_spec(tmp_path: Path) -> Path:
-    """Create a project with SPEC.md for ralph tasks."""
+    """Create a project with SPEC.md and ralph-tasks skill for ralph tasks."""
     plans_dir = tmp_path / "plans"
     plans_dir.mkdir()
 
     spec_file = plans_dir / "SPEC.md"
     spec_file.write_text("# Feature Spec\n\nThis is a test specification for task generation.")
+
+    # Create skills directory with ralph-tasks skill
+    skill_dir = tmp_path / "skills" / "ralph-tasks"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: ralph-tasks
+description: Test tasks skill
+---
+
+# Ralph Tasks Skill
+
+You are converting a PRD into TASKS.json user stories.
+"""
+    )
 
     return tmp_path
 

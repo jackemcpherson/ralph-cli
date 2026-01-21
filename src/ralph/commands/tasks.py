@@ -15,7 +15,7 @@ import typer
 from pydantic import ValidationError
 
 from ralph.models import TasksFile, save_tasks
-from ralph.services import ClaudeError, ClaudeService
+from ralph.services import ClaudeError, ClaudeService, SkillLoader, SkillNotFoundError
 from ralph.services.scaffold import PROGRESS_TEMPLATE
 from ralph.utils import console, print_error, print_success, read_file, write_file
 
@@ -79,7 +79,12 @@ def tasks(
     console.print(f"[dim]Output will be saved to:[/dim] [cyan]{output}[/cyan]")
     console.print()
 
-    prompt = _build_tasks_prompt(spec_content, branch_name)
+    # Load skill content and build prompt
+    try:
+        prompt = _build_prompt_from_skill(project_root, spec_content, branch_name)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        raise typer.Exit(1) from e
 
     console.print("[bold]Running Claude to generate tasks...[/bold]")
     console.print()
@@ -139,66 +144,55 @@ def tasks(
         raise typer.Exit(1) from e
 
 
-def _build_tasks_prompt(spec_content: str, branch_name: str | None = None) -> str:
-    """Build the prompt for task generation.
+def _build_prompt_from_skill(
+    project_root: Path, spec_content: str, branch_name: str | None = None
+) -> str:
+    """Build the prompt by loading the ralph-tasks skill and adding context.
 
     Args:
+        project_root: Path to the project root directory.
         spec_content: Content of the specification file.
         branch_name: Optional git branch name for the feature.
 
     Returns:
         The prompt string for Claude.
+
+    Raises:
+        SkillNotFoundError: If the ralph-tasks skill is not found.
     """
-    branch_instruction = ""
+    # Load skill content from the skills directory
+    skills_dir = project_root / "skills"
+    loader = SkillLoader(skills_dir=skills_dir)
+    skill_content = loader.load("ralph-tasks")
+
+    # Build context section
+    context_lines = [
+        "",
+        "---",
+        "",
+        "## Context for This Session",
+        "",
+    ]
+
     if branch_name:
-        branch_instruction = f'\nUse this branch name: "{branch_name}"'
+        context_lines.append(f"**Branch name:** `{branch_name}`")
     else:
-        branch_instruction = (
-            '\nDerive the branch name from the project name (e.g., "ralph/<project-slug>")'
+        context_lines.append(
+            '**Branch name:** Derive from the project name (e.g., "ralph/<project-slug>")'
         )
 
-    return f"""Convert the following Product Requirements Document (PRD) into a TASKS.json file.
+    context_lines.extend(
+        [
+            "",
+            "**Specification content:**",
+            "",
+            spec_content,
+            "",
+            "Generate the TASKS.json content now (JSON only, no markdown code blocks).",
+        ]
+    )
 
-IMPORTANT: Output ONLY valid JSON with no additional text, markdown, or explanation.
-
-The JSON must follow this exact schema:
-{{
-  "project": "<ProjectName>",
-  "branchName": "<ralph/feature-name>",
-  "description": "<brief feature description>",
-  "userStories": [
-    {{
-      "id": "<US-001>",
-      "title": "<short title>",
-      "description": "<As a [user], I want [feature] so that [benefit]>",
-      "acceptanceCriteria": ["<criterion 1>", "<criterion 2>"],
-      "priority": <1-N, lower is higher priority>,
-      "passes": false,
-      "notes": ""
-    }}
-  ]
-}}
-
-Guidelines for creating user stories:
-1. Break down the spec into atomic, implementable stories
-2. Each story should be completable in one iteration
-3. Order by dependency (foundational work first, then features that build on it)
-4. Include "Typecheck passes" in acceptance criteria for code changes
-5. Write clear, testable acceptance criteria
-6. Keep stories focused - if too large, split into multiple stories
-7. Include setup/infrastructure stories before feature stories
-8. Include test stories for critical functionality
-{branch_instruction}
-
----
-
-SPECIFICATION:
-
-{spec_content}
-
----
-
-Output the TASKS.json content now (JSON only, no markdown code blocks):"""
+    return skill_content + "\n".join(context_lines)
 
 
 def _extract_json(text: str) -> str | None:
