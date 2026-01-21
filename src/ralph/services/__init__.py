@@ -2,6 +2,7 @@
 
 from ralph.services.claude import ClaudeError, ClaudeService
 from ralph.services.git import GitError, GitService
+from ralph.services.language import Language, LanguageDetector, detect_languages
 from ralph.services.scaffold import ProjectType, ScaffoldService
 from ralph.services.skill_loader import SkillLoader, SkillNotFoundError
 from ralph.services.skills import (
@@ -16,6 +17,8 @@ __all__ = [
     "ClaudeService",
     "GitError",
     "GitService",
+    "Language",
+    "LanguageDetector",
     "ProjectType",
     "ScaffoldService",
     "SkillInfo",
@@ -24,4 +27,5 @@ __all__ = [
     "SkillsService",
     "SkillSyncResult",
     "SyncStatus",
+    "detect_languages",
 ]
