@@ -6,6 +6,7 @@ Ralph iterations sequentially until all stories complete or failure.
 
 import logging
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 import typer
@@ -30,7 +31,7 @@ from ralph.utils import (
 logger = logging.getLogger(__name__)
 
 
-class LoopStopReason:
+class LoopStopReason(StrEnum):
     """Reasons for stopping the loop.
 
     Contains constants representing the various conditions that
@@ -116,7 +117,7 @@ def loop(
     completed_in_loop = 0
     failed_story_id: str | None = None
     consecutive_failures = 0
-    stop_reason: str = LoopStopReason.MAX_ITERATIONS
+    stop_reason: LoopStopReason = LoopStopReason.MAX_ITERATIONS
 
     for i in range(iterations):
         iteration_num = i + 1

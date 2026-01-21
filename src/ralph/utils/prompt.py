@@ -31,7 +31,8 @@ def build_skill_prompt(project_root: Path, skill_name: str, context: str) -> str
     skill_path = loader.load(skill_name)
     relative_path = skill_path.relative_to(project_root)
 
-    return f"Follow the instructions in @{relative_path}\n\n{context}"
+    # Use forward slashes for @file references (cross-platform consistency)
+    return f"Follow the instructions in @{relative_path.as_posix()}\n\n{context}"
 
 
 __all__ = ["build_skill_prompt", "SkillNotFoundError"]
