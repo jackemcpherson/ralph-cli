@@ -1024,3 +1024,481 @@ class TestCommandSkillPaths:
         assert "@skills/ralph/iteration/SKILL.md" in prompt
         assert "US-002" in prompt
         assert "Another story" in prompt
+
+
+class TestReviewLoopIntegration:
+    """Integration tests for review loop functionality.
+
+    These tests exercise the full review loop integration with:
+    - Reviewer configuration parsing from CLAUDE.md
+    - Language detection
+    - ReviewLoopService execution
+    - Skip-review and strict mode flags
+    """
+
+    @pytest.fixture
+    def project_with_pending_story(self, tmp_path: Path) -> Path:
+        """Create a project with a pending story, so iteration runs then triggers review loop."""
+        sample_tasks = {
+            "project": "TestProject",
+            "branchName": "ralph/test-feature",
+            "description": "Test feature description",
+            "userStories": [
+                {
+                    "id": "US-001",
+                    "title": "First story",
+                    "description": "As a user, I want feature A",
+                    "acceptanceCriteria": ["Criterion 1"],
+                    "priority": 1,
+                    "passes": False,
+                    "notes": "",
+                },
+            ],
+        }
+
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        (plans_dir / "TASKS.json").write_text(json.dumps(sample_tasks, indent=2))
+        (plans_dir / "PROGRESS.txt").write_text("# Progress Log\n\n")
+
+        # Create iteration skill
+        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
+
+        # Create reviewer skills
+        test_quality_dir = tmp_path / "skills" / "reviewers" / "test-quality"
+        test_quality_dir.mkdir(parents=True)
+        (test_quality_dir / "SKILL.md").write_text("# Test Quality Reviewer")
+
+        code_simplifier_dir = tmp_path / "skills" / "reviewers" / "code-simplifier"
+        code_simplifier_dir.mkdir(parents=True)
+        (code_simplifier_dir / "SKILL.md").write_text("# Code Simplifier")
+
+        python_reviewer_dir = tmp_path / "skills" / "reviewers" / "language" / "python"
+        python_reviewer_dir.mkdir(parents=True)
+        (python_reviewer_dir / "SKILL.md").write_text("# Python Code Reviewer")
+
+        github_actions_dir = tmp_path / "skills" / "reviewers" / "github-actions"
+        github_actions_dir.mkdir(parents=True)
+        (github_actions_dir / "SKILL.md").write_text("# GitHub Actions Reviewer")
+
+        # Create CLAUDE.md with reviewer configuration
+        claude_md = tmp_path / "CLAUDE.md"
+        claude_md.write_text(
+            """# Project Instructions
+
+## Reviewers
+
+<!-- RALPH:REVIEWERS:START -->
+```yaml
+reviewers:
+  - name: test-quality
+    skill: reviewers/test-quality
+    level: blocking
+  - name: code-simplifier
+    skill: reviewers/code-simplifier
+    level: blocking
+  - name: python-code
+    skill: reviewers/language/python
+    languages: [python]
+    level: blocking
+  - name: github-actions
+    skill: reviewers/github-actions
+    level: warning
+```
+<!-- RALPH:REVIEWERS:END -->
+"""
+        )
+
+        # Create pyproject.toml for Python language detection
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test-project'\n")
+
+        return tmp_path
+
+    def test_review_loop_executes_reviewers_after_all_complete(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that review loop actually executes reviewers when all stories complete."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        # Verify loop completed successfully
+        assert result.exit_code == 0
+        assert "All stories complete" in result.output
+        assert "Review Loop" in result.output
+        assert "Review Summary" in result.output
+        # Verify reviewers were executed (4 reviewers configured)
+        assert mock_claude.run_print_mode.call_count == 4
+
+    def test_review_loop_skipped_with_skip_review_flag_end_to_end(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that --skip-review completely bypasses review loop execution."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1", "--skip-review"])
+
+        assert result.exit_code == 0
+        assert "Skipping review loop" in result.output
+        # Verify no reviewer Claude calls were made
+        mock_claude.run_print_mode.assert_not_called()
+        assert "Review Loop" not in result.output
+        assert "Review Summary" not in result.output
+
+    def test_review_loop_strict_mode_enforces_warning_reviewers(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that --strict treats warning-level reviewers as blocking."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1", "--strict"])
+
+        assert result.exit_code == 0
+        assert "Strict mode: warning-level reviewers are enforced" in result.output
+
+    def test_review_loop_language_filtering_skips_python_reviewer_for_non_python_project(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test that Python reviewer is skipped for non-Python projects."""
+        # Create a project without Python (using Go instead) - with pending story
+        sample_tasks = {
+            "project": "GoProject",
+            "branchName": "ralph/test-feature",
+            "description": "Go project test",
+            "userStories": [
+                {
+                    "id": "US-001",
+                    "title": "Go story",
+                    "description": "As a user, I want Go feature",
+                    "acceptanceCriteria": ["Criterion 1"],
+                    "priority": 1,
+                    "passes": False,
+                    "notes": "",
+                },
+            ],
+        }
+
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        (plans_dir / "TASKS.json").write_text(json.dumps(sample_tasks, indent=2))
+        (plans_dir / "PROGRESS.txt").write_text("# Progress Log\n\n")
+
+        # Create iteration skill
+        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
+
+        # Create reviewer skills
+        test_quality_dir = tmp_path / "skills" / "reviewers" / "test-quality"
+        test_quality_dir.mkdir(parents=True)
+        (test_quality_dir / "SKILL.md").write_text("# Test Quality")
+
+        python_reviewer_dir = tmp_path / "skills" / "reviewers" / "language" / "python"
+        python_reviewer_dir.mkdir(parents=True)
+        (python_reviewer_dir / "SKILL.md").write_text("# Python Reviewer")
+
+        # Create CLAUDE.md with Python-specific reviewer
+        claude_md = tmp_path / "CLAUDE.md"
+        claude_md.write_text(
+            """# Project
+
+<!-- RALPH:REVIEWERS:START -->
+```yaml
+reviewers:
+  - name: test-quality
+    skill: reviewers/test-quality
+    level: blocking
+  - name: python-code
+    skill: reviewers/language/python
+    languages: [python]
+    level: blocking
+```
+<!-- RALPH:REVIEWERS:END -->
+"""
+        )
+
+        # Create go.mod for Go language detection (NOT Python)
+        (tmp_path / "go.mod").write_text("module test.com/goproject\n\ngo 1.21\n")
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0
+        assert "Detected languages: go" in result.output
+        # Python reviewer should be skipped due to language filter
+        assert "python-code: skipped (language filter)" in result.output
+        # test-quality should pass (no language filter)
+        assert "test-quality: passed" in result.output
+
+    def test_review_loop_runs_python_reviewer_for_python_project(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that Python reviewer runs for Python projects."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0
+        assert "Detected languages: python" in result.output
+        # Python reviewer should run (language matches)
+        assert "python-code: passed" in result.output
+
+    def test_review_loop_shows_warning_reviewer_without_enforcement(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that warning reviewers are shown but not enforced without --strict."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                # Make warning reviewer fail
+                call_count = [0]
+
+                def mock_run(*args: Any, **kwargs: Any) -> tuple[str, int]:
+                    call_count[0] += 1
+                    # Fail for github-actions (4th reviewer)
+                    if call_count[0] == 4:
+                        return ("Failed", 1)
+                    return ("Success", 0)
+
+                mock_claude.run_print_mode.side_effect = mock_run
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0  # Still succeeds - warning not enforced
+        assert "github-actions: failed" in result.output
+        # Shows warning message about review failures
+        assert "Review loop completed with failures" in result.output
+
+    def test_review_loop_retries_blocking_reviewer_on_failure(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that blocking reviewers are retried up to 3 times on failure."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                # First reviewer fails twice then succeeds
+                call_count = [0]
+
+                def mock_run(*args: Any, **kwargs: Any) -> tuple[str, int]:
+                    call_count[0] += 1
+                    # Fail first 2 attempts of first reviewer
+                    if call_count[0] <= 2:
+                        return ("Failed", 1)
+                    return ("Success", 0)
+
+                mock_claude.run_print_mode.side_effect = mock_run
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0
+        # First reviewer should have passed after retries
+        assert "test-quality: passed" in result.output
+
+    def test_review_loop_appends_to_progress_file(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that review loop appends summaries to PROGRESS.txt."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                runner.invoke(app, ["loop", "1"])
+
+        progress_content = (project_with_pending_story / "plans" / "PROGRESS.txt").read_text()
+        assert "[Review Loop]" in progress_content
+        assert "test-quality" in progress_content
+        assert "passed" in progress_content

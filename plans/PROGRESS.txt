@@ -599,3 +599,43 @@ Total: 3 new tests (198 total), 7 tests in TestGetDefaultReviewers class
 - Update Project Structure when directory layout changes
 
 [Ralph Loop] 2026-01-22 - Iteration 15: US-015 (Update CLAUDE.md with reviewer configuration example) completed
+
+[Ralph Loop] 2026-01-21 22:54 UTC - Iteration 5: US-015 (Update CLAUDE.md with reviewer configuration example) completed
+
+---
+
+## 2026-01-22 - US-016
+
+**Story:** Integration tests for review loop
+
+### What was implemented
+- Created `TestReviewLoopIntegration` test class with comprehensive integration tests
+- Added `project_with_pending_story` fixture that creates a complete test project with:
+  - TASKS.json with a pending story
+  - CLAUDE.md with reviewer configuration
+  - Skill directories for reviewers (test-quality, code-simplifier, python-code, github-actions)
+  - pyproject.toml for Python language detection
+- Implemented 8 integration tests covering all acceptance criteria
+
+### Tests written
+- `test_review_loop_executes_reviewers_after_all_complete`: Verifies review loop runs after stories complete with correct reviewer count
+- `test_review_loop_skipped_with_skip_review_flag_end_to_end`: Verifies --skip-review completely bypasses review loop
+- `test_review_loop_strict_mode_enforces_warning_reviewers`: Verifies --strict mode message displayed
+- `test_review_loop_language_filtering_skips_python_reviewer_for_non_python_project`: Verifies Python reviewer skipped for Go project
+- `test_review_loop_runs_python_reviewer_for_python_project`: Verifies Python reviewer runs for Python project
+- `test_review_loop_shows_warning_reviewer_without_enforcement`: Verifies warning reviewer failure doesn't block
+- `test_review_loop_retries_blocking_reviewer_on_failure`: Verifies blocking reviewer retry logic
+- `test_review_loop_appends_to_progress_file`: Verifies review summaries appended to PROGRESS.txt
+
+Total: 8 new tests (206 total)
+
+### Files changed
+- `tests/test_commands_integration.py` (added TestReviewLoopIntegration class with 8 tests)
+- `plans/TASKS.json` (marked US-016 as passes: true)
+
+### Learnings for future iterations
+- Review loop only runs when stories complete during the loop iteration, not when all stories are already complete at start
+- Integration tests for loop command need to mock both `_setup_branch` (git) and `subprocess.Popen` (story iteration) plus `ClaudeService` (reviewer execution)
+- Use mock `<ralph>COMPLETE</ralph>` output to simulate story completion triggering review loop
+
+[Ralph Loop] 2026-01-22 - Iteration 16: US-016 (Integration tests for review loop) completed
