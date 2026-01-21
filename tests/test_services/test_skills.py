@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from ralph.models.manifest import Manifest, save_manifest
 from ralph.services.skills import SkillInfo, SkillsService, SkillSyncResult, SyncStatus
 
 
@@ -602,3 +603,179 @@ class TestManifestWriting:
 
         # Should use directory name, not the name from frontmatter
         assert manifest_data["installed"] == ["my-skill-dir"]
+
+
+class TestRemoveSkills:
+    """Tests for remove_skills method."""
+
+    def test_remove_returns_empty_when_no_manifest(self, tmp_path: Path) -> None:
+        """Test that remove_skills returns empty list when no manifest exists."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        assert result == []
+
+    def test_remove_deletes_manifest_skills(self, tmp_path: Path) -> None:
+        """Test that remove_skills deletes skills listed in manifest."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create skill directories in target
+        (target_dir / "skill-a").mkdir()
+        (target_dir / "skill-a" / "SKILL.md").write_text("content")
+        (target_dir / "skill-b").mkdir()
+        (target_dir / "skill-b" / "SKILL.md").write_text("content")
+
+        # Create manifest listing the skills
+        manifest = Manifest(
+            installed=["skill-a", "skill-b"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        assert set(result) == {"skill-a", "skill-b"}
+        assert not (target_dir / "skill-a").exists()
+        assert not (target_dir / "skill-b").exists()
+
+    def test_remove_deletes_manifest_file(self, tmp_path: Path) -> None:
+        """Test that remove_skills deletes the manifest file itself."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create manifest
+        manifest = Manifest(
+            installed=[],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        manifest_path = target_dir / ".ralph-manifest.json"
+        save_manifest(manifest, manifest_path)
+
+        assert manifest_path.exists()
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.remove_skills()
+
+        assert not manifest_path.exists()
+
+    def test_remove_is_idempotent(self, tmp_path: Path) -> None:
+        """Test that remove_skills is idempotent - no error if skills already removed."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create manifest with skills that don't exist
+        manifest = Manifest(
+            installed=["nonexistent-skill"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        # Should not raise an error
+        result = service.remove_skills()
+
+        # Returns empty because skill didn't exist
+        assert result == []
+
+    def test_remove_never_deletes_non_manifest_skills(self, tmp_path: Path) -> None:
+        """Test that remove_skills never deletes skills not in manifest."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create skill directories - one in manifest, one not
+        (target_dir / "ralph-skill").mkdir()
+        (target_dir / "ralph-skill" / "SKILL.md").write_text("content")
+        (target_dir / "user-skill").mkdir()
+        (target_dir / "user-skill" / "SKILL.md").write_text("user content")
+
+        # Manifest only lists ralph-skill
+        manifest = Manifest(
+            installed=["ralph-skill"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        assert result == ["ralph-skill"]
+        assert not (target_dir / "ralph-skill").exists()
+        # User skill should still exist
+        assert (target_dir / "user-skill").exists()
+        assert (target_dir / "user-skill" / "SKILL.md").read_text() == "user content"
+
+    def test_remove_after_sync_round_trip(self, tmp_path: Path) -> None:
+        """Test full round-trip: sync then remove."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        # Create skills to sync
+        for name in ["skill-a", "skill-b"]:
+            skill_dir = skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(
+                f'---\nname: "{name}"\ndescription: "Skill {name}"\n---\n'
+            )
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        # Sync skills
+        service.sync_all()
+
+        assert (target_dir / "skill-a").exists()
+        assert (target_dir / "skill-b").exists()
+        assert (target_dir / ".ralph-manifest.json").exists()
+
+        # Remove skills
+        removed = service.remove_skills()
+
+        assert set(removed) == {"skill-a", "skill-b"}
+        assert not (target_dir / "skill-a").exists()
+        assert not (target_dir / "skill-b").exists()
+        assert not (target_dir / ".ralph-manifest.json").exists()
+
+    def test_remove_returns_only_actually_removed(self, tmp_path: Path) -> None:
+        """Test that remove_skills only returns skills that were actually removed."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create only one of two listed skills
+        (target_dir / "exists-skill").mkdir()
+        (target_dir / "exists-skill" / "SKILL.md").write_text("content")
+
+        # Manifest lists two skills but only one exists
+        manifest = Manifest(
+            installed=["exists-skill", "missing-skill"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        # Only the existing skill should be in the result
+        assert result == ["exists-skill"]

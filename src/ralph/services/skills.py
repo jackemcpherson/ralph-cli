@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from ralph.models.manifest import Manifest, save_manifest
+from ralph.models.manifest import Manifest, load_manifest, save_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +249,44 @@ class SkillsService(BaseModel):
         # Write manifest file
         manifest_path = self.target_dir / ".ralph-manifest.json"
         save_manifest(manifest, manifest_path)
+
+    def remove_skills(self) -> list[str]:
+        """Remove skills listed in the manifest file.
+
+        Reads the .ralph-manifest.json file from the target directory and
+        removes only the skill directories that are listed in it. Then
+        deletes the manifest file itself.
+
+        This operation is idempotent - no error if skills are already removed.
+
+        Returns:
+            List of skill directory names that were removed.
+        """
+        manifest_path = self.target_dir / ".ralph-manifest.json"
+        manifest = load_manifest(manifest_path)
+
+        if manifest is None:
+            # No manifest found - nothing to remove
+            return []
+
+        removed: list[str] = []
+
+        for skill_name in manifest.installed:
+            skill_dir = self.target_dir / skill_name
+            if skill_dir.exists() and skill_dir.is_dir():
+                try:
+                    shutil.rmtree(skill_dir)
+                    removed.append(skill_name)
+                except OSError as e:
+                    logger.warning(f"Failed to remove skill {skill_name}: {e}")
+
+        # Remove the manifest file
+        try:
+            manifest_path.unlink()
+        except OSError:
+            pass  # Ignore errors deleting manifest
+
+        return removed
 
     def _parse_frontmatter(self, content: str) -> dict[str, str] | None:
         """Parse YAML frontmatter from a markdown file.

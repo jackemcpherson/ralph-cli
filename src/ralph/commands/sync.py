@@ -28,15 +28,30 @@ def sync(
         "-s",
         help="Custom skills directory (default: <project-root>/skills/).",
     ),
+    remove: bool = typer.Option(
+        False,
+        "--remove",
+        "-r",
+        help="Remove previously synced skills instead of syncing.",
+    ),
 ) -> None:
     """Sync Ralph skills to Claude Code.
 
     Copies skill definitions from the repo's skills/ directory
     to ~/.claude/skills/ for global access. Each skill must have
     a SKILL.md file with valid YAML frontmatter (name, description).
+
+    Use --remove to uninstall ralph skills that were previously synced.
+    This only removes skills listed in the manifest, leaving other skills intact.
     """
     if skills_dir is None:
         skills_dir = get_project_root() / "skills"
+
+    service = SkillsService(skills_dir=skills_dir)
+
+    if remove:
+        _handle_remove(service)
+        return
 
     if not skills_dir.exists():
         print_warning(f"Skills directory not found: {skills_dir}")
@@ -48,7 +63,6 @@ def sync(
         console.print("  ---")
         raise typer.Exit(0)
 
-    service = SkillsService(skills_dir=skills_dir)
     skill_paths = service.list_local_skills()
 
     if not skill_paths:
@@ -102,3 +116,24 @@ def sync(
     if error_count > 0:
         print_error(f"Failed to sync {error_count} skill(s)")
         raise typer.Exit(1)
+
+
+def _handle_remove(service: SkillsService) -> None:
+    """Handle the --remove flag to uninstall skills.
+
+    Args:
+        service: The SkillsService instance to use for removal.
+    """
+    console.print(f"\n[bold]Removing skills from:[/bold] {service.target_dir}\n")
+
+    removed = service.remove_skills()
+
+    if not removed:
+        print_warning("No ralph skills to remove (no manifest found or already removed)")
+        return
+
+    for skill_name in removed:
+        console.print(f"  [green]\u2713[/green] {skill_name} [dim](removed)[/dim]")
+
+    console.print()
+    print_success(f"Removed {len(removed)} skill(s)")
