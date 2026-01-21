@@ -60,11 +60,25 @@ def loop(
     max_fix_attempts: int = typer.Option(
         3, "--max-fix-attempts", help="Maximum attempts to fix failing checks"
     ),
+    skip_review: bool = typer.Option(
+        False,
+        "--skip-review",
+        help="Skip the automated review loop after all stories complete",
+    ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Treat warning-level reviewers as blocking during the review loop",
+    ),
 ) -> None:
     """Run multiple Ralph iterations automatically.
 
     Executes up to N iterations sequentially, stopping when all
     stories are complete or on persistent failure.
+
+    After all stories pass, an automated review loop runs configured
+    reviewers unless --skip-review is provided. Use --strict to enforce
+    warning-level reviewers as blocking.
     """
     project_root = Path.cwd()
     tasks_path = project_root / "plans" / "TASKS.json"
@@ -222,6 +236,11 @@ def loop(
 
     if stop_reason == LoopStopReason.ALL_COMPLETE:
         print_success("All stories complete!")
+        # Review loop will be integrated here in US-006
+        # The skip_review and strict flags control review behavior:
+        # - skip_review=True: Skip the review loop entirely
+        # - strict=True: Treat warning-level reviewers as blocking
+        logger.debug(f"Review loop options: skip_review={skip_review}, strict={strict}")
     elif stop_reason == LoopStopReason.MAX_ITERATIONS:
         console.print(f"[dim]Reached maximum of {iterations} iterations.[/dim]")
     elif stop_reason == LoopStopReason.PERSISTENT_FAILURE:

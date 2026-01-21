@@ -1,178 +1,257 @@
 {
-  "project": "Ralph CLI v2.0 Skills-First Architecture",
-  "branchName": "ralph/skills-first-v2",
-  "description": "Refactor Ralph CLI to load prompts from skill files instead of embedded Python code, simplify codebase, add skill removal, and reduce test suite",
+  "project": "ReviewLoop",
+  "branchName": "ralph/review-loop",
+  "description": "Add automated review loop to ralph loop command with configurable reviewer pipeline, language detection, and restructured skills directory",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create SkillLoader service",
-      "description": "As a developer, I want a SkillLoader service that reads skill content from disk so that commands can delegate to skill files instead of embedding prompts",
+      "title": "Create ReviewerConfig Pydantic model",
+      "description": "As a developer, I want a Pydantic model for reviewer configuration so that reviewer settings can be validated and typed",
       "acceptanceCriteria": [
-        "SkillLoader class exists in src/ralph/services/",
-        "load(skill_name) method reads from skills/{skill_name}/SKILL.md",
-        "Raises SkillNotFoundError with clear message if skill file is missing",
-        "Returns skill content as string",
-        "Typecheck passes"
+        "ReviewerConfig model with fields: name, skill, level, languages (optional)",
+        "Level is an enum with values: blocking, warning, suggestion",
+        "Languages field accepts list of strings or None",
+        "Typecheck passes",
+        "Unit tests for model validation"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Foundation for all other command refactoring"
+      "notes": "Implemented in src/ralph/models/reviewer.py with 16 unit tests"
     },
     {
       "id": "US-002",
-      "title": "Add Manifest model for skill tracking",
-      "description": "As a developer, I want a Manifest Pydantic model so that ralph sync can track which skills it has installed",
+      "title": "Implement reviewer configuration parsing from CLAUDE.md",
+      "description": "As a developer, I want to parse reviewer configuration from CLAUDE.md YAML blocks so that reviewers can be configured per-project",
       "acceptanceCriteria": [
-        "Manifest model exists in src/ralph/models/",
-        "Model has 'installed' field (list of skill directory names)",
-        "Model has 'synced_at' field (ISO timestamp string)",
-        "Model can serialize to/from JSON",
-        "Typecheck passes"
+        "Parse YAML between <!-- RALPH:REVIEWERS:START --> and <!-- RALPH:REVIEWERS:END --> markers",
+        "Return list of ReviewerConfig objects",
+        "Return default reviewers when markers not present",
+        "Consistent pattern with existing checks parsing",
+        "Typecheck passes",
+        "Unit tests for parsing with and without markers"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Required for sync --remove functionality"
+      "notes": "Implemented in src/ralph/models/reviewer.py with 16 new tests for parsing functions"
     },
     {
       "id": "US-003",
-      "title": "Enhance SkillsService with manifest support",
-      "description": "As a user, I want ralph sync to write a manifest file so that installed skills can be tracked and removed cleanly",
+      "title": "Implement language detection service",
+      "description": "As a developer, I want to auto-detect project languages from marker files so that language-specific reviewers can be filtered appropriately",
       "acceptanceCriteria": [
-        "ralph sync writes manifest to ~/.claude/skills/.ralph-manifest.json",
-        "Manifest contains list of installed skill directory names",
-        "Manifest includes synced_at timestamp",
-        "Existing sync functionality continues to work",
-        "Typecheck passes"
+        "Detect Python from pyproject.toml, setup.py, requirements.txt",
+        "Detect JavaScript/TypeScript from package.json, tsconfig.json",
+        "Detect Go from go.mod",
+        "Detect Rust from Cargo.toml",
+        "Return set of detected languages",
+        "Support multiple languages detected simultaneously",
+        "Typecheck passes",
+        "Unit tests for each language detection"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Added _write_manifest method to SkillsService that writes manifest after sync_all"
+      "notes": "Implemented in src/ralph/services/language.py with 28 unit tests"
     },
     {
       "id": "US-004",
-      "title": "Implement ralph sync --remove",
-      "description": "As a user, I want to run ralph sync --remove so that I can cleanly uninstall ralph skills without affecting other user skills",
+      "title": "Add --skip-review and --strict flags to ralph loop",
+      "description": "As a user, I want CLI flags to control review behavior so that I can skip reviews or enforce stricter checking",
       "acceptanceCriteria": [
-        "--remove flag added to ralph sync command",
-        "Reads manifest and deletes only listed skill directories",
-        "Deletes manifest file after cleanup",
-        "Idempotent - no error if skills already removed",
-        "Never deletes skills not in manifest",
+        "--skip-review flag added to loop command",
+        "--strict flag added to loop command",
+        "Flags stored and passed to review loop execution",
+        "Help text describes flag behavior",
         "Typecheck passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Added remove_skills() method to SkillsService and --remove/-r flag to sync command"
+      "notes": "Implemented flags in loop.py with 6 new tests for flag acceptance and help text"
     },
     {
       "id": "US-005",
-      "title": "Refactor ralph prd to use skill loading",
-      "description": "As a developer, I want ralph prd to load instructions from ralph-prd skill file so that prompts are maintained in one place",
+      "title": "Implement review loop execution service",
+      "description": "As a developer, I want a service that executes configured reviewers in order so that code quality is automatically checked after stories complete",
       "acceptanceCriteria": [
-        "Command loads skill content via SkillLoader",
-        "Embedded prompt constants removed from prd.py",
-        "_build_*_prompt() functions removed if present",
-        "Command assembles context (output path) and delegates to skill",
-        "Behavior unchanged from user perspective",
-        "Typecheck passes"
+        "Execute reviewers in configured order",
+        "Skip reviewers whose language filter doesn't match detected languages",
+        "Spawn fresh Claude instance for each reviewer",
+        "Retry up to 3 times for blocking reviewers on failure",
+        "Continue to next reviewer after 3 failed attempts",
+        "Append summary to PROGRESS.txt after each reviewer",
+        "Handle blocking/warning/suggestion levels per behavior matrix",
+        "Typecheck passes",
+        "Unit tests for reviewer filtering and retry logic"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Replaced _build_prd_prompt() and _build_non_interactive_prd_prompt() with _build_prompt_from_skill() that loads skill and injects context"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Refactor ralph tasks to use skill loading",
-      "description": "As a developer, I want ralph tasks to load instructions from ralph-tasks skill file so that prompts are maintained in one place",
+      "title": "Integrate review loop into ralph loop command",
+      "description": "As a user, I want ralph loop to automatically run the review loop after all stories pass so that code quality is assured",
       "acceptanceCriteria": [
-        "Command loads skill content via SkillLoader",
-        "Embedded prompt constants removed from tasks.py",
-        "_build_*_prompt() functions removed if present",
-        "Command passes spec file content as context",
-        "Behavior unchanged from user perspective",
+        "Review loop runs after all stories pass (default behavior)",
+        "Review loop skipped when --skip-review flag provided",
+        "Warning reviewers enforced when --strict flag provided",
+        "Console output shows review progress",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Replaced _build_tasks_prompt() with _build_prompt_from_skill() that loads skill and injects spec content and branch name as context"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Refactor ralph once to use skill loading",
-      "description": "As a developer, I want ralph once to load instructions from ralph-iteration skill file so that prompts are maintained in one place",
+      "title": "Restructure skills directory - ralph core skills",
+      "description": "As a maintainer, I want ralph core skills moved to ralph/ subdirectory so that skills are logically organized",
       "acceptanceCriteria": [
-        "Command loads skill content via SkillLoader",
-        "Embedded prompt constants removed from once.py",
-        "_build_*_prompt() functions removed if present",
-        "Command passes story data and project context",
-        "Behavior unchanged from user perspective",
-        "Typecheck passes"
+        "Move ralph-prd/ to ralph/prd/",
+        "Move ralph-tasks/ to ralph/tasks/",
+        "Move ralph-iteration/ to ralph/iteration/",
+        "SKILL.md files preserved in new locations",
+        "Old directories removed"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Replaced ITERATION_PROMPT constant and _build_iteration_prompt() with _build_prompt_from_skill() that loads skill and injects story context. Also updated loop.py to use the new function since it imports from once.py."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Refactor ralph loop to use skill loading",
-      "description": "As a developer, I want ralph loop to reuse ralph-iteration skill for each iteration so that loop and once share the same instructions",
+      "title": "Restructure skills directory - reviewer skills",
+      "description": "As a maintainer, I want reviewer skills moved to reviewers/ subdirectory so that skills are logically organized",
       "acceptanceCriteria": [
-        "Command loads skill content via SkillLoader",
-        "Reuses ralph-iteration skill for each iteration",
-        "Embedded prompt constants removed from loop.py",
-        "Behavior unchanged from user perspective",
-        "Typecheck passes"
+        "Move code-simplifier/ to reviewers/code-simplifier/",
+        "Move test-quality-reviewer/ to reviewers/test-quality/",
+        "Move repo-structure-reviewer/ to reviewers/repo-structure/",
+        "Move github-actions-reviewer/ to reviewers/github-actions/",
+        "Move python-code-reviewer/ to reviewers/language/python/",
+        "SKILL.md files preserved in new locations",
+        "Old directories removed"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Already completed as part of US-007 - loop.py imports _build_prompt_from_skill from once.py which loads ralph-iteration skill"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Remove redundant prompt code",
-      "description": "As a developer, I want all embedded prompt constants and builder functions removed so that skills are the single source of truth",
+      "title": "Create release reviewer skill",
+      "description": "As a user, I want a release reviewer skill so that release readiness is automatically checked",
       "acceptanceCriteria": [
-        "No _build_*_prompt() functions in any command file",
-        "No prompt template constants in command files",
-        "All prompt logic lives in skill files",
-        "Codebase passes lint check",
-        "Typecheck passes"
+        "Create reviewers/release/SKILL.md",
+        "Check for changelog entries corresponding to changes",
+        "Verify version consistency between pyproject.toml and __init__.py",
+        "Verify documentation completeness (CHANGELOG.md, AGENTS.md, CLAUDE.md, README.md)",
+        "Clean up PROGRESS.txt archives in plans/",
+        "Verify git tag readiness (version not already tagged)",
+        "Check for TODOs/FIXMEs that should be addressed"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Removed PERMISSIONS_SYSTEM_PROMPT constant from once.py and loop.py, moved permissions text into ralph-iteration skill file"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Replace test suite with focused tests",
-      "description": "As a developer, I want a lean test suite of 30-50 tests so that tests are maintainable and test behavior not implementation",
+      "title": "Update SkillLoader for nested paths",
+      "description": "As a developer, I want SkillLoader to accept nested paths so that restructured skills can be loaded",
       "acceptanceCriteria": [
-        "Existing test suite removed or replaced",
-        "Integration tests for happy path of each command (5-10 tests)",
-        "Unit tests for skill loading, manifest handling, context assembly",
-        "Minimal mocking - test real integration where practical",
-        "Total test count between 30-50",
-        "All tests pass"
+        "SkillLoader accepts paths like ralph/prd and reviewers/code-simplifier",
+        "Skill content loaded correctly from nested directories",
+        "Typecheck passes",
+        "Unit tests for nested path loading"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Replaced 682 tests with focused 48-test suite covering: skill loader (6), manifest (4), tasks model (5), skills service (14), quality checks (7), command integration (12)"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Final validation and cleanup",
-      "description": "As a developer, I want all quality checks to pass so that the refactor is complete and ready for release",
+      "title": "Update command skill references to new paths",
+      "description": "As a developer, I want all command skill references updated to use new nested paths so that commands work with restructured skills",
       "acceptanceCriteria": [
-        "Typecheck passes (uv run pyright)",
-        "Lint passes (uv run ruff check .)",
-        "Format passes (uv run ruff format --check .)",
-        "All tests pass (uv run pytest)",
-        "Commands produce equivalent behavior to pre-refactor",
-        "Version bumped to 2.0.0 in pyproject.toml and __init__.py"
+        "prd command uses ralph/prd skill path",
+        "tasks command uses ralph/tasks skill path",
+        "iteration commands use ralph/iteration skill path",
+        "All commands function correctly with new paths",
+        "Typecheck passes"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "All quality checks pass, version bumped to 2.0.0"
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Update ralph sync for nested structure",
+      "description": "As a user, I want ralph sync to handle nested skill directories so that skills install correctly to ~/.claude/skills/",
+      "acceptanceCriteria": [
+        "Sync mirrors nested structure to ~/.claude/skills/",
+        "Manifest version updated to 2",
+        "Manifest stores full paths like ralph/prd",
+        "Old flat-structure skills cleaned up during sync",
+        "Typecheck passes",
+        "Unit tests for nested sync"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Update ralph sync --remove for nested structure",
+      "description": "As a user, I want ralph sync --remove to handle nested skill directories so that skills can be properly uninstalled",
+      "acceptanceCriteria": [
+        "Remove command removes nested directories correctly",
+        "Handles both old flat and new nested structures",
+        "Typecheck passes",
+        "Unit tests for nested removal"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add default reviewer configuration",
+      "description": "As a user, I want sensible default reviewers when no configuration exists so that review loop works out of the box",
+      "acceptanceCriteria": [
+        "Default configuration includes all reviewers from spec",
+        "test-quality, code-simplifier, python-code as blocking",
+        "github-actions, repo-structure as warning",
+        "release as blocking",
+        "python-code filtered to python language",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Update CLAUDE.md with reviewer configuration example",
+      "description": "As a user, I want CLAUDE.md to document reviewer configuration so that I can customize the review pipeline",
+      "acceptanceCriteria": [
+        "Add RALPH:REVIEWERS markers with default configuration",
+        "Document configuration format in comments or README",
+        "Consistent with existing checks documentation pattern"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Integration tests for review loop",
+      "description": "As a developer, I want integration tests for the review loop so that the feature is properly validated",
+      "acceptanceCriteria": [
+        "Test review loop runs after stories complete",
+        "Test --skip-review bypasses review loop",
+        "Test --strict enforces warning reviewers",
+        "Test language filtering works correctly",
+        "All tests pass"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
     }
   ]
 }

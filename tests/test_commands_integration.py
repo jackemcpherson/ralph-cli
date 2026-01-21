@@ -390,6 +390,111 @@ class TestLoopCommand:
         assert "Loop Summary" in result.output
         assert "All stories complete" in result.output
 
+    def test_loop_accepts_skip_review_flag(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph loop accepts --skip-review flag."""
+
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_tasks):
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                result = runner.invoke(app, ["loop", "1", "--skip-review"])
+
+        assert result.exit_code == 0
+        assert "All stories complete" in result.output
+
+    def test_loop_accepts_strict_flag(self, runner: CliRunner, project_with_tasks: Path) -> None:
+        """Test that ralph loop accepts --strict flag."""
+
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_tasks):
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                result = runner.invoke(app, ["loop", "1", "--strict"])
+
+        assert result.exit_code == 0
+        assert "All stories complete" in result.output
+
+    def test_loop_accepts_both_skip_review_and_strict_flags(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph loop accepts both --skip-review and --strict flags together."""
+
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_tasks):
+            with (
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                result = runner.invoke(app, ["loop", "1", "--skip-review", "--strict"])
+
+        assert result.exit_code == 0
+        assert "All stories complete" in result.output
+
+    def test_loop_help_shows_skip_review_flag(self, runner: CliRunner) -> None:
+        """Test that ralph loop --help shows --skip-review flag with description."""
+        result = runner.invoke(app, ["loop", "--help"])
+
+        assert result.exit_code == 0
+        assert "--skip-review" in result.output
+        assert "Skip the automated review loop" in result.output
+
+    def test_loop_help_shows_strict_flag(self, runner: CliRunner) -> None:
+        """Test that ralph loop --help shows --strict flag with description."""
+        result = runner.invoke(app, ["loop", "--help"])
+
+        assert result.exit_code == 0
+        assert "--strict" in result.output
+        # Check for key phrase - help text may wrap across lines
+        assert "warning-level reviewers" in result.output
+
 
 class TestSyncCommand:
     """Integration tests for ralph sync command."""
