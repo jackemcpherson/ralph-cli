@@ -569,3 +569,33 @@ Total: 3 new tests (198 total), 7 tests in TestGetDefaultReviewers class
 - The default reviewers are: test-quality, code-simplifier, python-code (blocking); github-actions, repo-structure (warning); release (blocking)
 
 [Ralph Loop] 2026-01-22 - Iteration 14: US-014 (Add default reviewer configuration) completed
+
+[Ralph Loop] 2026-01-21 22:52 UTC - Iteration 4: US-014 (Add default reviewer configuration) completed
+
+---
+
+## 2026-01-22 - US-015
+
+**Story:** Update CLAUDE.md with reviewer configuration example
+
+### What was implemented
+- Added `## Reviewers` section to CLAUDE.md with RALPH:REVIEWERS markers
+- Included default reviewer configuration with all 6 reviewers matching the spec
+- Updated `## Project Structure` section to reflect new nested skills directory
+- Added reviewer configuration format documentation to `### File Formats` section
+- Documentation explains: name, skill, level fields, optional languages filter, level meanings
+
+### Tests written
+- No new tests needed - this is a documentation-only change
+- Existing reviewer parsing tests verify the YAML format is correct
+- All 198 existing tests continue to pass
+
+### Files changed
+- `CLAUDE.md` (added Reviewers section, updated Project Structure, documented format)
+
+### Learnings for future iterations
+- Keep CLAUDE.md structure consistent: Quality Checks → Reviewers → Technology Stack
+- Document all configuration formats in the File Formats section for discoverability
+- Update Project Structure when directory layout changes
+
+[Ralph Loop] 2026-01-22 - Iteration 15: US-015 (Update CLAUDE.md with reviewer configuration example) completed
