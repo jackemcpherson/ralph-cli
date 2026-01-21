@@ -661,6 +661,67 @@ class TestRemoveNestedSkills:
         # ralph/tasks should still exist
         assert (target_dir / "ralph" / "tasks").exists()
 
+    def test_remove_deletes_deeply_nested_skills(self, tmp_path: Path) -> None:
+        """Test that deeply nested skills (3+ levels) are removed correctly."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create deeply nested skill (3 levels)
+        (target_dir / "reviewers" / "language" / "python").mkdir(parents=True)
+        (target_dir / "reviewers" / "language" / "python" / "SKILL.md").write_text("content")
+
+        # Create v2 manifest
+        manifest = Manifest(
+            version=2,
+            installed=["reviewers/language/python"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        assert result == ["reviewers/language/python"]
+        assert not (target_dir / "reviewers" / "language" / "python").exists()
+        # All empty parent directories should be cleaned up
+        assert not (target_dir / "reviewers" / "language").exists()
+        assert not (target_dir / "reviewers").exists()
+
+    def test_remove_handles_mixed_flat_and_nested_skills(self, tmp_path: Path) -> None:
+        """Test that remove handles manifests with both flat and nested paths."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+
+        # Create a flat skill (v1 style)
+        (target_dir / "old-skill").mkdir()
+        (target_dir / "old-skill" / "SKILL.md").write_text("old content")
+
+        # Create a nested skill (v2 style)
+        (target_dir / "ralph" / "prd").mkdir(parents=True)
+        (target_dir / "ralph" / "prd" / "SKILL.md").write_text("new content")
+
+        # Create manifest with both styles (could happen during migration)
+        manifest = Manifest(
+            version=2,
+            installed=["old-skill", "ralph/prd"],
+            syncedAt="2026-01-01T00:00:00+00:00",
+        )
+        save_manifest(manifest, target_dir / ".ralph-manifest.json")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.remove_skills()
+
+        assert set(result) == {"old-skill", "ralph/prd"}
+        assert not (target_dir / "old-skill").exists()
+        assert not (target_dir / "ralph" / "prd").exists()
+        assert not (target_dir / "ralph").exists()  # Empty parent cleaned up
+
 
 class TestSkillInfoRelativePath:
     """Tests for SkillInfo relative_path field."""
