@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 
 from ralph.commands.once import (
     _build_prompt_from_skill,
@@ -122,7 +123,8 @@ def loop(
 
         try:
             tasks = load_tasks(tasks_path)
-        except Exception:
+        except (FileNotFoundError, ValidationError, OSError) as e:
+            logger.error(f"Failed to reload TASKS.json: {e}")
             stop_reason = LoopStopReason.TRANSIENT_FAILURE
             print_error("Failed to reload TASKS.json")
             break
@@ -182,7 +184,8 @@ def loop(
                 (s for s in updated_tasks.user_stories if s.id == next_story.id), None
             )
             story_passed = updated_story is not None and updated_story.passes
-        except Exception:
+        except (FileNotFoundError, ValidationError, OSError) as e:
+            logger.warning(f"Could not verify story status: {e}")
             story_passed = False
 
         if story_passed:
@@ -206,7 +209,8 @@ def loop(
         final_tasks = load_tasks(tasks_path)
         final_completed = sum(1 for s in final_tasks.user_stories if s.passes)
         final_remaining = total_stories - final_completed
-    except Exception:
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not load final task status: {e}")
         final_completed = completed_before + completed_in_loop
         final_remaining = total_stories - final_completed
 
@@ -304,5 +308,5 @@ def _append_loop_progress(
 
     try:
         append_file(progress_path, note)
-    except Exception:
-        pass
+    except OSError as e:
+        logger.warning(f"Could not append to progress file: {e}")

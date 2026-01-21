@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 
 from ralph.models import TasksFile, UserStory, load_tasks
 from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
@@ -121,7 +122,8 @@ def once(
         updated_tasks = load_tasks(tasks_path)
         updated_story = next((s for s in updated_tasks.user_stories if s.id == next_story.id), None)
         story_passed = updated_story is not None and updated_story.passes
-    except Exception:
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not verify story status: {e}")
         story_passed = exit_code == 0
 
     console.print("[bold]Iteration Summary[/bold]")
@@ -234,5 +236,5 @@ def _append_cli_summary(
 
     try:
         append_file(progress_path, summary)
-    except Exception:
-        pass
+    except OSError as e:
+        logger.warning(f"Could not append to progress file: {e}")

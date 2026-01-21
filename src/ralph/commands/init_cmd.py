@@ -11,7 +11,7 @@ import typer
 from rich.prompt import Confirm
 
 from ralph.commands.prd import prd as prd_command
-from ralph.services import ClaudeService, ProjectType, ScaffoldService
+from ralph.services import ClaudeError, ClaudeService, ProjectType, ScaffoldService
 from ralph.utils import console, print_success, print_warning
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ def init(
             )
             if exit_code != 0:
                 print_warning("Claude Code /init completed with non-zero exit code.")
-        except Exception as e:
+        except (OSError, ClaudeError) as e:
             print_warning(f"Failed to run Claude Code /init: {e}")
             console.print("[dim]You can run 'claude /init' manually later.[/dim]")
 
@@ -237,7 +237,7 @@ def _handle_missing_prd(prd_path: Path, project_root: Path) -> None:
         except typer.Exit:
             # PRD command completed (either successfully or user cancelled)
             pass
-        except Exception as e:
+        except (OSError, ClaudeError) as e:
             print_warning(f"PRD creation failed: {e}")
             console.print("[dim]You can create a PRD later with 'ralph prd'.[/dim]")
     else:

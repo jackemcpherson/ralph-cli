@@ -18,7 +18,14 @@ def mock_shutil_which():
 
 
 def strip_ansi(text: str) -> str:
-    """Strip ANSI escape codes from text."""
+    """Strip ANSI escape codes from text.
+
+    Args:
+        text: String containing ANSI escape codes.
+
+    Returns:
+        String with all ANSI escape codes removed.
+    """
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 

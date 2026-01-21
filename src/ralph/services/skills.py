@@ -283,8 +283,8 @@ class SkillsService(BaseModel):
         # Remove the manifest file
         try:
             manifest_path.unlink()
-        except OSError:
-            pass  # Ignore errors deleting manifest
+        except OSError as e:
+            logger.debug(f"Could not remove manifest file: {e}")
 
         return removed
 
