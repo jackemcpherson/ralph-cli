@@ -161,8 +161,8 @@
         "Unit tests for nested path loading"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated SkillLoader.load() docstring, added get_content() method, added 10 new tests for nested paths"
     },
     {
       "id": "US-011",

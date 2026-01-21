@@ -383,3 +383,46 @@ Total: 27 new tests
 - PROGRESS.txt archives should be cleaned up before releases to keep plans/ directory tidy
 
 [Ralph Loop] 2026-01-22 - Iteration 9: US-009 (Create release reviewer skill) completed
+
+[Ralph Loop] 2026-01-21 22:35 UTC - Iteration 9: US-009 (Create release reviewer skill) completed
+
+---
+
+## 2026-01-22 - US-010
+
+**Story:** Update SkillLoader for nested paths
+
+### What was implemented
+- Updated `SkillLoader.load()` method docstring to document nested path support
+- Added `SkillLoader.get_content()` convenience method that loads a skill and returns its content
+- Both methods support:
+  - Flat paths (e.g., `my-skill`)
+  - Two-level nested paths (e.g., `ralph/prd`, `reviewers/code-simplifier`)
+  - Three-level nested paths (e.g., `reviewers/language/python`)
+
+### Tests written
+- `TestSkillLoaderNestedPaths`: 6 tests covering:
+  - Two-level nested path loading (`ralph/prd`)
+  - Three-level nested path loading (`reviewers/language/python`)
+  - Path structure preservation
+  - Error handling for missing nested skills
+  - Error handling for partial paths (parent exists, skill doesn't)
+  - Loading multiple nested skills
+- `TestSkillLoaderGetContent`: 4 tests covering:
+  - Basic content loading
+  - Nested path content loading
+  - Error handling for missing skills
+  - Deeply nested path content loading
+
+Total: 10 new tests (173 total)
+
+### Files changed
+- `src/ralph/services/skill_loader.py` (updated load() docstring, added get_content() method)
+- `tests/test_skill_loader.py` (added 10 new tests in 2 new test classes)
+
+### Learnings for future iterations
+- Python's `pathlib.Path` naturally handles forward slashes in path components
+- `base / "a/b/c" / "file.md"` produces the same result as `base / "a" / "b" / "c" / "file.md"`
+- The existing implementation already supported nested paths; this story just documents and tests it
+
+[Ralph Loop] 2026-01-22 - Iteration 10: US-010 (Update SkillLoader for nested paths) completed
