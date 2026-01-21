@@ -149,7 +149,7 @@ def tasks(
 def _build_prompt_from_skill(
     project_root: Path, spec_content: str, branch_name: str | None = None
 ) -> str:
-    """Build the prompt by referencing the ralph-tasks skill and adding context.
+    """Build the prompt by referencing the ralph/tasks skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -160,7 +160,7 @@ def _build_prompt_from_skill(
         The prompt string for Claude.
 
     Raises:
-        SkillNotFoundError: If the ralph-tasks skill is not found.
+        SkillNotFoundError: If the ralph/tasks skill is not found.
     """
     # Build context section
     context_lines = [
@@ -189,7 +189,7 @@ def _build_prompt_from_skill(
     )
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph-tasks", context)
+    return build_skill_prompt(project_root, "ralph/tasks", context)
 
 
 def _extract_json(text: str) -> str | None:

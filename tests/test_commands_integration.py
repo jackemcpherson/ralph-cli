@@ -45,11 +45,11 @@ def python_project(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def project_with_skill(tmp_path: Path) -> Path:
-    """Create a project with ralph-prd skill."""
+    """Create a project with ralph/prd skill."""
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test-project'\n")
     (tmp_path / "plans").mkdir()
 
-    skill_dir = tmp_path / "skills" / "ralph-prd"
+    skill_dir = tmp_path / "skills" / "ralph" / "prd"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         "---\nname: ralph-prd\ndescription: Test PRD skill\n---\n\n"
@@ -60,13 +60,13 @@ def project_with_skill(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def project_with_spec(tmp_path: Path) -> Path:
-    """Create a project with SPEC.md and ralph-tasks skill."""
+    """Create a project with SPEC.md and ralph/tasks skill."""
     plans_dir = tmp_path / "plans"
     plans_dir.mkdir()
 
     (plans_dir / "SPEC.md").write_text("# Feature Spec\n\nTest specification.")
 
-    skill_dir = tmp_path / "skills" / "ralph-tasks"
+    skill_dir = tmp_path / "skills" / "ralph" / "tasks"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         "---\nname: ralph-tasks\ndescription: Test tasks skill\n---\n\n"
@@ -101,7 +101,7 @@ def project_with_tasks(tmp_path: Path) -> Path:
     (plans_dir / "TASKS.json").write_text(json.dumps(sample_tasks, indent=2))
     (plans_dir / "PROGRESS.txt").write_text("# Progress Log\n\n")
 
-    skill_dir = tmp_path / "skills" / "ralph-iteration"
+    skill_dir = tmp_path / "skills" / "ralph" / "iteration"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         "---\nname: ralph-iteration\ndescription: Test iteration skill\n---\n\n"
@@ -755,7 +755,7 @@ class TestOnceCommandPromptFormat:
                 runner.invoke(app, ["once"])
 
         assert len(captured_prompt) > 0
-        assert "@skills/ralph-iteration/SKILL.md" in captured_prompt[0]
+        assert "@skills/ralph/iteration/SKILL.md" in captured_prompt[0]
 
 
 class TestTasksJsonExtraction:
@@ -946,3 +946,81 @@ class TestInitGitInitialization:
 
         assert result.exit_code == 0
         assert "Initialized git repository" not in result.output
+
+
+class TestCommandSkillPaths:
+    """Tests verifying that commands use the new nested skill paths."""
+
+    def test_prd_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
+        """Test that prd command uses ralph/prd skill path."""
+        from ralph.commands.prd import _build_prompt_from_skill
+
+        skill_dir = tmp_path / "skills" / "ralph" / "prd"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# PRD Skill")
+
+        output_path = tmp_path / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(tmp_path, output_path)
+
+        assert "@skills/ralph/prd/SKILL.md" in prompt
+
+    def test_tasks_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
+        """Test that tasks command uses ralph/tasks skill path."""
+        from ralph.commands.tasks import _build_prompt_from_skill
+
+        skill_dir = tmp_path / "skills" / "ralph" / "tasks"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Tasks Skill")
+
+        prompt = _build_prompt_from_skill(tmp_path, "Test spec content")
+
+        assert "@skills/ralph/tasks/SKILL.md" in prompt
+
+    def test_once_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
+        """Test that once command uses ralph/iteration skill path."""
+        from ralph.commands.once import _build_prompt_from_skill
+        from ralph.models import UserStory
+
+        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
+
+        story = UserStory(
+            id="US-001",
+            title="Test story",
+            description="Test description",
+            acceptance_criteria=["Criterion 1"],
+            priority=1,
+            passes=False,
+            notes="",
+        )
+
+        prompt = _build_prompt_from_skill(tmp_path, story, max_fix_attempts=3)
+
+        assert "@skills/ralph/iteration/SKILL.md" in prompt
+
+    def test_loop_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
+        """Test that loop command (via once) uses ralph/iteration skill path."""
+        # loop command imports _build_prompt_from_skill from once
+        from ralph.commands.once import _build_prompt_from_skill
+        from ralph.models import UserStory
+
+        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
+
+        story = UserStory(
+            id="US-002",
+            title="Another story",
+            description="Another description",
+            acceptance_criteria=["Criterion A", "Criterion B"],
+            priority=2,
+            passes=False,
+            notes="",
+        )
+
+        prompt = _build_prompt_from_skill(tmp_path, story, max_fix_attempts=3)
+
+        assert "@skills/ralph/iteration/SKILL.md" in prompt
+        assert "US-002" in prompt
+        assert "Another story" in prompt

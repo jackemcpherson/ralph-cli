@@ -170,7 +170,7 @@ def _find_next_story(tasks: TasksFile) -> UserStory | None:
 
 
 def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attempts: int) -> str:
-    """Build the prompt by referencing the ralph-iteration skill and adding context.
+    """Build the prompt by referencing the ralph/iteration skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -181,7 +181,7 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
         The prompt string for Claude.
 
     Raises:
-        SkillNotFoundError: If the ralph-iteration skill is not found.
+        SkillNotFoundError: If the ralph/iteration skill is not found.
     """
     criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
 
@@ -210,7 +210,7 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
     ]
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph-iteration", context)
+    return build_skill_prompt(project_root, "ralph/iteration", context)
 
 
 def _append_cli_summary(

@@ -236,7 +236,7 @@ def _run_non_interactive(
 def _build_prompt_from_skill(
     project_root: Path, output_path: Path, feature_description: str | None = None
 ) -> str:
-    """Build the prompt by referencing the ralph-prd skill and adding context.
+    """Build the prompt by referencing the ralph/prd skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -247,7 +247,7 @@ def _build_prompt_from_skill(
         The prompt string for Claude.
 
     Raises:
-        SkillNotFoundError: If the ralph-prd skill is not found.
+        SkillNotFoundError: If the ralph/prd skill is not found.
     """
     # Build context section
     context_lines = [
@@ -285,4 +285,4 @@ def _build_prompt_from_skill(
         )
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph-prd", context)
+    return build_skill_prompt(project_root, "ralph/prd", context)
