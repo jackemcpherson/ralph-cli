@@ -11,7 +11,6 @@ from pathlib import Path
 import typer
 
 from ralph.commands.once import (
-    PERMISSIONS_SYSTEM_PROMPT,
     _build_prompt_from_skill,
     _find_next_story,
 )
@@ -162,7 +161,6 @@ def loop(
                 prompt,
                 stream=True,
                 skip_permissions=True,
-                append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
             )
         except ClaudeError as e:
             print_error(f"Claude error: {e}")

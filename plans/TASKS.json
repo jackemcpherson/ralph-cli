@@ -139,8 +139,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Cleanup pass after command refactors"
+      "passes": true,
+      "notes": "Removed PERMISSIONS_SYSTEM_PROMPT constant from once.py and loop.py, moved permissions text into ralph-iteration skill file"
     },
     {
       "id": "US-010",

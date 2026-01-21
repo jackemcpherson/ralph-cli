@@ -323,3 +323,44 @@
 ---
 
 [Ralph Loop] 2026-01-21 09:30 UTC - Iteration 8: US-008 (Refactor ralph loop to use skill loading) completed
+[Ralph Loop] 2026-01-21 09:26 UTC - Iteration 8: US-008 (Refactor ralph loop to use skill loading) completed
+
+---
+
+## 2026-01-21 - US-009
+
+**Story:** Remove redundant prompt code
+
+### What was implemented
+- Removed `PERMISSIONS_SYSTEM_PROMPT` constant from `once.py` (lines 19-29)
+- Removed `append_system_prompt=PERMISSIONS_SYSTEM_PROMPT` parameter from Claude calls in both `once.py` and `loop.py`
+- Updated `loop.py` imports to no longer import `PERMISSIONS_SYSTEM_PROMPT`
+- Added the permissions text directly to the `ralph-iteration` skill file (`skills/ralph-iteration/SKILL.md`)
+- Consolidated the skill file by removing redundant "Your Process" section (replaced by "Your Task" section)
+
+### Tests written
+- Replaced `TestAppendSystemPromptIntegration` class with `TestPermissionsInSkillContent` class containing:
+  - `test_once_prompt_contains_permissions_text` - Verifies permissions text in prompt
+  - `test_loop_prompt_contains_permissions_text` - Verifies permissions text in loop prompt
+  - `test_once_does_not_use_append_system_prompt` - Verifies no --append-system-prompt flag
+  - `test_loop_does_not_use_append_system_prompt` - Verifies no --append-system-prompt flag
+- Removed obsolete tests that relied on `PERMISSIONS_SYSTEM_PROMPT` constant:
+  - `test_once_passes_append_system_prompt` from test_once.py
+  - `test_loop_passes_append_system_prompt` from test_loop.py
+- Updated `project_with_tasks` fixture to include permissions text in skill
+
+### Files changed
+- `src/ralph/commands/once.py` (removed PERMISSIONS_SYSTEM_PROMPT constant)
+- `src/ralph/commands/loop.py` (updated imports, removed append_system_prompt)
+- `skills/ralph-iteration/SKILL.md` (added permissions text, consolidated structure)
+- `tests/test_commands/test_once.py` (removed import and test)
+- `tests/test_commands/test_loop.py` (removed import and test)
+- `tests/test_integration/test_autonomous_iteration.py` (replaced test class, updated fixture)
+- `plans/TASKS.json` (marked US-009 as passes: true)
+
+### Learnings for future iterations
+- The `append_system_prompt` Claude CLI parameter is for runtime configuration, but the permissions text is better embedded directly in the skill content for single-source-of-truth
+- When moving constants from Python to skill files, update all test fixtures that mock the skill content to include the new content
+- Integration tests that verify specific CLI flags need to be updated when behavior changes (e.g., from append_system_prompt to skill content)
+
+---

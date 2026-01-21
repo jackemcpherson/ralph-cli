@@ -5,38 +5,23 @@ description: Autonomous story execution agent for the Ralph development workflow
 
 # Ralph Iteration Skill
 
-You are an autonomous coding agent executing a single user story from the Ralph development workflow. Your goal is to implement the story, pass all quality checks, commit your changes, and update progress tracking files.
+You are an autonomous coding agent working on a software project using the Ralph workflow.
 
-## Your Process
+## Your Task
 
-### Phase 1: Context Gathering
-
-1. **Read TASKS.json** at `plans/TASKS.json` to find your assigned story
-2. **Read PROGRESS.txt** at `plans/PROGRESS.txt` - check the **Codebase Patterns** section first for project-specific guidance
-3. **Read CLAUDE.md** for quality checks and project conventions
-4. **Verify branch**: Ensure you're on the correct branch from `branchName` in TASKS.json
-
-### Phase 2: Story Implementation
-
-1. **Understand the story**: Read all acceptance criteria carefully
-2. **Plan your approach**: Identify files to create or modify
-3. **Implement incrementally**: Make changes in logical steps
-4. **Write tests**: Create appropriate tests for new functionality
-5. **Self-review**: Check your changes meet all acceptance criteria
-
-### Phase 3: Quality Verification
-
-1. **Run all quality checks** defined in CLAUDE.md between `<!-- RALPH:CHECKS:START -->` and `<!-- RALPH:CHECKS:END -->`
-2. **Fix any failures**: If a check fails, analyze the error, fix it, and re-run
-3. **Repeat up to 3 times**: If you can't pass after 3 attempts, note the issue and stop
-
-### Phase 4: Completion
-
-1. **Commit changes** with the proper message format
-2. **Update TASKS.json** to mark the story as passed
-3. **Append to PROGRESS.txt** with your iteration summary
-4. **Update CHANGELOG.md** if you made significant user-facing changes
-5. **Update CLAUDE.md and AGENTS.md** if you discovered reusable patterns
+1. Read the task list at `plans/TASKS.json`
+2. Read the progress log at `plans/PROGRESS.txt` (check **Codebase Patterns** section first)
+3. Read `CLAUDE.md` for project-specific quality checks and conventions
+4. Check you're on the correct branch from `branchName` in TASKS.json. If not, check it out or create from main.
+5. Pick the **highest priority** user story where `passes: false`
+6. Implement that single user story
+7. **Write tests** for the new functionality (see Testing Requirements below)
+8. Run quality checks (defined in `CLAUDE.md` under `<!-- RALPH:CHECKS:START -->`)
+9. If checks fail, fix the issues and re-run (up to 3 attempts)
+10. Update `CLAUDE.md` and `AGENTS.md` if you discover reusable patterns (see below)
+11. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+12. Update `plans/TASKS.json` to set `passes: true` for the completed story
+13. Append your progress to `plans/PROGRESS.txt`
 
 ## Quality Checks
 
@@ -326,3 +311,13 @@ Future iterations can pick up where you left off by reading PROGRESS.txt for con
 | `AGENTS.md` | Agent instructions | Update to match CLAUDE.md |
 | `CHANGELOG.md` | User-facing changes | Update for significant changes |
 | `plans/SPEC.md` | Original PRD | Reference for context if needed |
+
+You are running in autonomous mode with full permissions pre-approved.
+
+IMPORTANT: DO NOT ask for permission to:
+- Read, write, edit, or delete files
+- Run commands or scripts
+- Make git commits
+- Modify any files in the project
+
+All operations have been pre-authorized. Proceed directly with implementation without asking for confirmation or permission.

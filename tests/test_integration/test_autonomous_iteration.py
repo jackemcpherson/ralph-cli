@@ -66,13 +66,21 @@ def project_with_tasks(tmp_path: Path, sample_tasks: dict) -> Path:
     progress_file = plans_dir / "PROGRESS.txt"
     progress_file.write_text("# Progress Log\n\n")
 
-    # Create ralph-iteration skill
+    # Create ralph-iteration skill with permissions text
     skills_dir = tmp_path / "skills" / "ralph-iteration"
     skills_dir.mkdir(parents=True)
     (skills_dir / "SKILL.md").write_text(
         "---\nname: ralph-iteration\ndescription: Test iteration skill\n---\n\n"
         "# Ralph Iteration Skill\n\nYou are an autonomous coding agent.\n"
-        "Output <ralph>COMPLETE</ralph> when done.\n"
+        "Output <ralph>COMPLETE</ralph> when done.\n\n"
+        "You are running in autonomous mode with full permissions pre-approved.\n\n"
+        "IMPORTANT: DO NOT ask for permission to:\n"
+        "- Read, write, edit, or delete files\n"
+        "- Run commands or scripts\n"
+        "- Make git commits\n"
+        "- Modify any files in the project\n\n"
+        "All operations have been pre-authorized. Proceed directly with implementation "
+        "without asking for confirmation or permission.\n"
     )
 
     return tmp_path
@@ -711,13 +719,95 @@ class TestStreamingOutputIntegration:
             os.chdir(original_cwd)
 
 
-class TestAppendSystemPromptIntegration:
-    """Integration tests for append_system_prompt permissions prompt."""
+class TestPermissionsInSkillContent:
+    """Integration tests for permissions text in skill content.
 
-    def test_once_includes_append_system_prompt(
+    The permissions text (autonomous mode, DO NOT ask for permissions, etc.)
+    is now included directly in the ralph-iteration skill file content,
+    rather than being passed via --append-system-prompt.
+    """
+
+    def test_once_prompt_contains_permissions_text(
         self, runner: CliRunner, project_with_tasks: Path
     ) -> None:
-        """Test that ralph once includes --append-system-prompt flag."""
+        """Test that the prompt sent to Claude contains permissions instructions."""
+        original_cwd = os.getcwd()
+        captured_prompt: str = ""
+
+        def mock_popen(args: list[str], **kwargs):
+            nonlocal captured_prompt
+            # The prompt is passed as a positional arg after --print
+            if "--print" in args:
+                print_idx = args.index("--print")
+                captured_prompt = args[print_idx + 1]
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
+                runner.invoke(app, ["once"])
+
+            # Verify the prompt contains key permission instructions
+            assert "autonomous mode" in captured_prompt.lower()
+            assert "DO NOT ask" in captured_prompt
+            assert "pre-authorized" in captured_prompt.lower()
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_prompt_contains_permissions_text(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that loop prompt contains permissions instructions."""
+        original_cwd = os.getcwd()
+        captured_prompt: str = ""
+
+        def mock_popen(args: list[str], **kwargs):
+            nonlocal captured_prompt
+            if "--print" in args:
+                print_idx = args.index("--print")
+                captured_prompt = args[print_idx + 1]
+            mock_process = MagicMock()
+            json_event = (
+                '{"type":"assistant","message":{"content":'
+                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
+            )
+            mock_process.stdout = StringIO(json_event)
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+            ):
+                runner.invoke(app, ["loop", "1"])
+
+            # Verify the prompt contains key permission instructions
+            assert "autonomous mode" in captured_prompt.lower()
+            assert "DO NOT ask" in captured_prompt
+            assert "pre-authorized" in captured_prompt.lower()
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_does_not_use_append_system_prompt(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that once no longer uses --append-system-prompt flag."""
         original_cwd = os.getcwd()
         captured_args: list[str] = []
 
@@ -741,14 +831,15 @@ class TestAppendSystemPromptIntegration:
             ):
                 runner.invoke(app, ["once"])
 
-            assert "--append-system-prompt" in captured_args
+            # Should NOT use --append-system-prompt
+            assert "--append-system-prompt" not in captured_args
         finally:
             os.chdir(original_cwd)
 
-    def test_loop_includes_append_system_prompt(
+    def test_loop_does_not_use_append_system_prompt(
         self, runner: CliRunner, project_with_tasks: Path
     ) -> None:
-        """Test that ralph loop includes --append-system-prompt flag."""
+        """Test that loop no longer uses --append-system-prompt flag."""
         original_cwd = os.getcwd()
         captured_args: list[str] = []
 
@@ -774,139 +865,7 @@ class TestAppendSystemPromptIntegration:
             ):
                 runner.invoke(app, ["loop", "1"])
 
-            assert "--append-system-prompt" in captured_args
-        finally:
-            os.chdir(original_cwd)
-
-    def test_once_append_system_prompt_contains_permissions_text(
-        self, runner: CliRunner, project_with_tasks: Path
-    ) -> None:
-        """Test that the append_system_prompt contains permissions instructions."""
-        original_cwd = os.getcwd()
-        captured_args: list[str] = []
-
-        def mock_popen(args: list[str], **kwargs):
-            captured_args.extend(args)
-            mock_process = MagicMock()
-            json_event = (
-                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
-            )
-            mock_process.stdout = StringIO(json_event)
-            mock_process.stderr = StringIO("")
-            mock_process.wait.return_value = 0
-            return mock_process
-
-        try:
-            os.chdir(project_with_tasks)
-
-            with (
-                patch("shutil.which", return_value="/usr/bin/claude"),
-                patch("subprocess.Popen", side_effect=mock_popen),
-            ):
-                runner.invoke(app, ["once"])
-
-            # Find the append_system_prompt value
-            asp_idx = captured_args.index("--append-system-prompt")
-            prompt_value = captured_args[asp_idx + 1]
-
-            # Verify it contains key permission instructions
-            assert "autonomous mode" in prompt_value.lower()
-            assert "permission" in prompt_value.lower()
-            assert "DO NOT ask" in prompt_value
-        finally:
-            os.chdir(original_cwd)
-
-    def test_loop_append_system_prompt_contains_permissions_text(
-        self, runner: CliRunner, project_with_tasks: Path
-    ) -> None:
-        """Test that append_system_prompt in loop contains permissions text."""
-        original_cwd = os.getcwd()
-        captured_args: list[str] = []
-
-        def mock_popen(args: list[str], **kwargs):
-            captured_args.extend(args)
-            mock_process = MagicMock()
-            json_event = (
-                '{"type":"assistant","message":{"content":'
-                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
-            )
-            mock_process.stdout = StringIO(json_event)
-            mock_process.stderr = StringIO("")
-            mock_process.wait.return_value = 0
-            return mock_process
-
-        try:
-            os.chdir(project_with_tasks)
-
-            with (
-                patch("shutil.which", return_value="/usr/bin/claude"),
-                patch("subprocess.Popen", side_effect=mock_popen),
-                patch("ralph.commands.loop._setup_branch", return_value=True),
-            ):
-                runner.invoke(app, ["loop", "1"])
-
-            # Find the append_system_prompt value
-            asp_idx = captured_args.index("--append-system-prompt")
-            prompt_value = captured_args[asp_idx + 1]
-
-            # Verify it contains key permission instructions
-            assert "autonomous mode" in prompt_value.lower()
-            assert "permission" in prompt_value.lower()
-            assert "DO NOT ask" in prompt_value
-        finally:
-            os.chdir(original_cwd)
-
-    def test_once_and_loop_use_same_permissions_prompt(
-        self, runner: CliRunner, project_with_tasks: Path
-    ) -> None:
-        """Test that once and loop use the same PERMISSIONS_SYSTEM_PROMPT."""
-        original_cwd = os.getcwd()
-        once_prompt: str = ""
-        loop_prompt: str = ""
-
-        def capture_once_args(args: list[str], **kwargs):
-            nonlocal once_prompt
-            asp_idx = args.index("--append-system-prompt")
-            once_prompt = args[asp_idx + 1]
-            mock_process = MagicMock()
-            json_event = (
-                '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
-            )
-            mock_process.stdout = StringIO(json_event)
-            mock_process.stderr = StringIO("")
-            mock_process.wait.return_value = 0
-            return mock_process
-
-        def capture_loop_args(args: list[str], **kwargs):
-            nonlocal loop_prompt
-            asp_idx = args.index("--append-system-prompt")
-            loop_prompt = args[asp_idx + 1]
-            mock_process = MagicMock()
-            json_event = (
-                '{"type":"assistant","message":{"content":'
-                '[{"type":"text","text":"<ralph>COMPLETE</ralph>"}]}}'
-            )
-            mock_process.stdout = StringIO(json_event)
-            mock_process.stderr = StringIO("")
-            mock_process.wait.return_value = 0
-            return mock_process
-
-        try:
-            os.chdir(project_with_tasks)
-
-            # Capture once prompt
-            with patch("subprocess.Popen", side_effect=capture_once_args):
-                runner.invoke(app, ["once"])
-
-            # Capture loop prompt
-            with (
-                patch("subprocess.Popen", side_effect=capture_loop_args),
-                patch("ralph.commands.loop._setup_branch", return_value=True),
-            ):
-                runner.invoke(app, ["loop", "1"])
-
-            # Both should use the exact same prompt
-            assert once_prompt == loop_prompt
-            assert len(once_prompt) > 0  # Ensure we actually captured something
+            # Should NOT use --append-system-prompt
+            assert "--append-system-prompt" not in captured_args
         finally:
             os.chdir(original_cwd)

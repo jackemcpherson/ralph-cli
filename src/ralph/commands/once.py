@@ -16,18 +16,6 @@ from ralph.utils import append_file, console, file_exists, print_error, print_su
 
 logger = logging.getLogger(__name__)
 
-PERMISSIONS_SYSTEM_PROMPT = """\
-You are running in autonomous mode with full permissions pre-approved.
-
-IMPORTANT: DO NOT ask for permission to:
-- Read, write, edit, or delete files
-- Run commands or scripts
-- Make git commits
-- Modify any files in the project
-
-All operations have been pre-authorized. Proceed directly with implementation \
-without asking for confirmation or permission."""
-
 
 def once(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full JSON output"),
@@ -103,7 +91,6 @@ def once(
             prompt,
             stream=True,
             skip_permissions=True,
-            append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
         )
 
         if exit_code != 0:
