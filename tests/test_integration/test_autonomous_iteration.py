@@ -56,7 +56,7 @@ def sample_tasks() -> dict:
 
 @pytest.fixture
 def project_with_tasks(tmp_path: Path, sample_tasks: dict) -> Path:
-    """Create a project directory with TASKS.json and PROGRESS.txt."""
+    """Create a project directory with TASKS.json, PROGRESS.txt, and skill."""
     plans_dir = tmp_path / "plans"
     plans_dir.mkdir()
 
@@ -65,6 +65,15 @@ def project_with_tasks(tmp_path: Path, sample_tasks: dict) -> Path:
 
     progress_file = plans_dir / "PROGRESS.txt"
     progress_file.write_text("# Progress Log\n\n")
+
+    # Create ralph-iteration skill
+    skills_dir = tmp_path / "skills" / "ralph-iteration"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "SKILL.md").write_text(
+        "---\nname: ralph-iteration\ndescription: Test iteration skill\n---\n\n"
+        "# Ralph Iteration Skill\n\nYou are an autonomous coding agent.\n"
+        "Output <ralph>COMPLETE</ralph> when done.\n"
+    )
 
     return tmp_path
 

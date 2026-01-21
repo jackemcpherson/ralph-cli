@@ -10,9 +10,13 @@ from pathlib import Path
 
 import typer
 
-from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
+from ralph.commands.once import (
+    PERMISSIONS_SYSTEM_PROMPT,
+    _build_prompt_from_skill,
+    _find_next_story,
+)
 from ralph.models import load_tasks
-from ralph.services import ClaudeError, ClaudeService, GitError, GitService
+from ralph.services import ClaudeError, ClaudeService, GitError, GitService, SkillNotFoundError
 from ralph.utils import (
     append_file,
     console,
@@ -145,7 +149,12 @@ def loop(
         print_step(iteration_num, iterations, f"[cyan]{next_story.id}[/cyan]: {next_story.title}")
         console.print()
 
-        prompt = _build_iteration_prompt(next_story, max_fix_attempts)
+        try:
+            prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
+        except SkillNotFoundError as e:
+            print_error(f"Skill not found: {e}")
+            stop_reason = LoopStopReason.TRANSIENT_FAILURE
+            break
 
         try:
             claude = ClaudeService(working_dir=project_root, verbose=verbose)

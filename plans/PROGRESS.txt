@@ -248,3 +248,47 @@
 ---
 
 [Ralph Loop] 2026-01-21 - Iteration 6: US-006 (Refactor ralph tasks to use skill loading) completed
+
+[Ralph Loop] 2026-01-21 09:15 UTC - Iteration 6: US-006 (Refactor ralph tasks to use skill loading) completed
+
+---
+
+## 2026-01-21 - US-007
+
+**Story:** Refactor ralph once to use skill loading
+
+### What was implemented
+- Replaced `ITERATION_PROMPT` constant (200+ lines) with skill loading via `SkillLoader`
+- Replaced `_build_iteration_prompt()` function with `_build_prompt_from_skill()`
+- New function loads `ralph-iteration` skill content and appends story context section
+- Added `SkillNotFoundError` handling to display clear error message if skill is missing
+- Updated `loop.py` to use `_build_prompt_from_skill` from `once.py` (since it imports from once)
+- Updated all test fixtures to include ralph-iteration skill directory
+
+### Tests written
+- Updated `TestBuildIterationPrompt` class to `TestBuildPromptFromSkill` with skill-based tests:
+  - `test_prompt_includes_story_details` - Verifies story ID, title, description are in prompt
+  - `test_prompt_includes_acceptance_criteria` - Verifies acceptance criteria are in prompt
+  - `test_prompt_includes_max_fix_attempts` - Verifies max fix attempts value is in prompt
+  - `test_prompt_loads_skill_content` - Verifies skill content is loaded
+  - `test_prompt_includes_context_section` - Verifies context section is added
+  - `test_raises_when_skill_not_found` - Verifies SkillNotFoundError raised
+- Added `test_once_handles_skill_not_found` to TestOnceCommand
+- Added `test_loop_handles_skill_not_found` to TestLoopCommand
+- Created `initialized_project_with_skill` fixture for tests that invoke once/loop commands
+- Updated integration test fixtures in `test_autonomous_iteration.py` and `test_command_integration.py`
+
+### Files changed
+- `src/ralph/commands/once.py` (refactored to use SkillLoader)
+- `src/ralph/commands/loop.py` (updated imports and function call)
+- `tests/test_commands/test_once.py` (updated test classes and fixtures)
+- `tests/test_commands/test_loop.py` (removed TestBuildIterationPrompt, updated fixtures)
+- `tests/test_integration/test_autonomous_iteration.py` (added skill to project fixture)
+- `tests/test_integration/test_command_integration.py` (added skill to project fixture)
+
+### Learnings for future iterations
+- When a function is imported from another module (like once.py exports functions used by loop.py), the refactor must update both files
+- Integration tests with their own fixtures need the skill directory added to those fixtures
+- The skill loading pattern is consistent: load skill, build context section with parameters, concatenate and return
+
+---

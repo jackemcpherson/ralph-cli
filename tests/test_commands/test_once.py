@@ -5,12 +5,37 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from ralph.cli import app
-from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
+from ralph.commands.once import (
+    PERMISSIONS_SYSTEM_PROMPT,
+    _build_prompt_from_skill,
+    _find_next_story,
+)
 from ralph.models import TasksFile, UserStory
-from ralph.services import ClaudeError
+from ralph.services import ClaudeError, SkillNotFoundError
+
+
+@pytest.fixture
+def initialized_project_with_skill(initialized_project: Path) -> Path:
+    """Create an initialized project with ralph-iteration skill.
+
+    Args:
+        initialized_project: Initialized project with plans/TASKS.json.
+
+    Returns:
+        Path to the project directory with skill added.
+    """
+    # Create skills directory with ralph-iteration skill
+    skills_dir = initialized_project / "skills" / "ralph-iteration"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "SKILL.md").write_text(
+        "---\nname: ralph-iteration\ndescription: Test iteration skill\n---\n\n"
+        "# Ralph Iteration Skill\n\nYou are an autonomous coding agent.\n"
+    )
+    return initialized_project
 
 
 class TestOnceCommand:
@@ -29,11 +54,13 @@ class TestOnceCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_once_displays_story_info(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_once_displays_story_info(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that once displays the story to implement."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -49,12 +76,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_picks_highest_priority_incomplete_story(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once picks the highest priority incomplete story."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -92,12 +119,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_runs_claude_in_print_mode(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once runs Claude in print mode with streaming."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -115,11 +142,13 @@ class TestOnceCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_once_handles_claude_error(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_once_handles_claude_error(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that once handles ClaudeError gracefully."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -133,11 +162,13 @@ class TestOnceCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_once_shows_remaining_count(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_once_shows_remaining_count(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that once shows remaining story count."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -152,12 +183,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_detects_all_complete_signal(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once detects the <ralph>COMPLETE</ralph> signal."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -173,11 +204,13 @@ class TestOnceCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_once_with_verbose_flag(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_once_with_verbose_flag(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that once passes verbose flag to ClaudeService."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -192,12 +225,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_includes_max_fix_attempts_in_prompt(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once includes max-fix-attempts in the prompt."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -215,19 +248,19 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_detects_story_passed(
-        self, runner: CliRunner, initialized_project: Path, sample_tasks_json: dict
+        self, runner: CliRunner, initialized_project_with_skill: Path, sample_tasks_json: dict
     ) -> None:
         """Test that once detects when a story passes."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             # Simulate Claude marking the story as passed
             updated_tasks = sample_tasks_json.copy()
             updated_tasks["userStories"][1]["passes"] = True
 
             def update_tasks_file(*args, **kwargs):
-                tasks_file = initialized_project / "plans" / "TASKS.json"
+                tasks_file = initialized_project_with_skill / "plans" / "TASKS.json"
                 tasks_file.write_text(json.dumps(updated_tasks, indent=2))
                 return ("Output", 0)
 
@@ -262,12 +295,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_passes_skip_permissions_true(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once passes skip_permissions=True to ClaudeService."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -283,12 +316,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_displays_permissions_message(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once displays the auto-approved permissions message."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -304,12 +337,12 @@ class TestOnceCommand:
             os.chdir(original_cwd)
 
     def test_once_passes_append_system_prompt(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that once passes PERMISSIONS_SYSTEM_PROMPT to run_print_mode."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.once.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -321,6 +354,22 @@ class TestOnceCommand:
             # Verify append_system_prompt was passed
             call_kwargs = mock_instance.run_print_mode.call_args.kwargs
             assert call_kwargs.get("append_system_prompt") == PERMISSIONS_SYSTEM_PROMPT
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_handles_skill_not_found(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that once handles missing skill gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            # No skill directory, so skill won't be found
+            result = runner.invoke(app, ["once"])
+
+            assert result.exit_code == 1
+            assert "Skill not found" in result.output
         finally:
             os.chdir(original_cwd)
 
@@ -422,10 +471,31 @@ class TestFindNextStory:
         assert result.id == "US-001"
 
 
-class TestBuildIterationPrompt:
-    """Tests for the _build_iteration_prompt helper function."""
+class TestBuildPromptFromSkill:
+    """Tests for the _build_prompt_from_skill helper function."""
 
-    def test_prompt_includes_story_details(self) -> None:
+    @pytest.fixture
+    def skill_project(self, tmp_path: Path) -> Path:
+        """Create a project with ralph-iteration skill.
+
+        Args:
+            tmp_path: pytest's built-in tmp_path fixture.
+
+        Returns:
+            Path to the project directory with skill.
+        """
+        skills_dir = tmp_path / "skills" / "ralph-iteration"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "SKILL.md").write_text(
+            "---\nname: ralph-iteration\ndescription: Iteration skill\n---\n\n"
+            "# Ralph Iteration Skill\n\n"
+            "Run quality checks.\n"
+            "Update TASKS.json and PROGRESS.txt.\n"
+            "Output <ralph>COMPLETE</ralph> when done.\n"
+        )
+        return tmp_path
+
+    def test_prompt_includes_story_details(self, skill_project: Path) -> None:
         """Test that prompt includes story ID, title, and description."""
         story = UserStory(
             id="US-042",
@@ -436,13 +506,13 @@ class TestBuildIterationPrompt:
             passes=False,
         )
 
-        prompt = _build_iteration_prompt(story, max_fix_attempts=3)
+        prompt = _build_prompt_from_skill(skill_project, story, max_fix_attempts=3)
 
         assert "US-042" in prompt
         assert "Test Feature" in prompt
         assert "As a user, I want to test" in prompt
 
-    def test_prompt_includes_acceptance_criteria(self) -> None:
+    def test_prompt_includes_acceptance_criteria(self, skill_project: Path) -> None:
         """Test that prompt includes acceptance criteria."""
         story = UserStory(
             id="US-001",
@@ -453,12 +523,12 @@ class TestBuildIterationPrompt:
             passes=False,
         )
 
-        prompt = _build_iteration_prompt(story, max_fix_attempts=3)
+        prompt = _build_prompt_from_skill(skill_project, story, max_fix_attempts=3)
 
         assert "Build must pass" in prompt
         assert "Tests must pass" in prompt
 
-    def test_prompt_includes_max_fix_attempts(self) -> None:
+    def test_prompt_includes_max_fix_attempts(self, skill_project: Path) -> None:
         """Test that prompt includes max fix attempts value."""
         story = UserStory(
             id="US-001",
@@ -468,13 +538,13 @@ class TestBuildIterationPrompt:
             passes=False,
         )
 
-        prompt = _build_iteration_prompt(story, max_fix_attempts=5)
+        prompt = _build_prompt_from_skill(skill_project, story, max_fix_attempts=5)
 
         # The prompt should contain instructions mentioning 5 attempts
         assert "5" in prompt
 
-    def test_prompt_includes_ralph_workflow_instructions(self) -> None:
-        """Test that prompt includes Ralph workflow instructions."""
+    def test_prompt_loads_skill_content(self, skill_project: Path) -> None:
+        """Test that prompt includes skill content."""
         story = UserStory(
             id="US-001",
             title="Test",
@@ -483,13 +553,41 @@ class TestBuildIterationPrompt:
             passes=False,
         )
 
-        prompt = _build_iteration_prompt(story, max_fix_attempts=3)
+        prompt = _build_prompt_from_skill(skill_project, story, max_fix_attempts=3)
 
-        # Check for key workflow elements
-        assert "TASKS.json" in prompt
-        assert "PROGRESS.txt" in prompt
+        # Check for skill content elements
+        assert "Ralph Iteration Skill" in prompt
         assert "quality checks" in prompt.lower()
         assert "<ralph>COMPLETE</ralph>" in prompt
+
+    def test_prompt_includes_context_section(self, skill_project: Path) -> None:
+        """Test that prompt includes context section."""
+        story = UserStory(
+            id="US-001",
+            title="Test",
+            description="Desc",
+            priority=1,
+            passes=False,
+        )
+
+        prompt = _build_prompt_from_skill(skill_project, story, max_fix_attempts=3)
+
+        # Check for context section
+        assert "## Context for This Session" in prompt
+        assert "## Current Story" in prompt
+
+    def test_raises_when_skill_not_found(self, tmp_path: Path) -> None:
+        """Test that _build_prompt_from_skill raises SkillNotFoundError."""
+        story = UserStory(
+            id="US-001",
+            title="Test",
+            description="Desc",
+            priority=1,
+            passes=False,
+        )
+
+        with pytest.raises(SkillNotFoundError):
+            _build_prompt_from_skill(tmp_path, story, max_fix_attempts=3)
 
 
 class TestOnceBoundaryConditions:

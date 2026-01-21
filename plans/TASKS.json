@@ -109,8 +109,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "Most complex command refactor"
+      "passes": true,
+      "notes": "Replaced ITERATION_PROMPT constant and _build_iteration_prompt() with _build_prompt_from_skill() that loads skill and injects story context. Also updated loop.py to use the new function since it imports from once.py."
     },
     {
       "id": "US-008",

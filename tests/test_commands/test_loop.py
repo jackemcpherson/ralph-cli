@@ -11,13 +11,31 @@ from typer.testing import CliRunner
 from ralph.cli import app
 from ralph.commands.loop import (
     LoopStopReason,
-    _build_iteration_prompt,
-    _find_next_story,
     _setup_branch,
 )
-from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT
+from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _find_next_story
 from ralph.models import TasksFile, UserStory
 from ralph.services import ClaudeError, GitError, GitService
+
+
+@pytest.fixture
+def initialized_project_with_skill(initialized_project: Path) -> Path:
+    """Create an initialized project with ralph-iteration skill.
+
+    Args:
+        initialized_project: Initialized project with plans/TASKS.json.
+
+    Returns:
+        Path to the project directory with skill added.
+    """
+    # Create skills directory with ralph-iteration skill
+    skills_dir = initialized_project / "skills" / "ralph-iteration"
+    skills_dir.mkdir(parents=True)
+    (skills_dir / "SKILL.md").write_text(
+        "---\nname: ralph-iteration\ndescription: Test iteration skill\n---\n\n"
+        "# Ralph Iteration Skill\n\nYou are an autonomous coding agent.\n"
+    )
+    return initialized_project
 
 
 class TestLoopCommand:
@@ -36,11 +54,13 @@ class TestLoopCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_loop_displays_project_info(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_loop_displays_project_info(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that loop displays project and branch info."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -82,7 +102,7 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_runs_multiple_iterations(
-        self, runner: CliRunner, initialized_project: Path, sample_tasks_json: dict
+        self, runner: CliRunner, initialized_project_with_skill: Path, sample_tasks_json: dict
     ) -> None:
         """Test that loop runs multiple iterations."""
         original_cwd = os.getcwd()
@@ -94,7 +114,7 @@ class TestLoopCommand:
             return ("Output", 0)
 
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -113,12 +133,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_stops_on_all_complete_signal(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop stops when it detects the COMPLETE signal."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -140,7 +160,7 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_stops_on_max_iterations(
-        self, runner: CliRunner, initialized_project: Path, sample_tasks_json: dict
+        self, runner: CliRunner, initialized_project_with_skill: Path, sample_tasks_json: dict
     ) -> None:
         """Test that loop stops after reaching max iterations."""
         original_cwd = os.getcwd()
@@ -152,12 +172,12 @@ class TestLoopCommand:
             # Mark story as passed by updating the file
             tasks = sample_tasks_json.copy()
             tasks["userStories"][iteration_count]["passes"] = True
-            tasks_file = initialized_project / "plans" / "TASKS.json"
+            tasks_file = initialized_project_with_skill / "plans" / "TASKS.json"
             tasks_file.write_text(json.dumps(tasks, indent=2))
             return ("Output", 0)
 
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -177,12 +197,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_stops_on_persistent_failure(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop stops after 2 consecutive failures on same story."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -201,11 +221,13 @@ class TestLoopCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_loop_handles_claude_error(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_loop_handles_claude_error(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that loop handles ClaudeError as transient failure."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -223,11 +245,13 @@ class TestLoopCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_loop_with_verbose_flag(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_loop_with_verbose_flag(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that loop passes verbose flag to ClaudeService."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -249,12 +273,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_with_custom_iterations(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop accepts custom iterations argument."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -276,12 +300,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_displays_iteration_counter(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop displays iteration counter like '[1/10] Story...'."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -303,12 +327,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_shows_summary_on_completion(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop shows summary when done."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -348,12 +372,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_fails_when_branch_setup_fails(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop fails when branch setup fails."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with patch("ralph.commands.loop._setup_branch") as mock_setup:
                 mock_setup.return_value = False
@@ -366,12 +390,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_passes_skip_permissions_true(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop passes skip_permissions=True to run_print_mode."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -393,12 +417,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_displays_permissions_message(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop displays the auto-approved permissions message."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -419,12 +443,12 @@ class TestLoopCommand:
             os.chdir(original_cwd)
 
     def test_loop_passes_append_system_prompt(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop passes PERMISSIONS_SYSTEM_PROMPT to run_print_mode."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -443,6 +467,24 @@ class TestLoopCommand:
             # Verify append_system_prompt was passed
             call_kwargs = mock_instance.run_print_mode.call_args.kwargs
             assert call_kwargs.get("append_system_prompt") == PERMISSIONS_SYSTEM_PROMPT
+        finally:
+            os.chdir(original_cwd)
+
+    def test_loop_handles_skill_not_found(
+        self, runner: CliRunner, initialized_project: Path
+    ) -> None:
+        """Test that loop handles missing skill gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(initialized_project)
+
+            with patch("ralph.commands.loop._setup_branch") as mock_setup:
+                mock_setup.return_value = True
+
+                result = runner.invoke(app, ["loop", "1"])
+
+            assert result.exit_code == 1
+            assert "Skill not found" in result.output
         finally:
             os.chdir(original_cwd)
 
@@ -617,58 +659,6 @@ class TestFindNextStory:
         assert result.id == "US-001"
 
 
-class TestBuildIterationPrompt:
-    """Tests for the _build_iteration_prompt helper function."""
-
-    def test_prompt_includes_story_details(self) -> None:
-        """Test that prompt includes story ID, title, and description."""
-        story = UserStory(
-            id="US-042",
-            title="Test Feature",
-            description="As a user, I want to test",
-            acceptance_criteria=["Criterion 1", "Criterion 2"],
-            priority=1,
-            passes=False,
-        )
-
-        prompt = _build_iteration_prompt(story, max_fix_attempts=3)
-
-        assert "US-042" in prompt
-        assert "Test Feature" in prompt
-        assert "As a user, I want to test" in prompt
-
-    def test_prompt_includes_acceptance_criteria(self) -> None:
-        """Test that prompt includes acceptance criteria."""
-        story = UserStory(
-            id="US-001",
-            title="Test",
-            description="Desc",
-            acceptance_criteria=["Build must pass", "Tests must pass"],
-            priority=1,
-            passes=False,
-        )
-
-        prompt = _build_iteration_prompt(story, max_fix_attempts=3)
-
-        assert "Build must pass" in prompt
-        assert "Tests must pass" in prompt
-
-    def test_prompt_includes_max_fix_attempts(self) -> None:
-        """Test that prompt includes max fix attempts value."""
-        story = UserStory(
-            id="US-001",
-            title="Test",
-            description="Desc",
-            priority=1,
-            passes=False,
-        )
-
-        prompt = _build_iteration_prompt(story, max_fix_attempts=5)
-
-        # The prompt should contain instructions mentioning 5 attempts
-        assert "5" in prompt
-
-
 class TestLoopStopReason:
     """Tests for the LoopStopReason class."""
 
@@ -685,11 +675,13 @@ class TestLoopStopReason:
 class TestLoopBoundaryConditions:
     """Boundary condition tests for the loop command."""
 
-    def test_loop_with_zero_iterations(self, runner: CliRunner, initialized_project: Path) -> None:
+    def test_loop_with_zero_iterations(
+        self, runner: CliRunner, initialized_project_with_skill: Path
+    ) -> None:
         """Test that loop with zero iterations exits with failure when incomplete stories exist."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
@@ -710,12 +702,12 @@ class TestLoopBoundaryConditions:
             os.chdir(original_cwd)
 
     def test_loop_with_high_iteration_count(
-        self, runner: CliRunner, initialized_project: Path
+        self, runner: CliRunner, initialized_project_with_skill: Path
     ) -> None:
         """Test that loop accepts a high iteration count."""
         original_cwd = os.getcwd()
         try:
-            os.chdir(initialized_project)
+            os.chdir(initialized_project_with_skill)
 
             with (
                 patch("ralph.commands.loop.ClaudeService") as mock_claude,
