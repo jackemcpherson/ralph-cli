@@ -446,3 +446,39 @@
 ---
 
 [Ralph Loop] 2026-01-21 - Iteration 11: US-011 (Final validation and cleanup) completed
+
+---
+
+## 2026-01-21 - @file Reference Refactoring
+
+**Feature:** Use @file references for skill loading
+
+### What was implemented
+- Changed `SkillLoader.load()` to return `Path` instead of file content string
+- Created `build_skill_prompt()` utility in `src/ralph/utils/prompt.py`
+- Prompts now use `@skills/<name>/SKILL.md` references instead of embedding 9500+ chars of skill content
+- Updated `prd.py`, `tasks.py`, and `once.py` commands to use new prompt builder
+- Claude Code will now read skill files directly via its native @file syntax
+
+### Tests written
+- `test_load_returns_skill_path` - Verifies load() returns Path object
+- `test_load_returns_correct_path_structure` - Verifies path has expected structure
+- `test_prompt_starts_with_at_file_reference` - Verifies @file syntax in prompt
+- `test_prompt_includes_context` - Verifies context is appended
+- `test_prompt_raises_for_missing_skill` - Verifies error handling
+- `test_once_prompt_uses_at_file_reference` - Integration test for @file in prompts
+
+### Files changed
+- `src/ralph/services/skill_loader.py` (load() returns Path instead of str)
+- `src/ralph/utils/prompt.py` (new file with build_skill_prompt)
+- `src/ralph/utils/__init__.py` (added export)
+- `src/ralph/commands/prd.py` (uses build_skill_prompt)
+- `src/ralph/commands/tasks.py` (uses build_skill_prompt)
+- `src/ralph/commands/once.py` (uses build_skill_prompt)
+- `tests/test_skill_loader.py` (updated for Path return type)
+- `tests/test_commands_integration.py` (added @file reference tests)
+
+### Learnings for future iterations
+- Claude Code's @file syntax allows referencing files directly without loading content into prompts
+- This reduces prompt size and allows Claude to use its native file reading capabilities
+- The pattern: `Follow the instructions in @<path>\n\n<context>` works well for skill-based prompts

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.0] - 2026-01-21
+
+### Changed
+
+- **Breaking:** `SkillLoader.load()` now returns `Path` instead of file content string
+- Skill loading now uses Claude Code's native `@file` reference syntax instead of embedding skill content in prompts
+- Added `build_skill_prompt()` utility for creating prompts with `@file` references
+- Reduced prompt size significantly by referencing skills instead of inlining them
+
+### Added
+
+- `src/ralph/utils/prompt.py` with `build_skill_prompt()` function
+
 ## [1.2.6] - 2026-01-21
 
 ### Added
