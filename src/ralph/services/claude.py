@@ -39,6 +39,19 @@ class ClaudeService(BaseModel):
     # Flag constants for consistent CLI argument handling
     SKIP_PERMISSIONS_FLAG: ClassVar[str] = "--dangerously-skip-permissions"
 
+    # System prompt for autonomous mode - instructs Claude not to ask for permissions
+    AUTONOMOUS_MODE_PROMPT: ClassVar[str] = """\
+You are running in autonomous mode with full permissions pre-approved.
+
+IMPORTANT: DO NOT ask for permission to:
+- Read, write, edit, or delete files
+- Run commands or scripts
+- Make git commits
+- Modify any files in the project
+
+All operations have been pre-authorized. Proceed directly with implementation \
+without asking for confirmation or permission."""
+
     working_dir: Path | None = None
     verbose: bool = False
     claude_command: str = "claude"
@@ -205,6 +218,7 @@ class ClaudeService(BaseModel):
         prompt: str | None = None,
         *,
         skip_permissions: bool = False,
+        append_system_prompt: str | None = None,
     ) -> int:
         """Run Claude Code in interactive mode.
 
@@ -214,6 +228,7 @@ class ClaudeService(BaseModel):
         Args:
             prompt: Optional initial prompt to start the conversation.
             skip_permissions: Whether to skip permission prompts (default: False).
+            append_system_prompt: Optional text to append to system prompt.
 
         Returns:
             Exit code from the Claude process.
@@ -222,6 +237,9 @@ class ClaudeService(BaseModel):
             ClaudeError: If Claude Code is not installed or fails to start.
         """
         args = self._build_base_args(skip_permissions=skip_permissions)
+
+        if append_system_prompt:
+            args.extend(["--append-system-prompt", append_system_prompt])
 
         if prompt:
             args.append(prompt)

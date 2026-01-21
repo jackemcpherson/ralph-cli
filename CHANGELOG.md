@@ -9,16 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-01-21
 
+### Added
+
+- **Reviewer skills** - Four new code review skills with structured output format:
+  - `python-code-reviewer` - Type hints, docstrings, logging practices
+  - `repo-structure-reviewer` - README, .gitignore, project organization
+  - `github-actions-reviewer` - CI/CD completeness, security, best practices
+  - `test-quality-reviewer` - Meaningful assertions, coverage, anti-patterns
+- `skills/REVIEWER_TEMPLATE.md` - Template for creating reviewer-type skills
+- `skills/SKILL_TEMPLATE.md` - General skill authoring template
+- `src/ralph/utils/prompt.py` with `build_skill_prompt()` function
+- Structured review output format with `<ralph-review>PASS|NEEDS_WORK</ralph-review>` verdict tags
+
 ### Changed
 
 - **Breaking:** `SkillLoader.load()` now returns `Path` instead of file content string
 - Skill loading now uses Claude Code's native `@file` reference syntax instead of embedding skill content in prompts
-- Added `build_skill_prompt()` utility for creating prompts with `@file` references
 - Reduced prompt size significantly by referencing skills instead of inlining them
+- Refactored all commands (prd, tasks, once, loop) to use skill-based prompts
+- Replaced 682 tests with focused 48-test suite covering behavior not implementation
 
-### Added
+### Removed
 
-- `src/ralph/utils/prompt.py` with `build_skill_prompt()` function
+- Embedded prompt templates from command files (now in skill files)
+- `PERMISSIONS_SYSTEM_PROMPT` constant (permissions now embedded in skills)
 
 ## [1.2.6] - 2026-01-21
 

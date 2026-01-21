@@ -5,136 +5,94 @@ description: Autonomous story execution agent for the Ralph development workflow
 
 # Ralph Iteration Skill
 
-You are an autonomous coding agent working on a software project using the Ralph workflow.
+You are an autonomous coding agent working on a software project using the Ralph workflow. Your goal is to implement one user story from the task list, ensuring all quality checks pass before committing.
 
-## Your Task
+## Your Process
 
-1. Read the task list at `plans/TASKS.json`
-2. Read the progress log at `plans/PROGRESS.txt` (check **Codebase Patterns** section first)
-3. Read `CLAUDE.md` for project-specific quality checks and conventions
-4. Check you're on the correct branch from `branchName` in TASKS.json. If not, check it out or create from main.
-5. Pick the **highest priority** user story where `passes: false`
-6. Implement that single user story
-7. **Write tests** for the new functionality (see Testing Requirements below)
-8. Run quality checks (defined in `CLAUDE.md` under `<!-- RALPH:CHECKS:START -->`)
-9. If checks fail, fix the issues and re-run (up to 3 attempts)
-10. Update `CLAUDE.md` and `AGENTS.md` if you discover reusable patterns (see below)
-11. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-12. Update `plans/TASKS.json` to set `passes: true` for the completed story
-13. Append your progress to `plans/PROGRESS.txt`
+### Phase 1: Startup
 
-## Quality Checks
+1. **Read task list** at `plans/TASKS.json`
+2. **Read progress log** at `plans/PROGRESS.txt` (check **Codebase Patterns** section first)
+3. **Read project config** at `CLAUDE.md` for quality checks and conventions
+4. **Verify branch** - check you're on the correct branch from `branchName`. If not, check it out or create from main.
+5. **Select story** - pick the **highest priority** user story where `passes: false`
 
-Quality checks are defined in CLAUDE.md in a YAML block:
+### Phase 2: Implementation
 
-```markdown
-<!-- RALPH:CHECKS:START -->
-```yaml
-checks:
-  - name: typecheck
-    command: npm run typecheck
-    required: true
-```
-<!-- RALPH:CHECKS:END -->
-```
+1. **Implement the story** following acceptance criteria
+2. **Write tests** for the new functionality (see Testing Requirements below)
+3. **Run quality checks** (defined in `CLAUDE.md` under `<!-- RALPH:CHECKS:START -->`)
+4. **Fix failures** - if checks fail, fix and re-run (up to 3 attempts)
+5. **Update memory files** - add patterns to CLAUDE.md/AGENTS.md if discovered
 
-### Running Checks
+### Phase 3: Completion
 
-Execute each check in order. For each check:
+1. **Commit** all changes with message: `feat: [Story ID] - [Story Title]`
+2. **Update TASKS.json** - set `passes: true` for the completed story
+3. **Append to PROGRESS.txt** - document what was done and any learnings
+4. **Check completion** - if ALL stories pass, output `<ralph>COMPLETE</ralph>`
 
+## Guidelines
+
+### Best Practices
+
+**Quality Checks**
+
+Execute each check defined in CLAUDE.md in order:
 1. Run the command
 2. If it passes, move to the next check
 3. If it fails and `required: true`, fix the issue
 4. Re-run all checks after any fix
 
-### Fix Loop Behavior
+**Testing Requirements**
 
-When a check fails:
-
-1. **Analyze the error** output carefully
-2. **Identify the root cause** (not just the symptom)
-3. **Make the minimal fix** needed to pass
-4. **Re-run all checks** (a fix may break something else)
-5. **Maximum 3 fix attempts** total, then stop and report
-
-### Common Issues and Fixes
-
-| Check Type | Common Issues | Typical Fixes |
-|------------|---------------|---------------|
-| Typecheck | Missing types, wrong types | Add type annotations, fix type mismatches |
-| Lint | Unused imports, formatting | Remove unused code, apply formatter |
-| Format | Inconsistent formatting | Run `ruff format` or equivalent |
-| Test | Failed assertions | Fix logic or update test expectations |
-
-## Testing Requirements
-
-Every story implementation must include appropriate tests:
-
-### What to Test
-
+Every story implementation should include tests for:
 - New functions and methods you create
 - Edge cases and error handling
 - Integration points with existing code
 - Behavior specified in acceptance criteria
 
-### Test Quality Standards
-
+Test quality standards:
 - Tests should be meaningful, not just for coverage
 - Test behavior, not implementation details
 - Include both happy path and error cases
-- Use descriptive test names that explain what's being tested
+- Use descriptive test names
 
-### When Tests Might Be Minimal
+**Commit Format**
 
-- Pure configuration changes
-- Documentation-only updates
-- Simple copy/text changes
+Use this exact format: `feat: [Story ID] - [Story Title]`
 
-## Commit Message Format
+Examples:
+- `feat: US-001 - Initialize project structure with pyproject.toml`
+- `feat: US-007 - Create Claude Code CLI wrapper service`
 
-Use this exact format for commits:
+**Memory Updates**
 
-```
-feat: [Story ID] - [Story Title]
-```
+Update CLAUDE.md and AGENTS.md when you discover patterns worth preserving:
+- "When modifying X, also update Y"
+- "This module uses pattern Z for all API calls"
+- "Tests require the dev server running"
 
-### Examples
+Add general patterns to the Codebase Patterns section at the TOP of PROGRESS.txt.
 
-```
-feat: US-001 - Initialize project structure with pyproject.toml
-feat: US-007 - Create Claude Code CLI wrapper service
-feat: US-015 - Implement ralph loop command
-```
+### Avoid
 
-### Commit Best Practices
+- **Multiple stories per iteration**: Complete exactly one story, then stop
+- **Incomplete criteria**: Every acceptance criterion must be met
+- **Skipping checks**: Required quality checks must succeed
+- **Uncommitted work**: Always commit your changes before stopping
+- **Missing progress log**: Always append to PROGRESS.txt before stopping
+- **Skipping steps**: Follow the process even for "simple" stories
+- **Out-of-sync files**: CLAUDE.md and AGENTS.md must have matching patterns
+- **Amending commits**: Do NOT amend previous commits
+- **Force pushing**: Do NOT force push
 
-- Commit ALL changed files together (including TASKS.json update)
-- Use `git add .` to stage all changes
-- Write the commit message exactly as specified
-- Do NOT amend previous commits
-- Do NOT force push
+## Output Format
 
-## TASKS.json Updates
+### TASKS.json Update
 
-After completing a story, update `plans/TASKS.json`:
+After completing a story, set `passes: true` and add notes:
 
-1. Set `passes: true` for the completed story
-2. Add relevant notes to the `notes` field
-3. Keep all other fields unchanged
-
-### Example Update
-
-Before:
-```json
-{
-  "id": "US-005",
-  "title": "Create file utilities",
-  "passes": false,
-  "notes": ""
-}
-```
-
-After:
 ```json
 {
   "id": "US-005",
@@ -144,7 +102,7 @@ After:
 }
 ```
 
-## PROGRESS.txt Format
+### PROGRESS.txt Entry
 
 **APPEND** to `plans/PROGRESS.txt` (never replace existing content):
 
@@ -171,128 +129,56 @@ After:
 ---
 ```
 
-### Writing Good Learnings
+### CHANGELOG.md (When Applicable)
 
-The learnings section is critical for future iterations. Include:
+Update for significant user-facing changes:
+- New features, commands, or options
+- Bug fixes that affected user experience
+- Breaking changes or deprecations
 
-- **Patterns discovered**: Coding patterns that worked well
-- **Gotchas**: Tricky issues and how you solved them
-- **Context**: Information that future iterations need
+Skip for internal refactoring, test additions, or formatting fixes.
 
-## Updating Memory Files
+## Quality Checklist
 
-### Codebase Patterns Section
+Before committing, verify:
 
-If you discover a **reusable pattern**, add it to the `## Codebase Patterns` section at the TOP of `plans/PROGRESS.txt`:
-
-```markdown
-## Codebase Patterns
-
-- Use Pydantic `alias` for camelCase JSON keys
-- Import Iterator from collections.abc, not typing
-- Always use `by_alias=True` when serializing models
-```
-
-Only add patterns that are **general and reusable**, not story-specific.
-
-### CLAUDE.md and AGENTS.md
-
-Check if your work revealed patterns that should be documented:
-
-1. **Identify directories with edited files**
-2. **Check for patterns worth preserving**
-3. **Update BOTH files** (they must stay in sync)
-
-Good additions:
-- "When modifying X, also update Y"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running"
-
-Do NOT add:
-- Story-specific implementation details
-- Temporary debugging notes
-- Information already in PROGRESS.txt
-
-### CHANGELOG.md
-
-Update `CHANGELOG.md` when your story includes **significant user-facing changes**. This serves as persistent memory across development cycles.
-
-#### When to Update
-
-Add a CHANGELOG entry for:
-- **New features**: Commands, options, or capabilities users will interact with
-- **Bug fixes**: Issues that affected user experience
-- **Breaking changes**: API changes, removed features, changed behavior
-- **Performance improvements**: Noticeable speed or memory improvements
-- **Security fixes**: Vulnerabilities or security enhancements
-- **Deprecations**: Features being phased out
-
-#### When NOT to Update
-
-Skip CHANGELOG for:
-- **Internal refactoring**: Code cleanup that doesn't change behavior
-- **Test additions**: New or modified tests
-- **Documentation updates**: README, inline comments (unless user-facing docs)
-- **Code style/formatting**: Linting or formatting fixes
-- **Dependency updates**: Unless they affect user-facing behavior
-- **WIP commits**: Incomplete or intermediate work
-
-#### How to Update
-
-1. Add entries under the `## [Unreleased]` section
-2. Use the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security
-3. Write from the user's perspective (what changed for them)
-4. Be concise but specific (include command names, option flags, etc.)
-
-Example entry:
-```markdown
-## [Unreleased]
-
-### Added
-- `ralph prd --input` flag for non-interactive PRD generation
-- `--skip-permissions` support for autonomous iteration
-
-### Fixed
-- `ralph once` no longer requires `-v` flag when streaming output
-```
-
-## Stop Condition
-
-After completing a story, check if ALL stories have `passes: true`.
-
-If ALL stories are complete, output exactly:
-
-```
-<ralph>COMPLETE</ralph>
-```
-
-If there are remaining stories with `passes: false`, end your response normally. Another iteration will pick up the next story.
-
-## Important Rules
-
-1. **One story per iteration**: Complete exactly one story, then stop
-2. **All criteria must pass**: Every acceptance criterion must be met
-3. **All checks must pass**: Required quality checks must succeed
-4. **Always commit**: Commit your changes before stopping
-5. **Always update progress**: Append to PROGRESS.txt before stopping
-6. **Don't skip steps**: Follow the process even for "simple" stories
-7. **Keep files in sync**: CLAUDE.md and AGENTS.md must have matching patterns
+- [ ] **All acceptance criteria met**: Every criterion in the story is satisfied
+- [ ] **Tests written**: New functionality has appropriate test coverage
+- [ ] **Quality checks pass**: All required checks in CLAUDE.md succeed
+- [ ] **No regressions**: Existing tests still pass
+- [ ] **Memory updated**: Patterns added to CLAUDE.md/AGENTS.md if applicable
+- [ ] **Commit staged**: All changed files are staged (use `git add .`)
 
 ## Error Handling
 
-### Cannot Complete Story
+### Common Issues
 
-If you cannot complete a story after 3 fix attempts:
+| Check Type | Common Issues | Typical Fixes |
+|------------|---------------|---------------|
+| Typecheck | Missing types, wrong types | Add type annotations, fix type mismatches |
+| Lint | Unused imports, formatting | Remove unused code, apply formatter |
+| Format | Inconsistent formatting | Run `ruff format` or equivalent |
+| Test | Failed assertions | Fix logic or update test expectations |
+
+### Fix Loop Behavior
+
+When a check fails:
+1. **Analyze the error** output carefully
+2. **Identify the root cause** (not just the symptom)
+3. **Make the minimal fix** needed to pass
+4. **Re-run all checks** (a fix may break something else)
+5. **Maximum 3 fix attempts** total, then stop and report
+
+### When Blocked
+
+If you cannot complete the story after 3 fix attempts:
 
 1. Leave the story with `passes: false`
-2. Add a detailed note explaining the blocker
+2. Add a detailed note explaining the blocker in TASKS.json
 3. Append a progress entry documenting what was tried
 4. Stop the iteration
 
-### External Blockers
-
-If blocked by something outside your control:
-
+**External Blockers:**
 - Missing dependencies: Note in TASKS.json and PROGRESS.txt
 - Unclear requirements: Document your interpretation and proceed
 - Conflicting criteria: Implement your best interpretation, note the conflict
@@ -301,7 +187,18 @@ If blocked by something outside your control:
 
 Future iterations can pick up where you left off by reading PROGRESS.txt for context.
 
-## File Reference
+## Next Steps
+
+After completing a story:
+
+- If ALL stories have `passes: true`, output exactly:
+  ```
+  <ralph>COMPLETE</ralph>
+  ```
+
+- If there are remaining stories with `passes: false`, end your response normally. Another iteration will pick up the next story.
+
+## Reference
 
 | File | Purpose | Action |
 |------|---------|--------|
@@ -311,13 +208,3 @@ Future iterations can pick up where you left off by reading PROGRESS.txt for con
 | `AGENTS.md` | Agent instructions | Update to match CLAUDE.md |
 | `CHANGELOG.md` | User-facing changes | Update for significant changes |
 | `plans/SPEC.md` | Original PRD | Reference for context if needed |
-
-You are running in autonomous mode with full permissions pre-approved.
-
-IMPORTANT: DO NOT ask for permission to:
-- Read, write, edit, or delete files
-- Run commands or scripts
-- Make git commits
-- Modify any files in the project
-
-All operations have been pre-authorized. Proceed directly with implementation without asking for confirmation or permission.

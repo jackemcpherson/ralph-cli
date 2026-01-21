@@ -9,97 +9,57 @@ You are converting a Product Requirements Document (PRD) into actionable user st
 
 ## Your Process
 
+### Phase 1: Analysis
+
 1. **Read the specification** carefully to understand the full scope
 2. **Identify logical units of work** that can be implemented independently
-3. **Order stories by dependency and priority** (foundational work first)
-4. **Write clear acceptance criteria** for each story
-5. **Output valid TASKS.json** that matches the schema exactly
+3. **Map dependencies** between different pieces of functionality
 
-## Story Sizing Guidelines
+### Phase 2: Story Creation
 
-### Right-Sized Stories
+1. **Order stories by dependency and priority** (foundational work first)
+2. **Write clear acceptance criteria** for each story
+3. **Assign priorities** following the priority guidelines below
+
+### Phase 3: Output
+
+1. **Generate valid TASKS.json** that matches the schema exactly
+2. **Verify** all quality checks pass
+3. **Present** for user review
+
+## Guidelines
+
+### Best Practices
+
+**Story Sizing**
 
 A good user story should:
-
 - Be completable in a single iteration (1-2 hours of focused work)
 - Have 3-6 clear acceptance criteria
 - Be independently testable
 - Not require more than 5-7 files to change
 
-### Too Large (Split It)
+**Story Ordering**
 
-Signs a story is too large:
+- **Foundational first**: Data models → Services → UI/Commands
+- **Vertical slices**: For features, create thin end-to-end slices
+- **Models before services**: Data structures must exist before logic
+- **Services before commands**: Business logic before CLI/API wrappers
+- **Core before extensions**: Basic functionality before advanced features
 
-- More than 6 acceptance criteria
-- Touches more than 7 files
-- Contains "and" connecting unrelated work
-- Requires multiple distinct features
+**Priority Assignment**
 
-### Too Small (Combine It)
+| Priority Range | Content |
+|----------------|---------|
+| 1-5 | Core infrastructure and models |
+| 6-10 | Service layer and business logic |
+| 11-15 | Commands, API, and user interfaces |
+| 16-20 | Additional features and polish |
+| 21+ | Tests, documentation, and cleanup |
 
-Signs a story is too small:
-
-- Only changes one line or adds one field
-- Has no meaningful acceptance criteria
-- Is pure configuration with no logic
-
-### Story Breakdown Patterns
-
-**Foundational First**: Start with data models, then services, then UI/commands
-```
-1. Create data models
-2. Create service layer
-3. Create API/CLI interface
-4. Add tests
-```
-
-**Vertical Slices**: For features, create thin end-to-end slices
-```
-1. Basic happy path (minimal viable feature)
-2. Error handling and edge cases
-3. Polish and advanced features
-```
-
-## Story Ordering and Priority
-
-### Priority Assignment
-
-- **Priority 1-5**: Core infrastructure and models (must exist first)
-- **Priority 6-10**: Service layer and business logic
-- **Priority 11-15**: Commands, API, and user interfaces
-- **Priority 16-20**: Additional features and polish
-- **Priority 21+**: Tests, documentation, and cleanup
-
-### Dependency Rules
-
-1. **Models before services**: Data structures must exist before logic that uses them
-2. **Services before commands**: Business logic before CLI/API wrappers
-3. **Core before extensions**: Basic functionality before advanced features
-4. **Setup before teardown**: Initialization before cleanup/error handling
-
-### Ordering Checklist
-
-Before finalizing order, verify:
-
-- [ ] No story depends on a higher-priority (later) story
-- [ ] Related stories are grouped together
-- [ ] Each story builds on previously completed work
-- [ ] Early stories establish patterns later stories follow
-
-## Writing Acceptance Criteria
-
-### Good Acceptance Criteria
-
-Each criterion should be:
-
-- **Specific**: Exactly what should happen
-- **Testable**: Can verify pass/fail
-- **Independent**: Doesn't duplicate other criteria
-
-### Format
+**Acceptance Criteria**
 
 Write criteria as imperative statements:
-
 ```
 - Create models/user.py with User model containing id, name, email fields
 - User model validates email format using Pydantic EmailStr
@@ -107,21 +67,30 @@ Write criteria as imperative statements:
 - Typecheck passes
 ```
 
-### Always Include
-
-Every story should have at least one of:
-
+Every story should include at least one of:
 - "Typecheck passes" (for typed languages)
 - "Tests pass" (if tests are required)
 - "Lint passes" (if linting is configured)
 
 ### Avoid
 
-- Vague criteria: "Works correctly" (what does correct mean?)
-- Implementation details: "Use a for loop" (let the agent decide)
-- Duplicate criteria: Same thing worded differently
+**Too Large Stories** (split them):
+- More than 6 acceptance criteria
+- Touches more than 7 files
+- Contains "and" connecting unrelated work
+- Requires multiple distinct features
 
-## Output Schema
+**Too Small Stories** (combine them):
+- Only changes one line or adds one field
+- Has no meaningful acceptance criteria
+- Is pure configuration with no logic
+
+**Poor Criteria**:
+- Vague: "Works correctly" (what does correct mean?)
+- Implementation details: "Use a for loop" (let the agent decide)
+- Duplicates: Same thing worded differently
+
+## Output Format
 
 Your output MUST be valid JSON matching this exact schema:
 
@@ -169,10 +138,9 @@ Your output MUST be valid JSON matching this exact schema:
 | `passes` | boolean | Always `false` for new stories |
 | `notes` | string | Always `""` for new stories (filled during implementation) |
 
-## Example Transformation
+### Example
 
-### Input Specification
-
+**Input Specification:**
 ```markdown
 ## Requirements
 - User authentication with email/password
@@ -180,8 +148,7 @@ Your output MUST be valid JSON matching this exact schema:
 - Admin users can manage other users
 ```
 
-### Output TASKS.json
-
+**Output TASKS.json:**
 ```json
 {
   "project": "UserAuth",
@@ -237,33 +204,47 @@ Your output MUST be valid JSON matching this exact schema:
 }
 ```
 
-## Quality Checks
+## Quality Checklist
 
 Before outputting, verify:
 
-1. **Valid JSON**: Parseable with no syntax errors
-2. **Schema compliance**: All required fields present with correct types
-3. **ID uniqueness**: No duplicate story IDs
-4. **Priority sequence**: Priorities start at 1 and are sequential
-5. **Dependency order**: No story depends on a later story
-6. **Criteria quality**: Each story has 3-6 specific, testable criteria
-7. **Completeness**: All requirements from spec are covered
+- [ ] **Valid JSON**: Parseable with no syntax errors
+- [ ] **Schema compliance**: All required fields present with correct types
+- [ ] **ID uniqueness**: No duplicate story IDs
+- [ ] **Priority sequence**: Priorities start at 1 and are sequential
+- [ ] **Dependency order**: No story depends on a later story
+- [ ] **Criteria quality**: Each story has 3-6 specific, testable criteria
+- [ ] **Completeness**: All requirements from spec are covered
 
-## Handling Ambiguity
+## Error Handling
 
-If the specification is unclear:
+### Common Issues
 
-- **Missing details**: Make reasonable assumptions and note them in the description
-- **Unclear scope**: Err on the side of smaller, focused stories
-- **Technology unspecified**: Follow patterns from the existing codebase if visible
-- **Conflicting requirements**: Flag in notes field, implement most likely interpretation
+| Issue | Resolution |
+|-------|------------|
+| Missing details in spec | Make reasonable assumptions and note them in the description |
+| Unclear scope | Err on the side of smaller, focused stories |
+| Technology unspecified | Follow patterns from the existing codebase if visible |
+| Conflicting requirements | Flag in notes field, implement most likely interpretation |
+| Spec too large | Suggest splitting into multiple task files or phases |
 
-## After Task Generation
+### When Blocked
 
-Once TASKS.json is complete, the user should:
+If you cannot create valid TASKS.json:
 
-1. Review the generated stories for accuracy
-2. Adjust priorities if needed
-3. Run `ralph loop` to begin autonomous implementation
+1. Document what information is missing
+2. Note any assumptions you would make
+3. Produce a partial task list if possible
+4. Explain what the user needs to clarify
 
-Output format reminder: Return ONLY the JSON. Do not wrap in markdown code blocks unless specifically instructed. The output should be directly parseable as JSON.
+## Next Steps
+
+Once TASKS.json is complete:
+
+> Review the generated stories for accuracy, then run:
+>
+> ```
+> ralph loop
+> ```
+>
+> This will begin autonomous implementation of the user stories.

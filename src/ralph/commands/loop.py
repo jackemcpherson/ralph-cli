@@ -161,6 +161,7 @@ def loop(
                 prompt,
                 stream=True,
                 skip_permissions=True,
+                append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
             )
         except ClaudeError as e:
             print_error(f"Claude error: {e}")
