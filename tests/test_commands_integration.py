@@ -522,3 +522,198 @@ class TestOnceCommandPromptFormat:
 
         assert len(captured_prompt) > 0
         assert "@skills/ralph-iteration/SKILL.md" in captured_prompt[0]
+
+
+class TestTasksJsonExtraction:
+    """Tests for _get_tasks_from_output_or_file helper function."""
+
+    @pytest.fixture
+    def valid_tasks_json(self) -> str:
+        """Return valid TASKS.json content."""
+        return json.dumps(
+            {
+                "project": "TestProject",
+                "branchName": "ralph/test",
+                "description": "Test",
+                "userStories": [
+                    {
+                        "id": "US-001",
+                        "title": "Test",
+                        "description": "Test story",
+                        "acceptanceCriteria": ["Criterion"],
+                        "priority": 1,
+                        "passes": False,
+                        "notes": "",
+                    }
+                ],
+            }
+        )
+
+    def test_prefers_file_over_stdout(self, tmp_path: Path, valid_tasks_json: str) -> None:
+        """Test that _get_tasks_from_output_or_file prefers file content over stdout."""
+        from ralph.commands.tasks import _get_tasks_from_output_or_file
+
+        output_path = tmp_path / "TASKS.json"
+        output_path.write_text(valid_tasks_json)
+
+        # stdout has different content (a summary message)
+        stdout_content = "Generated 1 user story successfully!"
+
+        result = _get_tasks_from_output_or_file(stdout_content, output_path)
+
+        assert result is not None
+        assert result.project == "TestProject"
+        assert len(result.user_stories) == 1
+
+    def test_falls_back_to_stdout_when_file_missing(
+        self, tmp_path: Path, valid_tasks_json: str
+    ) -> None:
+        """Test that _get_tasks_from_output_or_file uses stdout when file doesn't exist."""
+        from ralph.commands.tasks import _get_tasks_from_output_or_file
+
+        output_path = tmp_path / "TASKS.json"
+        # File doesn't exist, but stdout has valid JSON
+
+        result = _get_tasks_from_output_or_file(valid_tasks_json, output_path)
+
+        assert result is not None
+        assert result.project == "TestProject"
+
+    def test_falls_back_to_stdout_when_file_invalid(
+        self, tmp_path: Path, valid_tasks_json: str
+    ) -> None:
+        """Test that _get_tasks_from_output_or_file uses stdout when file has invalid JSON."""
+        from ralph.commands.tasks import _get_tasks_from_output_or_file
+
+        output_path = tmp_path / "TASKS.json"
+        output_path.write_text("not valid json {{{")
+
+        result = _get_tasks_from_output_or_file(valid_tasks_json, output_path)
+
+        assert result is not None
+        assert result.project == "TestProject"
+
+    def test_returns_none_when_both_invalid(self, tmp_path: Path) -> None:
+        """Test that _get_tasks_from_output_or_file returns None when both sources invalid."""
+        from ralph.commands.tasks import _get_tasks_from_output_or_file
+
+        output_path = tmp_path / "TASKS.json"
+        output_path.write_text("invalid json")
+
+        result = _get_tasks_from_output_or_file("also not json", output_path)
+
+        assert result is None
+
+
+class TestInitGitInitialization:
+    """Tests for git initialization in ralph init command."""
+
+    def test_is_git_repo_returns_true_in_git_repo(self, tmp_path: Path) -> None:
+        """Test that _is_git_repo returns True inside a git repository."""
+        import subprocess
+
+        from ralph.commands.init_cmd import _is_git_repo
+
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+
+        assert _is_git_repo(tmp_path) is True
+
+    def test_is_git_repo_returns_false_outside_git_repo(self, tmp_path: Path) -> None:
+        """Test that _is_git_repo returns False outside a git repository."""
+        from ralph.commands.init_cmd import _is_git_repo
+
+        assert _is_git_repo(tmp_path) is False
+
+    def test_init_git_repo_creates_git_directory(self, tmp_path: Path) -> None:
+        """Test that _init_git_repo creates a .git directory."""
+        from ralph.commands.init_cmd import _init_git_repo
+
+        result = _init_git_repo(tmp_path)
+
+        assert result is True
+        assert (tmp_path / ".git").is_dir()
+
+    def test_create_initial_commit_creates_commit(self, tmp_path: Path) -> None:
+        """Test that _create_initial_commit creates a git commit."""
+        import subprocess
+
+        from ralph.commands.init_cmd import _create_initial_commit, _init_git_repo
+
+        _init_git_repo(tmp_path)
+        # Configure git user for commit
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        )
+        # Create a file to commit
+        (tmp_path / "test.txt").write_text("test")
+
+        result = _create_initial_commit(tmp_path)
+
+        assert result is True
+        # Verify commit exists
+        log_result = subprocess.run(
+            ["git", "log", "--oneline"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "Initial commit" in log_result.stdout
+
+    def test_init_initializes_git_when_not_in_repo(self, runner: CliRunner, tmp_path: Path) -> None:
+        """Test that ralph init initializes git repo when not already in one."""
+        import subprocess
+
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        # Configure git for the test
+        subprocess.run(
+            ["git", "config", "--global", "user.email", "test@test.com"],
+            capture_output=True,
+            check=False,
+        )
+        subprocess.run(
+            ["git", "config", "--global", "user.name", "Test"],
+            capture_output=True,
+            check=False,
+        )
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
+                mock_claude.return_value.run_interactive.return_value = 0
+                result = runner.invoke(app, ["init"])
+
+        assert result.exit_code == 0
+        assert (tmp_path / ".git").is_dir()
+        assert "Initialized git repository" in result.output
+
+    def test_init_skips_git_init_when_already_in_repo(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test that ralph init doesn't re-init git when already in a repo."""
+        import subprocess
+
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+            ):
+                mock_claude.return_value.run_interactive.return_value = 0
+                result = runner.invoke(app, ["init"])
+
+        assert result.exit_code == 0
+        assert "Initialized git repository" not in result.output

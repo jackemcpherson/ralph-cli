@@ -5,6 +5,7 @@ the plans directory structure and configuration files.
 """
 
 import logging
+import subprocess
 from pathlib import Path
 
 import typer
@@ -15,6 +16,91 @@ from ralph.services import ClaudeError, ClaudeService, ProjectType, ScaffoldServ
 from ralph.utils import console, print_success, print_warning
 
 logger = logging.getLogger(__name__)
+
+
+def _is_git_repo(project_root: Path) -> bool:
+    """Check if the directory is inside a git repository.
+
+    Args:
+        project_root: The directory to check.
+
+    Returns:
+        True if inside a git repo, False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        # git not installed
+        return False
+
+
+def _init_git_repo(project_root: Path) -> bool:
+    """Initialize a new git repository.
+
+    Args:
+        project_root: The directory to initialize.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "init"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def _create_initial_commit(project_root: Path) -> bool:
+    """Create an initial git commit with the scaffolded files.
+
+    Args:
+        project_root: The project root directory.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        # Stage all files
+        add_result = subprocess.run(
+            ["git", "add", "."],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if add_result.returncode != 0:
+            logger.warning(f"git add failed: {add_result.stderr}")
+            return False
+
+        # Create commit
+        commit_result = subprocess.run(
+            ["git", "commit", "-m", "Initial commit: Ralph workflow setup"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # Return code 1 with "nothing to commit" is not an error
+        if commit_result.returncode != 0 and "nothing to commit" not in commit_result.stdout:
+            logger.warning(f"git commit failed: {commit_result.stderr}")
+            return False
+
+        return True
+    except FileNotFoundError:
+        return False
 
 
 def init(
@@ -41,6 +127,17 @@ def init(
         console.print()
         console.print("Use [bold]--force[/bold] to overwrite existing files.")
         raise typer.Exit(1)
+
+    # Initialize git repo if not already in one
+    initialized_git = False
+    if not _is_git_repo(project_root):
+        console.print("[bold]Initializing git repository...[/bold]")
+        if _init_git_repo(project_root):
+            print_success("Initialized git repository")
+            initialized_git = True
+        else:
+            print_warning("Could not initialize git repository. Git may not be installed.")
+        console.print()
 
     scaffold = ScaffoldService(project_root=project_root)
     project_type = scaffold.detect_project_type()
@@ -96,6 +193,15 @@ def init(
         except (OSError, ClaudeError) as e:
             print_warning(f"Failed to run Claude Code /init: {e}")
             console.print("[dim]You can run 'claude /init' manually later.[/dim]")
+
+    # Create initial commit if we initialized the git repo
+    if initialized_git:
+        console.print()
+        console.print("[bold]Creating initial commit...[/bold]")
+        if _create_initial_commit(project_root):
+            print_success("Created initial commit: 'Initial commit: Ralph workflow setup'")
+        else:
+            print_warning("Could not create initial commit. You may need to commit manually.")
 
     console.print()
     print_success("[bold]Ralph workflow initialized![/bold]")

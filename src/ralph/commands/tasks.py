@@ -112,26 +112,18 @@ def tasks(
                 console.print(output_text)
             raise typer.Exit(exit_code)
 
-        json_content = _extract_json(output_text)
+        # Try to get valid JSON - first check if Claude wrote the file directly,
+        # then fall back to extracting from stdout
+        tasks_model = _get_tasks_from_output_or_file(output_text, output_path)
 
-        if not json_content:
-            print_error("Could not extract valid JSON from Claude's output.")
+        if tasks_model is None:
+            print_error("Could not extract valid JSON from Claude's output or file.")
             console.print()
             console.print("[dim]Claude's output:[/dim]")
             console.print(output_text[:2000])
             raise typer.Exit(1)
 
-        try:
-            tasks_model = TasksFile.model_validate_json(json_content)
-        except ValidationError as e:
-            print_error("Claude's output does not match the expected TASKS.json format.")
-            console.print()
-            console.print("[dim]Validation errors:[/dim]")
-            for error in e.errors():
-                loc = ".".join(str(x) for x in error["loc"])
-                console.print(f"  • {loc}: {error['msg']}")
-            raise typer.Exit(1) from e
-
+        # Save the tasks (will overwrite if file already exists with same content)
         save_tasks(tasks_model, output_path)
 
         # Archive PROGRESS.txt if it exists and has content
@@ -250,6 +242,41 @@ def _is_valid_json(text: str) -> bool:
         return True
     except json.JSONDecodeError:
         return False
+
+
+def _get_tasks_from_output_or_file(output_text: str, output_path: Path) -> TasksFile | None:
+    """Get TasksFile from Claude's output or from the file if Claude wrote it directly.
+
+    First checks if the output file exists and contains valid JSON (Claude may
+    have written it directly). Falls back to extracting JSON from stdout.
+
+    Args:
+        output_text: Claude's stdout output.
+        output_path: Path where TASKS.json should be written.
+
+    Returns:
+        TasksFile model if valid JSON found, None otherwise.
+    """
+    # First, check if Claude wrote the file directly
+    if output_path.exists():
+        try:
+            file_content = read_file(output_path)
+            tasks_model = TasksFile.model_validate_json(file_content)
+            logger.info("Loaded TASKS.json from file written by Claude")
+            return tasks_model
+        except (ValidationError, json.JSONDecodeError, OSError) as e:
+            logger.debug(f"File exists but couldn't parse: {e}")
+            # File exists but invalid - continue to try stdout
+
+    # Fall back to extracting from stdout
+    json_content = _extract_json(output_text)
+    if json_content:
+        try:
+            return TasksFile.model_validate_json(json_content)
+        except ValidationError as e:
+            logger.warning(f"JSON from stdout didn't validate: {e}")
+
+    return None
 
 
 def _has_meaningful_content(content: str) -> bool:

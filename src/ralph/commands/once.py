@@ -205,8 +205,10 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
         "**Acceptance Criteria:**",
         criteria_lines,
         "",
-        "Begin implementation now. Read the codebase, implement the story, "
-        "run quality checks, and commit your changes.",
+        (
+            "Begin implementation now. Read the codebase, implement the story, "
+            "run quality checks, and commit your changes."
+        ),
     ]
 
     context = "\n".join(context_lines)
