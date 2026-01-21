@@ -179,3 +179,169 @@ Total: 28 new tests
 ### Learnings for future iterations
 - Typer help text can wrap across multiple lines, so tests should check for key phrases rather than full sentences
 - Future stories (US-005, US-006) will implement the actual review loop; this story just adds the CLI interface
+
+[Ralph Loop] 2026-01-21 22:20 UTC - Iteration 4: US-004 (Add --skip-review and --strict flags to ralph loop) completed
+
+---
+
+## 2026-01-22 - US-005
+
+**Story:** Implement review loop execution service
+
+### What was implemented
+- Created `ReviewerResult` NamedTuple to represent execution outcomes with fields:
+  - `reviewer_name`: Name of the reviewer
+  - `success`: Whether execution succeeded
+  - `skipped`: Whether reviewer was skipped (language mismatch)
+  - `attempts`: Number of attempts made
+  - `error`: Optional error message
+- Created `ReviewLoopService` Pydantic model with methods:
+  - `should_run_reviewer()`: Determines if reviewer should run based on language filtering
+  - `is_enforced()`: Determines if failures should be enforced based on level and strict mode
+  - `run_reviewer()`: Executes a single reviewer with retry logic
+  - `run_review_loop()`: Orchestrates full review loop execution
+- Implemented language filtering:
+  - Reviewers without `languages` filter always run
+  - Reviewers with empty `languages` list always run
+  - Reviewers with `languages` filter only run if any language matches
+- Implemented retry logic:
+  - Enforced reviewers (blocking, or warning in strict mode) retry up to 3 times
+  - Non-enforced reviewers (suggestion, or warning in normal mode) run once
+  - Continues to next reviewer after all retries exhausted
+- Implemented progress logging:
+  - Appends `[Review Loop]` entries to PROGRESS.txt after each reviewer
+  - Shows status: passed, skipped (language filter), or failed with attempt count
+- Created `filter_reviewers_by_language()` convenience function
+- Exported `ReviewerResult`, `ReviewLoopService`, and `filter_reviewers_by_language` from `ralph.services`
+
+### Tests written
+- `TestReviewerResult`: 3 tests for success/failure/skipped cases
+- `TestReviewLoopServiceShouldRunReviewer`: 5 tests for language filtering logic
+- `TestReviewLoopServiceIsEnforced`: 3 tests for enforcement rules
+- `TestReviewLoopServiceRunReviewer`: 6 tests for retry behavior
+- `TestReviewLoopServiceRunReviewLoop`: 4 tests for orchestration
+- `TestFilterReviewersByLanguage`: 3 tests for convenience function
+- `TestReviewLoopServiceProgressSummary`: 3 tests for progress appending
+
+Total: 27 new tests
+
+### Files changed
+- `src/ralph/services/review_loop.py` (new)
+- `src/ralph/services/__init__.py` (updated exports)
+- `tests/test_review_loop.py` (new)
+- `plans/TASKS.json` (marked US-005 as passes: true)
+
+### Learnings for future iterations
+- Use `NamedTuple` for simple immutable result types (like ReviewerResult)
+- Services using Claude should mock `ClaudeService` in tests to avoid subprocess calls
+- Retry logic should use `enforced` parameter to determine retry count, not reviewer level directly
+- Progress summaries should include both the reviewer name and level for context
+
+[Ralph Loop] 2026-01-22 - Iteration 5: US-005 (Implement review loop execution service) completed
+
+[Ralph Loop] 2026-01-21 22:24 UTC - Iteration 5: US-005 (Implement review loop execution service) completed
+
+---
+
+## 2026-01-22 - US-006
+
+**Story:** Integrate review loop into ralph loop command
+
+### What was implemented
+- Added `_run_review_loop()` function to loop.py that:
+  - Loads reviewer configurations from CLAUDE.md using `load_reviewer_configs()`
+  - Detects project languages using `detect_languages()`
+  - Creates and runs `ReviewLoopService` with configured reviewers
+  - Displays review progress and summary with pass/fail/skip counts
+- Integrated review loop into main `loop()` function:
+  - Runs after all stories complete (when `stop_reason == LoopStopReason.ALL_COMPLETE`)
+  - Respects `--skip-review` flag to bypass review loop
+  - Passes `--strict` flag to enforce warning-level reviewers
+- Added console output showing:
+  - Number of reviewers loaded
+  - Detected languages
+  - Strict mode indication
+  - Per-reviewer status (passed/failed/skipped)
+  - Summary counts
+
+### Tests written
+- `test_loop_runs_review_loop_after_stories_complete`: Verifies review loop is called after stories complete
+- `test_loop_skips_review_loop_with_skip_review_flag`: Verifies --skip-review bypasses review loop
+- `test_loop_passes_strict_flag_to_review_loop`: Verifies --strict flag is passed through
+- `test_loop_shows_review_summary`: Verifies warning message shown when review loop has failures
+
+### Files changed
+- `src/ralph/commands/loop.py` (added imports, integrated review loop, added _run_review_loop function)
+- `tests/test_commands_integration.py` (added 5 new tests)
+- `plans/TASKS.json` (marked US-006 as passes: true)
+
+### Learnings for future iterations
+- Mock `_run_review_loop` function directly in tests rather than mocking the service to simplify test setup
+- Review loop returns boolean success but command still exits 0 since stories passed - reviews are informational
+- Using keyword-only arguments (`*,`) in helper functions makes call sites more readable
+
+[Ralph Loop] 2026-01-22 - Iteration 6: US-006 (Integrate review loop into ralph loop command) completed
+
+[Ralph Loop] 2026-01-21 22:28 UTC - Iteration 6: US-006 (Integrate review loop into ralph loop command) completed
+
+---
+
+## 2026-01-22 - US-007
+
+**Story:** Restructure skills directory - ralph core skills
+
+### What was implemented
+- Created new `skills/ralph/` directory with subdirectories: `prd/`, `tasks/`, `iteration/`
+- Moved `skills/ralph-prd/SKILL.md` to `skills/ralph/prd/SKILL.md`
+- Moved `skills/ralph-tasks/SKILL.md` to `skills/ralph/tasks/SKILL.md`
+- Moved `skills/ralph-iteration/SKILL.md` to `skills/ralph/iteration/SKILL.md`
+- Removed old empty directories: `ralph-prd/`, `ralph-tasks/`, `ralph-iteration/`
+
+### Tests written
+- No tests needed - this is a file restructuring task with no code changes
+- All existing tests (163) continue to pass
+
+### Files changed
+- `skills/ralph/prd/SKILL.md` (moved from ralph-prd/)
+- `skills/ralph/tasks/SKILL.md` (moved from ralph-tasks/)
+- `skills/ralph/iteration/SKILL.md` (moved from ralph-iteration/)
+
+### Learnings for future iterations
+- Git tracks file moves via rename detection, so content is preserved in history
+- Directory restructuring requires updating downstream references (handled in US-010, US-011)
+
+[Ralph Loop] 2026-01-22 - Iteration 7: US-007 (Restructure skills directory - ralph core skills) completed
+
+[Ralph Loop] 2026-01-21 22:30 UTC - Iteration 7: US-007 (Restructure skills directory - ralph core skills) completed
+
+---
+
+## 2026-01-22 - US-008
+
+**Story:** Restructure skills directory - reviewer skills
+
+### What was implemented
+- Created new `skills/reviewers/` directory with subdirectories for each reviewer type
+- Moved `skills/code-simplifier/SKILL.md` to `skills/reviewers/code-simplifier/SKILL.md`
+- Moved `skills/test-quality-reviewer/SKILL.md` to `skills/reviewers/test-quality/SKILL.md`
+- Moved `skills/repo-structure-reviewer/SKILL.md` to `skills/reviewers/repo-structure/SKILL.md`
+- Moved `skills/github-actions-reviewer/SKILL.md` to `skills/reviewers/github-actions/SKILL.md`
+- Moved `skills/python-code-reviewer/SKILL.md` to `skills/reviewers/language/python/SKILL.md`
+- Removed old empty directories: `code-simplifier/`, `test-quality-reviewer/`, `repo-structure-reviewer/`, `github-actions-reviewer/`, `python-code-reviewer/`
+
+### Tests written
+- No tests needed - this is a file restructuring task with no code changes
+- All existing tests (163) continue to pass
+
+### Files changed
+- `skills/reviewers/code-simplifier/SKILL.md` (moved from code-simplifier/)
+- `skills/reviewers/test-quality/SKILL.md` (moved from test-quality-reviewer/)
+- `skills/reviewers/repo-structure/SKILL.md` (moved from repo-structure-reviewer/)
+- `skills/reviewers/github-actions/SKILL.md` (moved from github-actions-reviewer/)
+- `skills/reviewers/language/python/SKILL.md` (moved from python-code-reviewer/)
+
+### Learnings for future iterations
+- Language-specific reviewers go under `reviewers/language/<language>/` to support future language reviewers
+- Consistent with US-007 pattern for ralph core skills
+
+[Ralph Loop] 2026-01-22 - Iteration 8: US-008 (Restructure skills directory - reviewer skills) completed

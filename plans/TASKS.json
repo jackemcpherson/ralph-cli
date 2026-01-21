@@ -98,8 +98,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Integrated ReviewLoopService into loop.py with _run_review_loop function. Added 5 new tests for review loop integration."
     },
     {
       "id": "US-007",
@@ -113,8 +113,8 @@
         "Old directories removed"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Restructured skills/ralph-prd, ralph-tasks, ralph-iteration to skills/ralph/prd, tasks, iteration"
     },
     {
       "id": "US-008",
@@ -130,8 +130,8 @@
         "Old directories removed"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Restructured all reviewer skills to skills/reviewers/ with nested language/python/ for Python reviewer"
     },
     {
       "id": "US-009",
