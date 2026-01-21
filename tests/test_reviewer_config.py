@@ -249,6 +249,35 @@ class TestGetDefaultReviewers:
         assert reviewer_map["repo-structure"].level == ReviewerLevel.warning
         assert reviewer_map["release"].level == ReviewerLevel.blocking
 
+    def test_get_default_reviewers_skill_paths_are_correct(self) -> None:
+        """Test default reviewers have correct skill paths from spec."""
+        reviewers = get_default_reviewers()
+        reviewer_map = {r.name: r for r in reviewers}
+
+        assert reviewer_map["test-quality"].skill == "reviewers/test-quality"
+        assert reviewer_map["code-simplifier"].skill == "reviewers/code-simplifier"
+        assert reviewer_map["python-code"].skill == "reviewers/language/python"
+        assert reviewer_map["github-actions"].skill == "reviewers/github-actions"
+        assert reviewer_map["repo-structure"].skill == "reviewers/repo-structure"
+        assert reviewer_map["release"].skill == "reviewers/release"
+
+    def test_get_default_reviewers_returns_exactly_six_reviewers(self) -> None:
+        """Test default reviewers returns exactly 6 reviewers as per spec."""
+        reviewers = get_default_reviewers()
+        assert len(reviewers) == 6
+
+    def test_get_default_reviewers_non_python_reviewers_have_no_language_filter(self) -> None:
+        """Test non-python reviewers don't have language filters (run for all projects)."""
+        reviewers = get_default_reviewers()
+        reviewer_map = {r.name: r for r in reviewers}
+
+        # Only python-code should have a language filter
+        assert reviewer_map["test-quality"].languages is None
+        assert reviewer_map["code-simplifier"].languages is None
+        assert reviewer_map["github-actions"].languages is None
+        assert reviewer_map["repo-structure"].languages is None
+        assert reviewer_map["release"].languages is None
+
 
 class TestParseReviewerConfigs:
     """Tests for the parse_reviewer_configs function."""
