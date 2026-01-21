@@ -192,8 +192,8 @@
         "Unit tests for nested sync"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated SkillsService with recursive skill discovery, nested structure mirroring, manifest v2 with full paths, and v1 flat skill cleanup. Added 16 new tests."
     },
     {
       "id": "US-013",

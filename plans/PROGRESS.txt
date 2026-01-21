@@ -462,3 +462,45 @@ Total: 4 new tests (177 total)
 - The loop command doesn't have its own `_build_prompt_from_skill` - it imports from once.py
 
 [Ralph Loop] 2026-01-22 - Iteration 11: US-011 (Update command skill references to new paths) completed
+
+[Ralph Loop] 2026-01-21 22:42 UTC - Iteration 1: US-011 (Update command skill references to new paths) completed
+
+---
+
+## 2026-01-22 - US-012
+
+**Story:** Update ralph sync for nested structure
+
+### What was implemented
+- Updated `list_local_skills()` to use `rglob("SKILL.md")` for recursive skill discovery
+- Added `SkillInfo.relative_path` field to track path from skills root (e.g., "ralph/prd")
+- Updated `sync_skill()` to preserve nested directory structure in target
+- Updated `_write_manifest()` to use manifest version 2 with full nested paths
+- Added `_cleanup_old_flat_skills()` to remove v1 flat-structure skills during sync
+- Updated `remove_skills()` to handle nested paths and clean up empty parent directories
+- Added `_cleanup_empty_parents()` helper for directory cleanup after removal
+- Updated `Manifest` model with `version` field (default=1 for backwards compat, v2 for nested)
+- Added `MANIFEST_VERSION = 2` constant in manifest module
+
+### Tests written
+- `TestNestedSkillsListing`: 3 tests for recursive skill discovery (2-level, 3-level, mixed)
+- `TestNestedSkillSync`: 3 tests for nested structure mirroring
+- `TestManifestVersion2`: 2 tests for version 2 manifest format
+- `TestOldFlatSkillCleanup`: 2 tests for v1 skill cleanup during upgrade
+- `TestRemoveNestedSkills`: 3 tests for nested skill removal with parent cleanup
+- `TestSkillInfoRelativePath`: 3 tests for relative_path field
+
+Total: 16 new tests (193 total)
+
+### Files changed
+- `src/ralph/models/manifest.py` (added version field, MANIFEST_VERSION constant)
+- `src/ralph/services/skills.py` (updated sync logic for nested structure)
+- `tests/test_skills_service.py` (added 16 new tests)
+
+### Learnings for future iterations
+- Use `rglob()` for recursive file discovery - cleaner than manual recursion
+- `Path.is_relative_to()` is useful for checking if a path is under a parent directory
+- Manifest versioning allows graceful upgrades from v1 (flat) to v2 (nested) format
+- Empty parent directory cleanup should stop at the target_dir boundary
+
+[Ralph Loop] 2026-01-22 - Iteration 12: US-012 (Update ralph sync for nested structure) completed
