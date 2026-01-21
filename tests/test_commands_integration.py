@@ -11,8 +11,11 @@ Focused integration tests for happy path of each command:
 
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,10 +25,15 @@ from ralph import __version__
 from ralph.cli import app
 
 
-@pytest.fixture
-def runner() -> CliRunner:
-    """Create a CliRunner for testing commands."""
-    return CliRunner()
+@contextmanager
+def working_directory(path: Path) -> Iterator[None]:
+    """Context manager that temporarily changes working directory."""
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(original_cwd)
 
 
 @pytest.fixture
@@ -143,48 +151,37 @@ class TestInitCommand:
 
     def test_init_creates_all_ralph_files(self, runner: CliRunner, python_project: Path) -> None:
         """Test that init creates all required Ralph workflow files."""
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(python_project)
+        with working_directory(python_project):
+            mock_instance = MagicMock()
+            mock_instance.run_interactive.return_value = 0
 
             with (
-                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.ClaudeService", return_value=mock_instance),
                 patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
             ):
-                mock_instance = MagicMock()
-                mock_instance.run_interactive.return_value = 0
-                mock_claude.return_value = mock_instance
-
                 result = runner.invoke(app, ["init"])
 
-            assert result.exit_code == 0
-            assert (python_project / "plans").is_dir()
-            assert (python_project / "plans" / "SPEC.md").is_file()
-            assert (python_project / "plans" / "TASKS.json").is_file()
-            assert (python_project / "plans" / "PROGRESS.txt").is_file()
-            assert (python_project / "CLAUDE.md").is_file()
-            assert (python_project / "AGENTS.md").is_file()
-            assert (python_project / "CHANGELOG.md").is_file()
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        assert (python_project / "plans").is_dir()
+        assert (python_project / "plans" / "SPEC.md").is_file()
+        assert (python_project / "plans" / "TASKS.json").is_file()
+        assert (python_project / "plans" / "PROGRESS.txt").is_file()
+        assert (python_project / "CLAUDE.md").is_file()
+        assert (python_project / "AGENTS.md").is_file()
+        assert (python_project / "CHANGELOG.md").is_file()
 
     def test_init_with_skip_claude_flag(self, runner: CliRunner, python_project: Path) -> None:
         """Test that --skip-claude flag prevents Claude invocation."""
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(python_project)
-
+        with working_directory(python_project):
             with (
                 patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
                 patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
             ):
                 result = runner.invoke(app, ["init", "--skip-claude"])
 
-            assert result.exit_code == 0
-            mock_claude.assert_not_called()
-            assert (python_project / "CLAUDE.md").is_file()
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        mock_claude.assert_not_called()
+        assert (python_project / "CLAUDE.md").is_file()
 
 
 class TestPrdCommand:
@@ -192,55 +189,37 @@ class TestPrdCommand:
 
     def test_prd_uses_skip_permissions(self, runner: CliRunner, project_with_skill: Path) -> None:
         """Test that ralph prd uses skip_permissions=True."""
-        original_cwd = os.getcwd()
-        captured_kwargs: dict = {}
+        captured_kwargs: dict[str, Any] = {}
 
-        try:
-            os.chdir(project_with_skill)
+        with working_directory(project_with_skill):
+            mock_instance = MagicMock()
+            mock_instance.run_interactive.side_effect = (
+                lambda *a, **kw: captured_kwargs.update(kw) or 0
+            )
 
-            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
-                mock_instance = MagicMock()
-
-                def capture_run_interactive(*args, **kwargs):
-                    captured_kwargs.update(kwargs)
-                    return 0
-
-                mock_instance.run_interactive.side_effect = capture_run_interactive
-                mock_claude.return_value = mock_instance
-
+            with patch("ralph.commands.prd.ClaudeService", return_value=mock_instance):
                 runner.invoke(app, ["prd"])
 
-            assert captured_kwargs.get("skip_permissions") is True
-        finally:
-            os.chdir(original_cwd)
+        assert captured_kwargs.get("skip_permissions") is True
 
     def test_prd_uses_autonomous_mode_prompt(
         self, runner: CliRunner, project_with_skill: Path
     ) -> None:
         """Test that ralph prd uses append_system_prompt kwarg."""
-        original_cwd = os.getcwd()
-        captured_kwargs: dict = {}
+        captured_kwargs: dict[str, Any] = {}
 
-        try:
-            os.chdir(project_with_skill)
+        with working_directory(project_with_skill):
+            mock_instance = MagicMock()
+            mock_instance.run_interactive.side_effect = (
+                lambda *a, **kw: captured_kwargs.update(kw) or 0
+            )
 
-            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
-                mock_instance = MagicMock()
-
-                def capture_run_interactive(*args, **kwargs):
-                    captured_kwargs.update(kwargs)
-                    return 0
-
-                mock_instance.run_interactive.side_effect = capture_run_interactive
-                mock_claude.return_value = mock_instance
-
+            with patch("ralph.commands.prd.ClaudeService", return_value=mock_instance):
                 runner.invoke(app, ["prd"])
 
-            # Verify append_system_prompt was passed (the constant is accessed via mock)
-            assert "append_system_prompt" in captured_kwargs
-            assert captured_kwargs.get("append_system_prompt") is not None
-        finally:
-            os.chdir(original_cwd)
+        # Verify append_system_prompt was passed (the constant is accessed via mock)
+        assert "append_system_prompt" in captured_kwargs
+        assert captured_kwargs.get("append_system_prompt") is not None
 
 
 class TestTasksCommand:
@@ -248,8 +227,6 @@ class TestTasksCommand:
 
     def test_tasks_creates_tasks_json(self, runner: CliRunner, project_with_spec: Path) -> None:
         """Test that ralph tasks creates TASKS.json from spec."""
-        original_cwd = os.getcwd()
-
         valid_tasks_json = json.dumps(
             {
                 "project": "TestProject",
@@ -269,60 +246,65 @@ class TestTasksCommand:
             }
         )
 
-        try:
-            os.chdir(project_with_spec)
+        with working_directory(project_with_spec):
+            mock_instance = MagicMock()
+            mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
 
-            with patch("ralph.commands.tasks.ClaudeService") as mock_claude:
-                mock_instance = MagicMock()
-                mock_instance.run_print_mode.return_value = (valid_tasks_json, 0)
-                mock_claude.return_value = mock_instance
-
+            with patch("ralph.commands.tasks.ClaudeService", return_value=mock_instance):
                 result = runner.invoke(app, ["tasks", "plans/SPEC.md"])
 
-            assert result.exit_code == 0
-            tasks_file = project_with_spec / "plans" / "TASKS.json"
-            assert tasks_file.exists()
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        tasks_file = project_with_spec / "plans" / "TASKS.json"
+        assert tasks_file.exists()
 
 
 class TestOnceCommand:
     """Integration tests for ralph once command."""
 
-    def test_once_runs_without_crash(self, runner: CliRunner, project_with_tasks: Path) -> None:
-        """Test that ralph once runs without crashing."""
-        original_cwd = os.getcwd()
+    def test_once_runs_and_shows_story_info(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph once runs, displays story info, and streams Claude output."""
 
-        def mock_popen(args: list[str], **kwargs):
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
             mock_process = MagicMock()
-            mock_process.stdout = StringIO("Task output text")
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "Implementing feature <ralph>COMPLETE</ralph>"}
+                        ]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
             mock_process.stderr = StringIO("")
             mock_process.wait.return_value = 0
             return mock_process
 
-        try:
-            os.chdir(project_with_tasks)
-
+        with working_directory(project_with_tasks):
             with (
                 patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
             ):
                 result = runner.invoke(app, ["once"])
 
-            # Should not crash
-            assert result.exit_code in (0, 1)
-            assert "Traceback" not in result.output
-        finally:
-            os.chdir(original_cwd)
+        # Verify story info is displayed
+        assert "US-001" in result.output
+        assert "First story" in result.output
+        # Verify Claude output was streamed
+        assert "Implementing feature" in result.output
+        # Verify COMPLETE tag detected
+        assert "All stories are now complete" in result.output
 
     def test_once_uses_stream_json_format(
         self, runner: CliRunner, project_with_tasks: Path
     ) -> None:
         """Test that ralph once uses stream-json format."""
-        original_cwd = os.getcwd()
         captured_args: list[str] = []
 
-        def mock_popen(args: list[str], **kwargs):
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
             captured_args.extend(args)
             mock_process = MagicMock()
             mock_process.stdout = StringIO("Done")
@@ -330,20 +312,16 @@ class TestOnceCommand:
             mock_process.wait.return_value = 0
             return mock_process
 
-        try:
-            os.chdir(project_with_tasks)
-
+        with working_directory(project_with_tasks):
             with (
                 patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
             ):
                 runner.invoke(app, ["once"])
 
-            assert "--output-format" in captured_args
-            format_idx = captured_args.index("--output-format")
-            assert captured_args[format_idx + 1] == "stream-json"
-        finally:
-            os.chdir(original_cwd)
+        assert "--output-format" in captured_args
+        format_idx = captured_args.index("--output-format")
+        assert captured_args[format_idx + 1] == "stream-json"
 
     def test_once_uses_append_system_prompt_flag(
         self, runner: CliRunner, project_with_tasks: Path
@@ -351,10 +329,9 @@ class TestOnceCommand:
         """Test that ralph once passes --append-system-prompt flag."""
         from ralph.services import ClaudeService
 
-        original_cwd = os.getcwd()
         captured_args: list[str] = []
 
-        def mock_popen(args: list[str], **kwargs):
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
             captured_args.extend(args)
             mock_process = MagicMock()
             mock_process.stdout = StringIO("Done")
@@ -362,49 +339,56 @@ class TestOnceCommand:
             mock_process.wait.return_value = 0
             return mock_process
 
-        try:
-            os.chdir(project_with_tasks)
-
+        with working_directory(project_with_tasks):
             with (
                 patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
             ):
                 runner.invoke(app, ["once"])
 
-            assert "--append-system-prompt" in captured_args
-            prompt_idx = captured_args.index("--append-system-prompt")
-            assert captured_args[prompt_idx + 1] == ClaudeService.AUTONOMOUS_MODE_PROMPT
-        finally:
-            os.chdir(original_cwd)
+        assert "--append-system-prompt" in captured_args
+        prompt_idx = captured_args.index("--append-system-prompt")
+        assert captured_args[prompt_idx + 1] == ClaudeService.AUTONOMOUS_MODE_PROMPT
 
 
 class TestLoopCommand:
     """Integration tests for ralph loop command."""
 
-    def test_loop_runs_without_crash(self, runner: CliRunner, project_with_tasks: Path) -> None:
-        """Test that ralph loop runs without crashing."""
-        original_cwd = os.getcwd()
+    def test_loop_runs_and_shows_iteration_progress(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph loop runs iterations and shows progress."""
 
-        def mock_popen(args: list[str], **kwargs):
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
             mock_process = MagicMock()
-            mock_process.stdout = StringIO("<ralph>COMPLETE</ralph>")
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
             mock_process.stderr = StringIO("")
             mock_process.wait.return_value = 0
             return mock_process
 
-        try:
-            os.chdir(project_with_tasks)
-
+        with working_directory(project_with_tasks):
             with (
                 patch("subprocess.Popen", side_effect=mock_popen),
                 patch("ralph.commands.loop._setup_branch", return_value=True),
             ):
                 result = runner.invoke(app, ["loop", "1"])
 
-            assert result.exit_code in (0, 1)
-            assert "Traceback" not in result.output
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        # Verify story iteration format: [1/1] US-001: First story
+        assert "[1/1]" in result.output
+        assert "US-001" in result.output
+        assert "First story" in result.output
+        # Verify loop summary is shown
+        assert "Loop Summary" in result.output
+        assert "All stories complete" in result.output
 
 
 class TestSyncCommand:
@@ -418,16 +402,13 @@ class TestSyncCommand:
         tmp_path: Path,
     ) -> None:
         """Test that sync copies valid skills to target directory."""
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(python_project)
+        from ralph.services import SkillSyncResult, SyncStatus
 
+        with working_directory(python_project):
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
                 mock_service.list_local_skills.return_value = [skills_dir / "test-skill"]
                 mock_service.target_dir = tmp_path / "target"
-
-                from ralph.services import SkillSyncResult, SyncStatus
 
                 mock_result = SkillSyncResult(
                     skill_name="test-skill",
@@ -439,26 +420,19 @@ class TestSyncCommand:
 
                 result = runner.invoke(app, ["sync"])
 
-            assert result.exit_code == 0
-            assert "test-skill" in result.output
-            assert "Synced 1 skill" in result.output
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        assert "test-skill" in result.output
+        assert "Synced 1 skill" in result.output
 
     def test_sync_shows_warning_when_no_skills_dir(
         self, runner: CliRunner, python_project: Path
     ) -> None:
         """Test that sync shows message when skills/ doesn't exist."""
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(python_project)
-
+        with working_directory(python_project):
             result = runner.invoke(app, ["sync"])
 
-            assert result.exit_code == 0
-            assert "Skills directory not found" in result.output
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        assert "Skills directory not found" in result.output
 
     def test_sync_remove_flag_works(
         self,
@@ -468,20 +442,15 @@ class TestSyncCommand:
         tmp_path: Path,
     ) -> None:
         """Test that sync --remove removes installed skills."""
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(python_project)
-
+        with working_directory(python_project):
             with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
                 mock_service = mock_service_cls.return_value
                 mock_service.remove_skills.return_value = ["test-skill"]
 
                 result = runner.invoke(app, ["sync", "--remove"])
 
-            assert result.exit_code == 0
-            assert "test-skill" in result.output
-        finally:
-            os.chdir(original_cwd)
+        assert result.exit_code == 0
+        assert "test-skill" in result.output
 
 
 class TestBuildSkillPrompt:
@@ -529,10 +498,9 @@ class TestOnceCommandPromptFormat:
 
     def test_once_prompt_uses_at_file_reference(self, project_with_tasks: Path) -> None:
         """Test that ralph once uses @file reference in prompt."""
-        original_cwd = os.getcwd()
         captured_prompt: list[str] = []
 
-        def mock_popen(args: list[str], **kwargs):
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
             # Find the --print flag and capture the prompt (next arg)
             if "--print" in args:
                 idx = args.index("--print")
@@ -544,19 +512,13 @@ class TestOnceCommandPromptFormat:
             mock_process.wait.return_value = 0
             return mock_process
 
-        try:
-            os.chdir(project_with_tasks)
-
+        with working_directory(project_with_tasks):
             with (
                 patch("shutil.which", return_value="/usr/bin/claude"),
                 patch("subprocess.Popen", side_effect=mock_popen),
             ):
-                from typer.testing import CliRunner
-
                 runner = CliRunner()
                 runner.invoke(app, ["once"])
 
-            assert len(captured_prompt) > 0
-            assert "@skills/ralph-iteration/SKILL.md" in captured_prompt[0]
-        finally:
-            os.chdir(original_cwd)
+        assert len(captured_prompt) > 0
+        assert "@skills/ralph-iteration/SKILL.md" in captured_prompt[0]
