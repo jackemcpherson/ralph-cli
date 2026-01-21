@@ -504,3 +504,35 @@ Total: 16 new tests (193 total)
 - Empty parent directory cleanup should stop at the target_dir boundary
 
 [Ralph Loop] 2026-01-22 - Iteration 12: US-012 (Update ralph sync for nested structure) completed
+
+[Ralph Loop] 2026-01-21 22:47 UTC - Iteration 2: US-012 (Update ralph sync for nested structure) completed
+
+---
+
+## 2026-01-22 - US-013
+
+**Story:** Update ralph sync --remove for nested structure
+
+### What was implemented
+- Verified that `remove_skills()` method already handles nested directories correctly (implemented in US-012)
+- The implementation reads manifest (v1 or v2), iterates through installed paths, removes directories, and cleans up empty parent directories
+- Added 2 additional tests to ensure full acceptance criteria coverage:
+  - Test for deeply nested skills (3+ levels like `reviewers/language/python`)
+  - Test for mixed flat and nested paths in the same manifest
+
+### Tests written
+- `TestRemoveNestedSkills.test_remove_deletes_deeply_nested_skills`: Verifies 3-level nested paths are removed and all empty parents cleaned up
+- `TestRemoveNestedSkills.test_remove_handles_mixed_flat_and_nested_skills`: Verifies mixed v1/v2 style paths in manifest are handled correctly
+
+Total: 2 new tests (195 total), 5 tests in TestRemoveNestedSkills class
+
+### Files changed
+- `tests/test_skills_service.py` (added 2 new tests)
+- `plans/TASKS.json` (marked US-013 as passes: true)
+
+### Learnings for future iterations
+- The `remove_skills()` implementation from US-012 was already complete for nested structures
+- Testing edge cases like deeply nested paths (3+ levels) and mixed formats validates implementation robustness
+- The `_cleanup_empty_parents()` helper correctly traverses up the directory tree to target_dir boundary
+
+[Ralph Loop] 2026-01-22 - Iteration 13: US-013 (Update ralph sync --remove for nested structure) completed

@@ -206,8 +206,8 @@
         "Unit tests for nested removal"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already completed in US-012. Added 2 new tests: deeply nested removal (3+ levels) and mixed flat/nested manifest handling. Total 5 tests in TestRemoveNestedSkills class."
     },
     {
       "id": "US-014",
