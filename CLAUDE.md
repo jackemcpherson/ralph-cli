@@ -117,6 +117,16 @@ The CLI provides these commands:
 3. **Branch management**: Auto-create/checkout branches from TASKS.json branchName
 4. **Memory system**: PROGRESS.txt is append-only; CLAUDE.md/AGENTS.md get pattern updates
 
+### Release Process
+
+When merging a release PR:
+1. Update version in `pyproject.toml` and `src/ralph/__init__.py`
+2. Add changelog entry to `CHANGELOG.md`
+3. Merge the PR to main
+4. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+Tags must match the version in pyproject.toml (e.g., `v1.2.6` for version `1.2.6`).
+
 ### File Formats
 
 **TASKS.json schema:**
