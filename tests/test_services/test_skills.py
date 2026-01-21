@@ -1,5 +1,6 @@
 """Tests for Skills service."""
 
+import json
 from pathlib import Path
 
 from ralph.services.skills import SkillInfo, SkillsService, SkillSyncResult, SyncStatus
@@ -434,3 +435,170 @@ class TestSyncAll:
         statuses = {r.skill_name: r.status for r in results}
         assert statuses["invalid-skill"] == SyncStatus.INVALID
         assert statuses["valid"] == SyncStatus.CREATED
+
+
+class TestManifestWriting:
+    """Tests for manifest file writing during sync."""
+
+    def test_sync_all_writes_manifest_file(self, tmp_path: Path) -> None:
+        """Test that sync_all creates a .ralph-manifest.json file."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            '---\nname: "test-skill"\ndescription: "A test skill"\n---\n'
+        )
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        assert manifest_path.exists()
+
+    def test_manifest_contains_installed_skill_names(self, tmp_path: Path) -> None:
+        """Test that manifest contains list of installed skill directory names."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        for name in ["skill-a", "skill-b"]:
+            skill_dir = skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(
+                f'---\nname: "{name}"\ndescription: "Skill {name}"\n---\n'
+            )
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        manifest_data = json.loads(manifest_path.read_text())
+
+        assert "installed" in manifest_data
+        assert manifest_data["installed"] == ["skill-a", "skill-b"]
+
+    def test_manifest_contains_synced_at_timestamp(self, tmp_path: Path) -> None:
+        """Test that manifest contains syncedAt timestamp."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            '---\nname: "test-skill"\ndescription: "A test skill"\n---\n'
+        )
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        manifest_data = json.loads(manifest_path.read_text())
+
+        assert "syncedAt" in manifest_data
+        # ISO timestamp should contain 'T' separator
+        assert "T" in manifest_data["syncedAt"]
+
+    def test_manifest_excludes_invalid_skills(self, tmp_path: Path) -> None:
+        """Test that manifest only includes successfully synced skills."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        # Valid skill
+        valid_skill = skills_dir / "valid-skill"
+        valid_skill.mkdir()
+        (valid_skill / "SKILL.md").write_text('---\nname: "valid"\ndescription: "Valid"\n---\n')
+
+        # Invalid skill (no frontmatter)
+        invalid_skill = skills_dir / "invalid-skill"
+        invalid_skill.mkdir()
+        (invalid_skill / "SKILL.md").write_text("# No frontmatter")
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        manifest_data = json.loads(manifest_path.read_text())
+
+        assert manifest_data["installed"] == ["valid-skill"]
+
+    def test_manifest_empty_for_no_valid_skills(self, tmp_path: Path) -> None:
+        """Test that manifest has empty installed list when no valid skills."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        manifest_data = json.loads(manifest_path.read_text())
+
+        assert manifest_data["installed"] == []
+
+    def test_manifest_updated_on_subsequent_sync(self, tmp_path: Path) -> None:
+        """Test that manifest is updated when syncing again."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        skill_dir = skills_dir / "first-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text('---\nname: "first"\ndescription: "First skill"\n---\n')
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        # First sync
+        service.sync_all()
+        manifest_path = target_dir / ".ralph-manifest.json"
+        first_manifest = json.loads(manifest_path.read_text())
+
+        # Add a new skill
+        second_skill = skills_dir / "second-skill"
+        second_skill.mkdir()
+        (second_skill / "SKILL.md").write_text(
+            '---\nname: "second"\ndescription: "Second skill"\n---\n'
+        )
+
+        # Second sync
+        service.sync_all()
+        second_manifest = json.loads(manifest_path.read_text())
+
+        assert first_manifest["installed"] == ["first-skill"]
+        assert second_manifest["installed"] == ["first-skill", "second-skill"]
+        # Timestamps should be different (or at least present)
+        assert first_manifest["syncedAt"] != second_manifest["syncedAt"] or len(
+            second_manifest["installed"]
+        ) > len(first_manifest["installed"])
+
+    def test_manifest_uses_source_directory_names(self, tmp_path: Path) -> None:
+        """Test that manifest uses source directory names, not skill names from frontmatter."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        # Directory name differs from skill name in frontmatter
+        skill_dir = skills_dir / "my-skill-dir"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            '---\nname: "Different Name"\ndescription: "A skill"\n---\n'
+        )
+
+        target_dir = tmp_path / "target"
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        service.sync_all()
+
+        manifest_path = target_dir / ".ralph-manifest.json"
+        manifest_data = json.loads(manifest_path.read_text())
+
+        # Should use directory name, not the name from frontmatter
+        assert manifest_data["installed"] == ["my-skill-dir"]

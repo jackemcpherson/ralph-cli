@@ -7,10 +7,13 @@ from a local skills directory to the global ~/.claude/skills/ directory.
 import logging
 import re
 import shutil
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
+
+from ralph.models.manifest import Manifest, save_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +203,7 @@ class SkillsService(BaseModel):
 
         Iterates through all skills in the local skills/ directory,
         validates them, and syncs valid ones to ~/.claude/skills/.
+        After syncing, writes a manifest file to track installed skills.
 
         Returns:
             List of SkillSyncResult for each skill processed.
@@ -212,7 +216,39 @@ class SkillsService(BaseModel):
             result = self.sync_skill(skill_path)
             results.append(result)
 
+        # Write manifest with successfully installed skills
+        self._write_manifest(results)
+
         return results
+
+    def _write_manifest(self, results: list[SkillSyncResult]) -> None:
+        """Write a manifest file to track installed skills.
+
+        Creates a .ralph-manifest.json file in the target directory
+        containing the list of successfully installed skill directory names.
+
+        Args:
+            results: List of sync results to extract installed skills from.
+        """
+        # Extract successfully installed skill directory names
+        installed_skills: list[str] = []
+        for result in results:
+            if result.status in (SyncStatus.CREATED, SyncStatus.UPDATED):
+                # Use the source directory name as the skill identifier
+                installed_skills.append(result.source_path.name)
+
+        # Create manifest with current timestamp
+        manifest = Manifest(
+            installed=sorted(installed_skills),
+            syncedAt=datetime.now(UTC).isoformat(),
+        )
+
+        # Ensure target directory exists
+        self.target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write manifest file
+        manifest_path = self.target_dir / ".ralph-manifest.json"
+        save_manifest(manifest, manifest_path)
 
     def _parse_frontmatter(self, content: str) -> dict[str, str] | None:
         """Parse YAML frontmatter from a markdown file.
