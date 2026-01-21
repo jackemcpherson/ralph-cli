@@ -1,177 +1,65 @@
 {
-  "project": "ralph-cli-v1.2.5",
-  "branchName": "ralph/windows-compat-ux-improvements",
-  "description": "Windows compatibility fixes and UX improvements for Ralph CLI v1.2.5",
+  "project": "Ralph CLI v1.2.6",
+  "branchName": "ralph/v1.2.6-bug-fixes-ci",
+  "description": "Bug fixes for PRD prompt and Windows CI improvements",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Windows encoding detection for Rich console",
-      "description": "As a Windows user, I want Ralph CLI to detect my terminal encoding so that unicode symbols display correctly without encoding errors",
+      "title": "Fix PRD command invocation in init",
+      "description": "As a developer, I want `ralph init` to successfully launch PRD creation when I answer `y` so that the auto-PRD workflow works correctly",
       "acceptanceCriteria": [
-        "Create `create_console()` function in `src/ralph/utils/console.py` that detects Windows legacy encodings",
-        "Console uses `legacy_windows=True` for cp1252, cp437, and ascii encodings on Windows",
-        "Console uses default settings for utf-8 terminals and non-Windows platforms",
-        "Add unit tests for `create_console()` with various encoding scenarios",
+        "prd_command is called with all parameters explicitly passed (input_text=None, file=None)",
+        "No 'Cannot use both --input and --file' error when confirming PRD creation",
         "Typecheck passes",
-        "All existing tests pass"
+        "Lint passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Critical bug #15 - affects all Windows users with legacy encodings"
+      "notes": "Root cause: Typer Option defaults not applied when calling function directly. Fixed by explicitly passing input_text=None, file=None."
     },
     {
       "id": "US-002",
-      "title": "Update codebase to use centralized console",
-      "description": "As a developer, I want all Ralph commands to use the centralized console so that encoding handling is consistent",
+      "title": "Add test coverage for init -> prd flow",
+      "description": "As a developer, I want test coverage for the init to PRD flow so that regressions are caught automatically",
       "acceptanceCriteria": [
-        "All modules import console from `ralph.utils.console` instead of creating their own",
-        "No direct `Console()` instantiation outside of `create_console()`",
-        "Typecheck passes",
-        "All existing tests pass"
+        "Test exists for _handle_missing_prd() successfully invoking prd command",
+        "Test mocks Confirm.ask returning True and verifies prd is invoked",
+        "Test verifies no mutual exclusivity error occurs",
+        "All tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Depends on US-001. Codebase already followed pattern from US-001, added enforcement tests."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Path normalization test utility",
-      "description": "As a developer, I want a test utility for normalizing paths so that tests pass on both Windows and Unix",
+      "title": "Add Windows runner to CI matrix",
+      "description": "As a maintainer, I want GitHub Actions to run tests on Windows so that cross-platform compatibility is verified in real Windows environments",
       "acceptanceCriteria": [
-        "Add `normalize_paths()` function to `tests/conftest.py`",
-        "Function converts backslashes to forward slashes for comparison",
-        "Function is available as a pytest fixture or importable utility",
-        "Typecheck passes"
+        "CI workflow includes windows-latest in os matrix",
+        "Matrix includes windows-latest alongside ubuntu-latest",
+        "shell: bash specified for consistency across platforms",
+        "Coverage upload only runs once (ubuntu + specific python version)",
+        "Typecheck passes",
+        "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Foundation for US-004. Added normalize_paths() function and path_normalizer fixture."
+      "passes": false,
+      "notes": "Windows runners default to PowerShell, need shell: bash for consistency"
     },
     {
       "id": "US-004",
-      "title": "Fix path separator mismatches in tests",
-      "description": "As a developer, I want tests to handle path separators correctly so that the test suite passes on Windows",
+      "title": "Verify all tests pass on Windows CI",
+      "description": "As a maintainer, I want all tests to pass on Windows CI so that v1.2.5 Windows fixes are verified in real environments",
       "acceptanceCriteria": [
-        "Update `tests/test_commands/test_prd.py` to use path normalization",
-        "Update `tests/test_commands/test_tasks.py` to use path normalization",
-        "All path-related assertions use normalized comparison",
-        "Tests pass on both Windows and Unix platforms",
-        "No changes to production code path output"
+        "All 640+ tests pass on Windows runner",
+        "No path separator issues in test assertions",
+        "No encoding errors in test output",
+        "CI pipeline completes successfully on both Ubuntu and Windows"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Bug #14 - depends on US-003. Updated 6 path assertions in test_prd.py and 3 in test_tasks.py."
-    },
-    {
-      "id": "US-005",
-      "title": "Detect meaningful content in PROGRESS.txt",
-      "description": "As a user, I want Ralph to detect if PROGRESS.txt has real iteration content so that empty template files are not archived",
-      "acceptanceCriteria": [
-        "Add `_has_meaningful_content()` function to `src/ralph/commands/tasks.py`",
-        "Function returns False for template-only content",
-        "Function returns True when iteration markers are present (## Iteration, ### Story:, **Status:**, **Completed:**)",
-        "Add unit tests for content detection with various inputs",
-        "Typecheck passes"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Foundation for US-006. Added function with 8 iteration markers and 14 unit tests."
-    },
-    {
-      "id": "US-006",
-      "title": "Skip archiving template-only PROGRESS.txt",
-      "description": "As a user, I want Ralph to skip archiving PROGRESS.txt when it only contains template boilerplate so that the plans directory stays clean",
-      "acceptanceCriteria": [
-        "Update `_archive_progress_file()` to check for meaningful content before archiving",
-        "Function returns `None` when file contains only template content",
-        "Function archives and returns path when file has iteration content",
-        "Add unit tests for archive behavior with template vs real content",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Bug #13 - depends on US-005. Added meaningful content check using _has_meaningful_content()."
-    },
-    {
-      "id": "US-007",
-      "title": "Centralize Claude CLI flag handling",
-      "description": "As a developer, I want centralized Claude CLI flag handling so that all commands use consistent flags",
-      "acceptanceCriteria": [
-        "Add `SKIP_PERMISSIONS_FLAG` constant to `ClaudeService` in `src/ralph/services/claude.py`",
-        "Add `_build_base_args()` method that includes skip-permissions flag",
-        "Method accepts `skip_permissions` parameter defaulting to True",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Foundation for US-008. Added ClassVar constant and updated _build_base_args() with skip_permissions parameter."
-    },
-    {
-      "id": "US-008",
-      "title": "Apply consistent Claude flags across all commands",
-      "description": "As a user, I want all Ralph commands to use the same Claude flags so that I don't get unexpected permission prompts",
-      "acceptanceCriteria": [
-        "Update `ralph init` to use centralized flag handling",
-        "Update `ralph prd` to use centralized flag handling",
-        "Update `ralph tasks` to use centralized flag handling",
-        "Update `ralph once` and `ralph loop` to use centralized flag handling if not already",
-        "All Claude invocations include `--dangerously-skip-permissions` flag",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Enhancement #12 - Updated init, prd (non-interactive), and tasks to use skip_permissions=True. once/loop already had it."
-    },
-    {
-      "id": "US-009",
-      "title": "Auto-PRD prompt in ralph init",
-      "description": "As a user, I want Ralph to prompt me to create a PRD when running init without one so that claude init has a specification to work with",
-      "acceptanceCriteria": [
-        "Check for PRD file at `plans/SPEC.md` before running `claude init`",
-        "Display warning message when PRD is missing",
-        "Prompt user with option to create PRD first",
-        "If user confirms, invoke PRD command to create specification",
-        "If user declines, proceed with init and display informational message",
-        "Add integration test for PRD prompt behavior",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Enhancement #11 - Added _has_prd_content() and _handle_missing_prd() helpers. Uses Confirm.ask() from Rich."
-    },
-    {
-      "id": "US-010",
-      "title": "Enable streaming for ralph tasks",
-      "description": "As a user, I want ralph tasks to stream output so that I can see progress during task generation",
-      "acceptanceCriteria": [
-        "Change `stream=False` to `stream=True` in `ralph tasks` Claude invocation",
-        "Users see real-time output during task breakdown",
-        "JSON extraction continues to work correctly from streamed output",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Enhancement #5 - Streaming was already implemented in v1.2 release. Verified all acceptance criteria are met."
-    },
-    {
-      "id": "US-011",
-      "title": "Final integration testing and quality checks",
-      "description": "As a developer, I want all quality checks to pass so that the release is ready",
-      "acceptanceCriteria": [
-        "All unit tests pass",
-        "All integration tests pass",
-        "Typecheck (pyright) passes with no errors",
-        "Lint (ruff check) passes with no errors",
-        "Format (ruff format --check) passes",
-        "Manual verification on Windows terminal with cp1252 encoding if available"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "All 640 tests pass, pyright 0 errors, ruff check/format pass. Windows manual testing not available on macOS."
+      "passes": false,
+      "notes": "Depends on US-003; verifies fixes from #14 and #15 work in real Windows"
     }
   ]
 }

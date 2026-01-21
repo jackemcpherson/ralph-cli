@@ -228,7 +228,8 @@ def _handle_missing_prd(prd_path: Path, project_root: Path) -> None:
         try:
             # Invoke the prd command to create the specification
             # Use the default output path which is plans/SPEC.md
-            prd_command(output=Path("plans/SPEC.md"), verbose=False)
+            # Pass all parameters explicitly to avoid Typer Option defaults not being applied
+            prd_command(output=Path("plans/SPEC.md"), verbose=False, input_text=None, file=None)
         except typer.Exit:
             # PRD command completed (either successfully or user cancelled)
             pass
