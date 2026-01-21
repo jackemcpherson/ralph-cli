@@ -6,13 +6,18 @@ Ralph iterations sequentially until all stories complete or failure.
 
 import logging
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 
-from ralph.commands.once import PERMISSIONS_SYSTEM_PROMPT, _build_iteration_prompt, _find_next_story
+from ralph.commands.once import (
+    _build_prompt_from_skill,
+    _find_next_story,
+)
 from ralph.models import load_tasks
-from ralph.services import ClaudeError, ClaudeService, GitError, GitService
+from ralph.services import ClaudeError, ClaudeService, GitError, GitService, SkillNotFoundError
 from ralph.utils import (
     append_file,
     console,
@@ -26,7 +31,7 @@ from ralph.utils import (
 logger = logging.getLogger(__name__)
 
 
-class LoopStopReason:
+class LoopStopReason(StrEnum):
     """Reasons for stopping the loop.
 
     Contains constants representing the various conditions that
@@ -112,14 +117,15 @@ def loop(
     completed_in_loop = 0
     failed_story_id: str | None = None
     consecutive_failures = 0
-    stop_reason: str = LoopStopReason.MAX_ITERATIONS
+    stop_reason: LoopStopReason = LoopStopReason.MAX_ITERATIONS
 
     for i in range(iterations):
         iteration_num = i + 1
 
         try:
             tasks = load_tasks(tasks_path)
-        except Exception:
+        except (FileNotFoundError, ValidationError, OSError) as e:
+            logger.error(f"Failed to reload TASKS.json: {e}")
             stop_reason = LoopStopReason.TRANSIENT_FAILURE
             print_error("Failed to reload TASKS.json")
             break
@@ -145,7 +151,12 @@ def loop(
         print_step(iteration_num, iterations, f"[cyan]{next_story.id}[/cyan]: {next_story.title}")
         console.print()
 
-        prompt = _build_iteration_prompt(next_story, max_fix_attempts)
+        try:
+            prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
+        except SkillNotFoundError as e:
+            print_error(f"Skill not found: {e}")
+            stop_reason = LoopStopReason.TRANSIENT_FAILURE
+            break
 
         try:
             claude = ClaudeService(working_dir=project_root, verbose=verbose)
@@ -153,7 +164,7 @@ def loop(
                 prompt,
                 stream=True,
                 skip_permissions=True,
-                append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
+                append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
             )
         except ClaudeError as e:
             print_error(f"Claude error: {e}")
@@ -174,7 +185,8 @@ def loop(
                 (s for s in updated_tasks.user_stories if s.id == next_story.id), None
             )
             story_passed = updated_story is not None and updated_story.passes
-        except Exception:
+        except (FileNotFoundError, ValidationError, OSError) as e:
+            logger.warning(f"Could not verify story status: {e}")
             story_passed = False
 
         if story_passed:
@@ -198,7 +210,8 @@ def loop(
         final_tasks = load_tasks(tasks_path)
         final_completed = sum(1 for s in final_tasks.user_stories if s.passes)
         final_remaining = total_stories - final_completed
-    except Exception:
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not load final task status: {e}")
         final_completed = completed_before + completed_in_loop
         final_remaining = total_stories - final_completed
 
@@ -296,5 +309,5 @@ def _append_loop_progress(
 
     try:
         append_file(progress_path, note)
-    except Exception:
-        pass
+    except OSError as e:
+        logger.warning(f"Could not append to progress file: {e}")

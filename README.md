@@ -10,6 +10,7 @@ A Python CLI tool that implements the Ralph autonomous iteration pattern for Cla
 - **Autonomous Iteration**: Execute stories one at a time with quality checks
 - **Loop Execution**: Run multiple iterations automatically with failure detection
 - **Skills Management**: Sync custom Claude Code skills to your system
+- **Code Review Skills**: Built-in reviewers for Python, repo structure, GitHub Actions, and tests
 
 ## Installation
 
@@ -129,7 +130,23 @@ Syncs skills to Claude Code:
 ```bash
 ralph sync                           # Sync from ./skills
 ralph sync --skills-dir /path/to/skills  # Custom source
+ralph sync --remove                  # Remove synced skills
 ```
+
+## Reviewer Skills
+
+Ralph includes four code review skills that can be invoked directly in Claude Code:
+
+| Skill | Description |
+|-------|-------------|
+| `/python-code-reviewer` | Type hints, docstrings, logging, code quality |
+| `/repo-structure-reviewer` | README, .gitignore, project organization |
+| `/github-actions-reviewer` | CI/CD completeness, security, best practices |
+| `/test-quality-reviewer` | Meaningful assertions, coverage, anti-patterns |
+
+Each reviewer outputs a structured report with severity levels (error/warning/suggestion) and a verdict tag:
+- `<ralph-review>PASS</ralph-review>` - No blocking errors
+- `<ralph-review>NEEDS_WORK</ralph-review>` - Has errors that must be fixed
 
 ## Project Structure
 

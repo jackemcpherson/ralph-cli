@@ -15,9 +15,16 @@ import typer
 from pydantic import ValidationError
 
 from ralph.models import TasksFile, save_tasks
-from ralph.services import ClaudeError, ClaudeService
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
 from ralph.services.scaffold import PROGRESS_TEMPLATE
-from ralph.utils import console, print_error, print_success, read_file, write_file
+from ralph.utils import (
+    build_skill_prompt,
+    console,
+    print_error,
+    print_success,
+    read_file,
+    write_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,14 +86,24 @@ def tasks(
     console.print(f"[dim]Output will be saved to:[/dim] [cyan]{output}[/cyan]")
     console.print()
 
-    prompt = _build_tasks_prompt(spec_content, branch_name)
+    # Load skill content and build prompt
+    try:
+        prompt = _build_prompt_from_skill(project_root, spec_content, branch_name)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        raise typer.Exit(1) from e
 
     console.print("[bold]Running Claude to generate tasks...[/bold]")
     console.print()
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
+        output_text, exit_code = claude.run_print_mode(
+            prompt,
+            stream=True,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code != 0:
             print_error(f"Claude exited with code {exit_code}")
@@ -95,29 +112,19 @@ def tasks(
                 console.print(output_text)
             raise typer.Exit(exit_code)
 
-        json_content = _extract_json(output_text)
+        # Try to get valid JSON - first check if Claude wrote the file directly,
+        # then fall back to extracting from stdout
+        tasks_model = _get_tasks_from_output_or_file(output_text, output_path)
 
-        if not json_content:
-            print_error("Could not extract valid JSON from Claude's output.")
+        if tasks_model is None:
+            print_error("Could not extract valid JSON from Claude's output or file.")
             console.print()
             console.print("[dim]Claude's output:[/dim]")
             console.print(output_text[:2000])
             raise typer.Exit(1)
 
-        try:
-            tasks_model = TasksFile.model_validate_json(json_content)
-        except ValidationError as e:
-            print_error("Claude's output does not match the expected TASKS.json format.")
-            console.print()
-            console.print("[dim]Validation errors:[/dim]")
-            for error in e.errors():
-                loc = ".".join(str(x) for x in error["loc"])
-                console.print(f"  • {loc}: {error['msg']}")
-            raise typer.Exit(1) from e
-
         save_tasks(tasks_model, output_path)
 
-        # Archive PROGRESS.txt if it exists and has content
         archived_path = _archive_progress_file(project_root)
         if archived_path:
             console.print()
@@ -139,66 +146,50 @@ def tasks(
         raise typer.Exit(1) from e
 
 
-def _build_tasks_prompt(spec_content: str, branch_name: str | None = None) -> str:
-    """Build the prompt for task generation.
+def _build_prompt_from_skill(
+    project_root: Path, spec_content: str, branch_name: str | None = None
+) -> str:
+    """Build the prompt by referencing the ralph-tasks skill and adding context.
 
     Args:
+        project_root: Path to the project root directory.
         spec_content: Content of the specification file.
         branch_name: Optional git branch name for the feature.
 
     Returns:
         The prompt string for Claude.
+
+    Raises:
+        SkillNotFoundError: If the ralph-tasks skill is not found.
     """
-    branch_instruction = ""
+    # Build context section
+    context_lines = [
+        "---",
+        "",
+        "## Context for This Session",
+        "",
+    ]
+
     if branch_name:
-        branch_instruction = f'\nUse this branch name: "{branch_name}"'
+        context_lines.append(f"**Branch name:** `{branch_name}`")
     else:
-        branch_instruction = (
-            '\nDerive the branch name from the project name (e.g., "ralph/<project-slug>")'
+        context_lines.append(
+            '**Branch name:** Derive from the project name (e.g., "ralph/<project-slug>")'
         )
 
-    return f"""Convert the following Product Requirements Document (PRD) into a TASKS.json file.
+    context_lines.extend(
+        [
+            "",
+            "**Specification content:**",
+            "",
+            spec_content,
+            "",
+            "Generate the TASKS.json content now (JSON only, no markdown code blocks).",
+        ]
+    )
 
-IMPORTANT: Output ONLY valid JSON with no additional text, markdown, or explanation.
-
-The JSON must follow this exact schema:
-{{
-  "project": "<ProjectName>",
-  "branchName": "<ralph/feature-name>",
-  "description": "<brief feature description>",
-  "userStories": [
-    {{
-      "id": "<US-001>",
-      "title": "<short title>",
-      "description": "<As a [user], I want [feature] so that [benefit]>",
-      "acceptanceCriteria": ["<criterion 1>", "<criterion 2>"],
-      "priority": <1-N, lower is higher priority>,
-      "passes": false,
-      "notes": ""
-    }}
-  ]
-}}
-
-Guidelines for creating user stories:
-1. Break down the spec into atomic, implementable stories
-2. Each story should be completable in one iteration
-3. Order by dependency (foundational work first, then features that build on it)
-4. Include "Typecheck passes" in acceptance criteria for code changes
-5. Write clear, testable acceptance criteria
-6. Keep stories focused - if too large, split into multiple stories
-7. Include setup/infrastructure stories before feature stories
-8. Include test stories for critical functionality
-{branch_instruction}
-
----
-
-SPECIFICATION:
-
-{spec_content}
-
----
-
-Output the TASKS.json content now (JSON only, no markdown code blocks):"""
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-tasks", context)
 
 
 def _extract_json(text: str) -> str | None:
@@ -249,6 +240,41 @@ def _is_valid_json(text: str) -> bool:
         return True
     except json.JSONDecodeError:
         return False
+
+
+def _get_tasks_from_output_or_file(output_text: str, output_path: Path) -> TasksFile | None:
+    """Get TasksFile from Claude's output or from the file if Claude wrote it directly.
+
+    First checks if the output file exists and contains valid JSON (Claude may
+    have written it directly). Falls back to extracting JSON from stdout.
+
+    Args:
+        output_text: Claude's stdout output.
+        output_path: Path where TASKS.json should be written.
+
+    Returns:
+        TasksFile model if valid JSON found, None otherwise.
+    """
+    # First, check if Claude wrote the file directly
+    if output_path.exists():
+        try:
+            file_content = read_file(output_path)
+            tasks_model = TasksFile.model_validate_json(file_content)
+            logger.info("Loaded TASKS.json from file written by Claude")
+            return tasks_model
+        except (ValidationError, json.JSONDecodeError, OSError) as e:
+            logger.debug(f"File exists but couldn't parse: {e}")
+            # File exists but invalid - continue to try stdout
+
+    # Fall back to extracting from stdout
+    json_content = _extract_json(output_text)
+    if json_content:
+        try:
+            return TasksFile.model_validate_json(json_content)
+        except ValidationError as e:
+            logger.warning(f"JSON from stdout didn't validate: {e}")
+
+    return None
 
 
 def _has_meaningful_content(content: str) -> bool:

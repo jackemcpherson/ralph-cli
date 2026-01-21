@@ -9,231 +9,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from pydantic import ValidationError
 
 from ralph.models import TasksFile, UserStory, load_tasks
-from ralph.services import ClaudeError, ClaudeService
-from ralph.utils import append_file, console, file_exists, print_error, print_success, print_warning
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
+from ralph.utils import (
+    append_file,
+    build_skill_prompt,
+    console,
+    file_exists,
+    print_error,
+    print_success,
+    print_warning,
+)
 
 logger = logging.getLogger(__name__)
-
-PERMISSIONS_SYSTEM_PROMPT = """\
-You are running in autonomous mode with full permissions pre-approved.
-
-IMPORTANT: DO NOT ask for permission to:
-- Read, write, edit, or delete files
-- Run commands or scripts
-- Make git commits
-- Modify any files in the project
-
-All operations have been pre-authorized. Proceed directly with implementation \
-without asking for confirmation or permission."""
-
-ITERATION_PROMPT = """You are an autonomous coding agent working on a software project \
-using the Ralph workflow.
-
-## Your Task
-
-1. Read the task list at `plans/TASKS.json`
-2. Read the progress log at `plans/PROGRESS.txt` (check **Codebase Patterns** section first)
-3. Read `CLAUDE.md` for project-specific quality checks and conventions
-4. Check you're on the correct branch from `branchName` in TASKS.json. \
-If not, check it out or create from main.
-5. Pick the **highest priority** user story where `passes: false`
-6. Implement that single user story
-7. **Write tests** for the new functionality (see Testing Requirements below)
-8. Run quality checks (defined in `CLAUDE.md` under `<!-- RALPH:CHECKS:START -->`)
-9. If checks fail, fix the issues and re-run (up to {max_fix_attempts} attempts)
-10. Update `CLAUDE.md` and `AGENTS.md` if you discover reusable patterns (see below)
-11. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-12. Update `plans/TASKS.json` to set `passes: true` for the completed story
-13. Append your progress to `plans/PROGRESS.txt`
-
-## Quality Checks
-
-Quality checks are defined in `CLAUDE.md` in a structured YAML block:
-
-```markdown
-<!-- RALPH:CHECKS:START -->
-```yaml
-checks:
-  - name: typecheck
-    command: npm run typecheck
-    required: true
-```
-<!-- RALPH:CHECKS:END -->
-```
-
-Run each check in order. If a `required: true` check fails:
-1. Analyze the error
-2. Fix the issue
-3. Re-run all checks
-4. Repeat up to {max_fix_attempts} times total
-
-Only proceed to commit if ALL required checks pass.
-
-## Testing Requirements
-
-Every story implementation must include appropriate tests. Follow these guidelines:
-
-**What to test:**
-- New functions and methods you create
-- Edge cases and error handling
-- Integration points with existing code
-- Any behavior specified in acceptance criteria
-
-**Test quality standards:**
-- Tests should be meaningful, not just for coverage
-- Test behavior, not implementation details
-- Include both happy path and error cases
-- Use descriptive test names that explain what's being tested
-
-**Test location:**
-- Follow the project's existing test structure
-- Co-locate tests with code if that's the project convention
-- Use the project's established testing framework
-
-**When tests might be minimal:**
-- Pure configuration changes
-- Documentation-only updates
-- Simple copy/text changes
-
-If unsure about testing approach, check `plans/PROGRESS.txt` for patterns \
-from previous iterations or existing tests in the codebase for conventions.
-
-## Progress Report Format
-
-APPEND to `plans/PROGRESS.txt` (never replace, always append):
-
-```
-## [Date/Time] - [Story ID]
-
-**Story:** [Story Title]
-
-### What was implemented
-- [Bullet points of changes]
-
-### Tests written
-- [List of new tests added]
-- [What behaviors they verify]
-
-### Files changed
-- [List of modified files]
-
-### Learnings for future iterations
-- [Patterns discovered]
-- [Gotchas encountered]
-- [Useful context]
-
----
-```
-
-The learnings section is critical—it helps future iterations avoid \
-repeating mistakes and understand the codebase better.
-
-## Consolidate Patterns
-
-If you discover a **reusable pattern** that future iterations should know, \
-add it to the `## Codebase Patterns` section at the TOP of `plans/PROGRESS.txt` \
-(create it if it doesn't exist). This section consolidates the most important learnings:
-
-```
-## Codebase Patterns
-
-- Example: Use `sql<number>` template for aggregations
-- Example: Always use `IF NOT EXISTS` for migrations
-- Example: Export types from actions.ts for UI components
-```
-
-Only add patterns that are **general and reusable**, not story-specific details.
-
-## Update CLAUDE.md and AGENTS.md
-
-Before committing, check if any edited files have learnings worth preserving. \
-**Both files must be kept in sync.**
-
-1. **Identify directories with edited files** - Look at which directories you modified
-2. **Check for patterns worth preserving** - Did you discover something \
-future developers/agents should know?
-3. **Update both files** - Add the same learnings to both `CLAUDE.md` and `AGENTS.md`
-
-**Examples of good additions:**
-- "When modifying X, also update Y to keep them in sync"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running on PORT 3000"
-- "Field names must match the template exactly"
-
-**Do NOT add:**
-- Story-specific implementation details
-- Temporary debugging notes
-- Information already in `plans/PROGRESS.txt`
-
-## TASKS.json Format
-
-The task file follows this structure:
-
-```json
-{{
-  "project": "ProjectName",
-  "branchName": "ralph/feature-name",
-  "description": "Feature description",
-  "userStories": [
-    {{
-      "id": "US-001",
-      "title": "Story title",
-      "description": "As a [user], I want [feature] so that [benefit]",
-      "acceptanceCriteria": [
-        "Criterion 1",
-        "Criterion 2",
-        "Typecheck passes"
-      ],
-      "priority": 1,
-      "passes": false,
-      "notes": ""
-    }}
-  ]
-}}
-```
-
-- Pick the story with the lowest `priority` number where `passes: false`
-- After completion, set `passes: true`
-- Add any relevant notes to the `notes` field
-
-## Stop Condition
-
-After completing a user story, check if ALL stories have `passes: true`.
-
-If ALL stories are complete and passing, output exactly:
-
-```
-<ralph>COMPLETE</ralph>
-```
-
-If there are still stories with `passes: false`, end your response normally \
-(another iteration will pick up the next story).
-
-## Important Rules
-
-- Work on **ONE story** per iteration
-- **Write tests** for new functionality before considering a story complete
-- Commit frequently (after each successful story)
-- Keep all quality checks passing
-- Read the Codebase Patterns section in `plans/PROGRESS.txt` before starting
-- Always check `CLAUDE.md` for project-specific instructions
-- Keep `CLAUDE.md` and `AGENTS.md` in sync when adding patterns
-
-## Current Story
-
-You are implementing the following story:
-
-**ID:** {story_id}
-**Title:** {story_title}
-**Description:** {story_description}
-
-**Acceptance Criteria:**
-{acceptance_criteria}
-
-Begin implementation now. Read the codebase, implement the story, \
-run quality checks, and commit your changes."""
 
 
 def once(
@@ -291,7 +81,11 @@ def once(
     console.print(f"[dim]Stories remaining: {incomplete_count}[/dim]")
     console.print()
 
-    prompt = _build_iteration_prompt(next_story, max_fix_attempts)
+    try:
+        prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        raise typer.Exit(1) from e
 
     console.print("[bold]Running Claude Code...[/bold]")
     console.print(
@@ -305,7 +99,7 @@ def once(
             prompt,
             stream=True,
             skip_permissions=True,
-            append_system_prompt=PERMISSIONS_SYSTEM_PROMPT,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
         )
 
         if exit_code != 0:
@@ -327,7 +121,8 @@ def once(
         updated_tasks = load_tasks(tasks_path)
         updated_story = next((s for s in updated_tasks.user_stories if s.id == next_story.id), None)
         story_passed = updated_story is not None and updated_story.passes
-    except Exception:
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not verify story status: {e}")
         story_passed = exit_code == 0
 
     console.print("[bold]Iteration Summary[/bold]")
@@ -374,25 +169,48 @@ def _find_next_story(tasks: TasksFile) -> UserStory | None:
     return incomplete[0]
 
 
-def _build_iteration_prompt(story: UserStory, max_fix_attempts: int) -> str:
-    """Build the iteration prompt for Claude.
+def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attempts: int) -> str:
+    """Build the prompt by referencing the ralph-iteration skill and adding context.
 
     Args:
+        project_root: Path to the project root directory.
         story: UserStory to implement.
         max_fix_attempts: Maximum fix attempts.
 
     Returns:
-        The formatted prompt string.
+        The prompt string for Claude.
+
+    Raises:
+        SkillNotFoundError: If the ralph-iteration skill is not found.
     """
     criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
 
-    return ITERATION_PROMPT.format(
-        max_fix_attempts=max_fix_attempts,
-        story_id=story.id,
-        story_title=story.title,
-        story_description=story.description,
-        acceptance_criteria=criteria_lines,
-    )
+    context_lines = [
+        "---",
+        "",
+        "## Context for This Session",
+        "",
+        f"**Max fix attempts:** {max_fix_attempts}",
+        "",
+        "## Current Story",
+        "",
+        "You are implementing the following story:",
+        "",
+        f"**ID:** {story.id}",
+        f"**Title:** {story.title}",
+        f"**Description:** {story.description}",
+        "",
+        "**Acceptance Criteria:**",
+        criteria_lines,
+        "",
+        (
+            "Begin implementation now. Read the codebase, implement the story, "
+            "run quality checks, and commit your changes."
+        ),
+    ]
+
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-iteration", context)
 
 
 def _append_cli_summary(
@@ -418,5 +236,5 @@ def _append_cli_summary(
 
     try:
         append_file(progress_path, summary)
-    except Exception:
-        pass
+    except OSError as e:
+        logger.warning(f"Could not append to progress file: {e}")

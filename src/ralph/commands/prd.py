@@ -10,8 +10,8 @@ from pathlib import Path
 
 import typer
 
-from ralph.services import ClaudeError, ClaudeService
-from ralph.utils import console, print_error, print_success, print_warning
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
+from ralph.utils import build_skill_prompt, console, print_error, print_success, print_warning
 
 logger = logging.getLogger(__name__)
 
@@ -146,14 +146,23 @@ def prd(
     console.print("[dim]Running with auto-approved permissions for PRD creation[/dim]")
     console.print()
 
-    prompt = _build_prd_prompt(output_path)
+    # Load skill content and build prompt
+    try:
+        prompt = _build_prompt_from_skill(project_root, output_path)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        raise typer.Exit(1) from e
 
     # Record mtime before Claude runs
     mtime_before = _get_file_mtime(output_path)
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        exit_code = claude.run_interactive(prompt, skip_permissions=True)
+        exit_code = claude.run_interactive(
+            prompt,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code == 0:
             console.print()
@@ -194,14 +203,23 @@ def _run_non_interactive(
     console.print("[bold]Running Claude Code...[/bold]")
     console.print()
 
-    prompt = _build_non_interactive_prd_prompt(output_path, feature_description)
+    # Load skill content and build prompt with feature description
+    try:
+        prompt = _build_prompt_from_skill(project_root, output_path, feature_description)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        raise typer.Exit(1) from e
 
     # Record mtime before Claude runs
     mtime_before = _get_file_mtime(output_path)
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        _, exit_code = claude.run_print_mode(prompt, skip_permissions=True)
+        _, exit_code = claude.run_print_mode(
+            prompt,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code == 0:
             console.print()
@@ -215,56 +233,56 @@ def _run_non_interactive(
         raise typer.Exit(1) from e
 
 
-def _build_non_interactive_prd_prompt(output_path: Path, feature_description: str) -> str:
-    """Build the prompt for non-interactive PRD generation.
+def _build_prompt_from_skill(
+    project_root: Path, output_path: Path, feature_description: str | None = None
+) -> str:
+    """Build the prompt by referencing the ralph-prd skill and adding context.
 
     Args:
+        project_root: Path to the project root directory.
         output_path: Path where the PRD should be saved.
-        feature_description: The feature description provided by the user.
+        feature_description: Optional feature description for non-interactive mode.
 
     Returns:
         The prompt string for Claude.
+
+    Raises:
+        SkillNotFoundError: If the ralph-prd skill is not found.
     """
-    return f"""Create a Product Requirements Document (PRD) for the following feature:
+    # Build context section
+    context_lines = [
+        "---",
+        "",
+        "## Context for This Session",
+        "",
+        f"**Output path:** `{output_path}`",
+    ]
 
-{feature_description}
+    if feature_description:
+        # Non-interactive mode: provide feature description directly
+        context_lines.extend(
+            [
+                "",
+                "**Mode:** Non-interactive (generate PRD without asking questions)",
+                "",
+                "**Feature description provided by user:**",
+                "",
+                feature_description,
+                "",
+                "Generate the PRD based on this description.",
+                "Make reasonable assumptions where needed.",
+            ]
+        )
+    else:
+        # Interactive mode: Claude will ask questions
+        context_lines.extend(
+            [
+                "",
+                "**Mode:** Interactive (ask clarifying questions before generating)",
+                "",
+                "Start by asking the user what feature they want to build.",
+            ]
+        )
 
-Structure the PRD with these sections:
-- Overview: What problem does this solve?
-- Goals: What are we trying to achieve?
-- Non-Goals: What is explicitly out of scope?
-- Requirements: Detailed functional requirements
-- Technical Considerations: Implementation notes
-- Success Criteria: How we know it's working
-
-Based on the feature description provided, make reasonable assumptions where needed.
-Write the PRD in clear, professional language.
-
-Save the PRD to: {output_path}"""
-
-
-def _build_prd_prompt(output_path: Path) -> str:
-    """Build the prompt for interactive PRD creation.
-
-    Args:
-        output_path: Path where the PRD should be saved.
-
-    Returns:
-        The prompt string for Claude.
-    """
-    return f"""Help me create a Product Requirements Document (PRD) for a new feature.
-
-Please guide me through the following:
-1. Ask clarifying questions to understand the feature requirements
-2. Help me define the scope and boundaries
-3. Structure the PRD with these sections:
-   - Overview: What problem does this solve?
-   - Goals: What are we trying to achieve?
-   - Non-Goals: What is explicitly out of scope?
-   - Requirements: Detailed functional requirements
-   - Technical Considerations: Implementation notes
-   - Success Criteria: How we know it's working
-
-Save the final PRD to: {output_path}
-
-Start by asking me what feature I want to build."""
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-prd", context)

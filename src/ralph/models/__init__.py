@@ -6,15 +6,19 @@ from ralph.models.config import (
     load_quality_checks,
     parse_quality_checks,
 )
+from ralph.models.manifest import Manifest, load_manifest, save_manifest
 from ralph.models.tasks import TasksFile, UserStory, load_tasks, save_tasks
 
 __all__ = [
+    "Manifest",
     "QualityCheck",
     "QualityChecks",
     "TasksFile",
     "UserStory",
+    "load_manifest",
     "load_quality_checks",
     "load_tasks",
     "parse_quality_checks",
+    "save_manifest",
     "save_tasks",
 ]

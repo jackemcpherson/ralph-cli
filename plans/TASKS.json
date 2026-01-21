@@ -1,65 +1,178 @@
 {
-  "project": "Ralph CLI v1.2.6",
-  "branchName": "ralph/v1.2.6-bug-fixes-ci",
-  "description": "Bug fixes for PRD prompt and Windows CI improvements",
+  "project": "Ralph CLI v2.0 Skills-First Architecture",
+  "branchName": "ralph/skills-first-v2",
+  "description": "Refactor Ralph CLI to load prompts from skill files instead of embedded Python code, simplify codebase, add skill removal, and reduce test suite",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Fix PRD command invocation in init",
-      "description": "As a developer, I want `ralph init` to successfully launch PRD creation when I answer `y` so that the auto-PRD workflow works correctly",
+      "title": "Create SkillLoader service",
+      "description": "As a developer, I want a SkillLoader service that reads skill content from disk so that commands can delegate to skill files instead of embedding prompts",
       "acceptanceCriteria": [
-        "prd_command is called with all parameters explicitly passed (input_text=None, file=None)",
-        "No 'Cannot use both --input and --file' error when confirming PRD creation",
-        "Typecheck passes",
-        "Lint passes"
+        "SkillLoader class exists in src/ralph/services/",
+        "load(skill_name) method reads from skills/{skill_name}/SKILL.md",
+        "Raises SkillNotFoundError with clear message if skill file is missing",
+        "Returns skill content as string",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Root cause: Typer Option defaults not applied when calling function directly. Fixed by explicitly passing input_text=None, file=None."
+      "notes": "Foundation for all other command refactoring"
     },
     {
       "id": "US-002",
-      "title": "Add test coverage for init -> prd flow",
-      "description": "As a developer, I want test coverage for the init to PRD flow so that regressions are caught automatically",
+      "title": "Add Manifest model for skill tracking",
+      "description": "As a developer, I want a Manifest Pydantic model so that ralph sync can track which skills it has installed",
       "acceptanceCriteria": [
-        "Test exists for _handle_missing_prd() successfully invoking prd command",
-        "Test mocks Confirm.ask returning True and verifies prd is invoked",
-        "Test verifies no mutual exclusivity error occurs",
-        "All tests pass"
+        "Manifest model exists in src/ralph/models/",
+        "Model has 'installed' field (list of skill directory names)",
+        "Model has 'synced_at' field (ISO timestamp string)",
+        "Model can serialize to/from JSON",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Added test_invokes_prd_with_explicit_none_parameters and test_prd_invocation_does_not_trigger_mutual_exclusivity_error to TestHandleMissingPrd class"
+      "notes": "Required for sync --remove functionality"
     },
     {
       "id": "US-003",
-      "title": "Add Windows runner to CI matrix",
-      "description": "As a maintainer, I want GitHub Actions to run tests on Windows so that cross-platform compatibility is verified in real Windows environments",
+      "title": "Enhance SkillsService with manifest support",
+      "description": "As a user, I want ralph sync to write a manifest file so that installed skills can be tracked and removed cleanly",
       "acceptanceCriteria": [
-        "CI workflow includes windows-latest in os matrix",
-        "Matrix includes windows-latest alongside ubuntu-latest",
-        "shell: bash specified for consistency across platforms",
-        "Coverage upload only runs once (ubuntu + specific python version)",
-        "Typecheck passes",
-        "Lint passes"
+        "ralph sync writes manifest to ~/.claude/skills/.ralph-manifest.json",
+        "Manifest contains list of installed skill directory names",
+        "Manifest includes synced_at timestamp",
+        "Existing sync functionality continues to work",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Added os matrix with ubuntu-latest and windows-latest, shell: bash default, updated coverage upload condition"
+      "notes": "Added _write_manifest method to SkillsService that writes manifest after sync_all"
     },
     {
       "id": "US-004",
-      "title": "Verify all tests pass on Windows CI",
-      "description": "As a maintainer, I want all tests to pass on Windows CI so that v1.2.5 Windows fixes are verified in real environments",
+      "title": "Implement ralph sync --remove",
+      "description": "As a user, I want to run ralph sync --remove so that I can cleanly uninstall ralph skills without affecting other user skills",
       "acceptanceCriteria": [
-        "All 640+ tests pass on Windows runner",
-        "No path separator issues in test assertions",
-        "No encoding errors in test output",
-        "CI pipeline completes successfully on both Ubuntu and Windows"
+        "--remove flag added to ralph sync command",
+        "Reads manifest and deletes only listed skill directories",
+        "Deletes manifest file after cleanup",
+        "Idempotent - no error if skills already removed",
+        "Never deletes skills not in manifest",
+        "Typecheck passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Fixed console encoding tests that were incorrectly asserting legacy_windows=False. Rich's Console auto-detects Windows internally even when we patch sys.platform. Tests now verify our code produces a valid Console without making assumptions about Rich's auto-detection behavior."
+      "notes": "Added remove_skills() method to SkillsService and --remove/-r flag to sync command"
+    },
+    {
+      "id": "US-005",
+      "title": "Refactor ralph prd to use skill loading",
+      "description": "As a developer, I want ralph prd to load instructions from ralph-prd skill file so that prompts are maintained in one place",
+      "acceptanceCriteria": [
+        "Command loads skill content via SkillLoader",
+        "Embedded prompt constants removed from prd.py",
+        "_build_*_prompt() functions removed if present",
+        "Command assembles context (output path) and delegates to skill",
+        "Behavior unchanged from user perspective",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Replaced _build_prd_prompt() and _build_non_interactive_prd_prompt() with _build_prompt_from_skill() that loads skill and injects context"
+    },
+    {
+      "id": "US-006",
+      "title": "Refactor ralph tasks to use skill loading",
+      "description": "As a developer, I want ralph tasks to load instructions from ralph-tasks skill file so that prompts are maintained in one place",
+      "acceptanceCriteria": [
+        "Command loads skill content via SkillLoader",
+        "Embedded prompt constants removed from tasks.py",
+        "_build_*_prompt() functions removed if present",
+        "Command passes spec file content as context",
+        "Behavior unchanged from user perspective",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Replaced _build_tasks_prompt() with _build_prompt_from_skill() that loads skill and injects spec content and branch name as context"
+    },
+    {
+      "id": "US-007",
+      "title": "Refactor ralph once to use skill loading",
+      "description": "As a developer, I want ralph once to load instructions from ralph-iteration skill file so that prompts are maintained in one place",
+      "acceptanceCriteria": [
+        "Command loads skill content via SkillLoader",
+        "Embedded prompt constants removed from once.py",
+        "_build_*_prompt() functions removed if present",
+        "Command passes story data and project context",
+        "Behavior unchanged from user perspective",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Replaced ITERATION_PROMPT constant and _build_iteration_prompt() with _build_prompt_from_skill() that loads skill and injects story context. Also updated loop.py to use the new function since it imports from once.py."
+    },
+    {
+      "id": "US-008",
+      "title": "Refactor ralph loop to use skill loading",
+      "description": "As a developer, I want ralph loop to reuse ralph-iteration skill for each iteration so that loop and once share the same instructions",
+      "acceptanceCriteria": [
+        "Command loads skill content via SkillLoader",
+        "Reuses ralph-iteration skill for each iteration",
+        "Embedded prompt constants removed from loop.py",
+        "Behavior unchanged from user perspective",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Already completed as part of US-007 - loop.py imports _build_prompt_from_skill from once.py which loads ralph-iteration skill"
+    },
+    {
+      "id": "US-009",
+      "title": "Remove redundant prompt code",
+      "description": "As a developer, I want all embedded prompt constants and builder functions removed so that skills are the single source of truth",
+      "acceptanceCriteria": [
+        "No _build_*_prompt() functions in any command file",
+        "No prompt template constants in command files",
+        "All prompt logic lives in skill files",
+        "Codebase passes lint check",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Removed PERMISSIONS_SYSTEM_PROMPT constant from once.py and loop.py, moved permissions text into ralph-iteration skill file"
+    },
+    {
+      "id": "US-010",
+      "title": "Replace test suite with focused tests",
+      "description": "As a developer, I want a lean test suite of 30-50 tests so that tests are maintainable and test behavior not implementation",
+      "acceptanceCriteria": [
+        "Existing test suite removed or replaced",
+        "Integration tests for happy path of each command (5-10 tests)",
+        "Unit tests for skill loading, manifest handling, context assembly",
+        "Minimal mocking - test real integration where practical",
+        "Total test count between 30-50",
+        "All tests pass"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Replaced 682 tests with focused 48-test suite covering: skill loader (6), manifest (4), tasks model (5), skills service (14), quality checks (7), command integration (12)"
+    },
+    {
+      "id": "US-011",
+      "title": "Final validation and cleanup",
+      "description": "As a developer, I want all quality checks to pass so that the refactor is complete and ready for release",
+      "acceptanceCriteria": [
+        "Typecheck passes (uv run pyright)",
+        "Lint passes (uv run ruff check .)",
+        "Format passes (uv run ruff format --check .)",
+        "All tests pass (uv run pytest)",
+        "Commands produce equivalent behavior to pre-refactor",
+        "Version bumped to 2.0.0 in pyproject.toml and __init__.py"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "All quality checks pass, version bumped to 2.0.0"
     }
   ]
 }

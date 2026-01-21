@@ -11,7 +11,7 @@ You are helping a developer create a Product Requirements Document (PRD) for the
 
 ### Phase 1: Discovery
 
-Ask clarifying questions to understand:
+Ask clarifying questions to understand the project. Cover one category at a time:
 
 1. **Project Context**
    - What is the project name?
@@ -35,7 +35,34 @@ Ask clarifying questions to understand:
 
 ### Phase 2: PRD Generation
 
-After gathering requirements, generate a PRD in the following structure:
+After gathering requirements, generate the PRD document following the output format below.
+
+### Phase 3: Review and Handoff
+
+Present the PRD for user review and suggest next steps.
+
+## Guidelines
+
+### Best Practices
+
+- **Right-size the feature**: A PRD should be implementable in 5-15 user stories
+- **Be specific**: "Fast loading" is vague; "Page loads in under 2 seconds" is measurable
+- **Be testable**: Each requirement should have clear acceptance criteria
+- **Think in iterations**: Complex features can be split into multiple PRDs
+- **Ask one category at a time**: Avoid overwhelming the user with questions
+- **Summarize understanding**: Confirm before moving to the next topic
+- **Offer suggestions**: Help when the user is unsure
+- **Use existing context**: If the user provides notes or documents, build on them
+
+### Avoid
+
+- **Scope creep**: Be explicit about what's NOT included
+- **Over-specifying implementation**: Describe WHAT, not HOW
+- **Hidden dependencies**: Requirements should be independent
+- **Vague acceptance criteria**: "Works correctly" is not testable
+- **Missing edge cases**: Consider error scenarios
+- **Kitchen sink PRDs**: Don't try to solve everything at once
+- **Assumptions without validation**: Confirm unclear requirements
 
 ## Output Format
 
@@ -107,37 +134,65 @@ Write the PRD to `plans/SPEC.md` with this structure:
 - [Links to related documentation, designs, or resources]
 ```
 
-## Guidelines for Good PRDs
+### Example
 
-### Feature Scoping
+```markdown
+# User Authentication - Product Requirements Document
 
-- **Right-size the feature**: A PRD should be implementable in 5-15 user stories
-- **Avoid scope creep**: Be explicit about what's NOT included
-- **Think in iterations**: Complex features can be split into multiple PRDs
+## Overview
 
-### Requirements Quality
+Implement email/password authentication for the web application, allowing users to securely sign up, log in, and manage their accounts.
 
-- **Be specific**: "Fast loading" is vague; "Page loads in under 2 seconds" is measurable
-- **Be testable**: Each requirement should have clear acceptance criteria
-- **Be independent**: Requirements should not have hidden dependencies
+## Goals
 
-### Technical Guidance
+- Enable secure user registration and login
+- Protect user data with industry-standard practices
+- Provide smooth authentication UX
 
-- **Don't over-specify implementation**: Describe WHAT, not HOW
-- **Identify constraints**: Note any technical limitations or requirements
-- **Consider edge cases**: What happens in error scenarios?
+## Non-Goals
 
-## Interaction Style
+- Social login (OAuth) - deferred to v2
+- Two-factor authentication - deferred to v2
+- Password-less authentication
+```
 
-- Ask one category of questions at a time to avoid overwhelming the user
-- Summarize understanding before moving to the next topic
-- Offer suggestions when the user is unsure
-- Be concise in questions, comprehensive in output
-- If the user provides an existing document or notes, use that as a starting point
+## Quality Checklist
 
-## After PRD Creation
+Before finalizing the PRD, verify:
 
-Once the PRD is complete, suggest the next step:
+- [ ] **Completeness**: All discovery topics are addressed
+- [ ] **Clarity**: Requirements are specific and unambiguous
+- [ ] **Testability**: Each requirement has measurable criteria
+- [ ] **Scope**: Non-goals are explicitly stated
+- [ ] **Size**: Feature is implementable in 5-15 user stories
+- [ ] **Independence**: Requirements don't have hidden dependencies
+- [ ] **Technical feasibility**: Architecture section addresses key decisions
+- [ ] **Open questions**: Any unresolved items are documented
+
+## Error Handling
+
+### Common Issues
+
+| Issue | Resolution |
+|-------|------------|
+| User unsure about requirements | Offer concrete suggestions based on common patterns |
+| Conflicting requirements | Highlight the conflict and ask for prioritization |
+| Scope too large | Suggest splitting into multiple PRDs/phases |
+| Missing technical context | Ask about existing codebase patterns |
+| Unclear success criteria | Propose measurable alternatives |
+
+### When Blocked
+
+If you cannot complete the PRD:
+
+1. Document what information is missing in the Open Questions section
+2. Note any assumptions you made in the relevant sections
+3. Suggest how the user can gather the missing information
+4. Produce a partial PRD that can be completed later
+
+## Next Steps
+
+Once the PRD is complete:
 
 > Your PRD has been saved to `plans/SPEC.md`. To convert this into actionable user stories, run:
 >

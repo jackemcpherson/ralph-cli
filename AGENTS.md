@@ -54,9 +54,13 @@ ralph_cli/
 │       ├── services/           # Business logic (Claude, Git, etc.)
 │       └── utils/              # Console and file utilities
 ├── skills/                     # Claude Code skill definitions
-│   ├── ralph-prd/
-│   ├── ralph-tasks/
-│   └── ralph-iteration/
+│   ├── ralph-prd/              # PRD creation skill
+│   ├── ralph-tasks/            # Task breakdown skill
+│   ├── ralph-iteration/        # Iteration execution skill
+│   ├── python-code-reviewer/   # Python code review
+│   ├── repo-structure-reviewer/# Repository structure review
+│   ├── github-actions-reviewer/# CI/CD workflow review
+│   └── test-quality-reviewer/  # Test quality review
 └── tests/
 ```
 
