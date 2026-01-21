@@ -93,8 +93,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Second command refactor"
+      "passes": true,
+      "notes": "Replaced _build_tasks_prompt() with _build_prompt_from_skill() that loads skill and injects spec content and branch name as context"
     },
     {
       "id": "US-007",

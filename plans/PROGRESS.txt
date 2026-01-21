@@ -207,3 +207,44 @@
 ---
 
 [Ralph Loop] 2026-01-21 - Iteration 5: US-005 (Refactor ralph prd to use skill loading) completed
+
+[Ralph Loop] 2026-01-21 09:09 UTC - Iteration 5: US-005 (Refactor ralph prd to use skill loading) completed
+
+---
+
+## 2026-01-21 - US-006
+
+**Story:** Refactor ralph tasks to use skill loading
+
+### What was implemented
+- Replaced `_build_tasks_prompt()` function with `_build_prompt_from_skill()`
+- New function uses `SkillLoader` to load `ralph-tasks` skill content from `skills/ralph-tasks/SKILL.md`
+- Injects context (spec content, branch name) into the loaded skill content
+- Added `SkillNotFoundError` handling with clear error message if skill is missing
+- Removed all embedded prompt template strings from tasks.py
+
+### Tests written
+- Updated `TestBuildTasksPrompt` class to `TestBuildPromptFromSkill` with new tests:
+  - `test_prompt_includes_spec_content` - Verifies spec content is in prompt
+  - `test_prompt_loads_skill_content` - Verifies skill content is loaded
+  - `test_prompt_includes_context_section` - Verifies context section is added
+  - `test_prompt_with_custom_branch_name` - Verifies branch name is in prompt
+  - `test_prompt_without_branch_name` - Verifies derive instruction when no branch
+  - `test_prompt_asks_for_json_only` - Verifies JSON output instruction
+  - `test_raises_when_skill_not_found` - Verifies SkillNotFoundError raised
+- Added `test_tasks_handles_skill_not_found` test to TestTasksCommand
+- Updated integration test fixtures to include ralph-tasks skill
+
+### Files changed
+- `src/ralph/commands/tasks.py` (refactored to use SkillLoader)
+- `tests/test_commands/test_tasks.py` (updated test classes and fixtures)
+- `tests/test_integration/test_command_integration.py` (updated project_with_spec fixture)
+
+### Learnings for future iterations
+- Same pattern as prd.py: load skill, build context section, return concatenated prompt
+- Test fixtures need to be updated consistently across test files
+- Using sed with global replace can cause double-replacement issues - be careful with variable naming
+
+---
+
+[Ralph Loop] 2026-01-21 - Iteration 6: US-006 (Refactor ralph tasks to use skill loading) completed
