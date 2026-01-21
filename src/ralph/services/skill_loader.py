@@ -49,8 +49,12 @@ class SkillLoader(BaseModel):
         Locates the SKILL.md file from the specified skill's directory
         and returns its path for use with @file references.
 
+        Supports both flat paths (e.g., 'my-skill') and nested paths
+        (e.g., 'ralph/prd', 'reviewers/code-simplifier', 'reviewers/language/python').
+
         Args:
-            skill_name: The name of the skill directory to load (e.g., 'ralph-prd').
+            skill_name: The skill path relative to the skills directory.
+                Can be flat (e.g., 'my-skill') or nested (e.g., 'ralph/prd').
 
         Returns:
             The path to the skill's SKILL.md file.
@@ -64,3 +68,22 @@ class SkillLoader(BaseModel):
             raise SkillNotFoundError(skill_name, skill_path)
 
         return skill_path
+
+    def get_content(self, skill_name: str) -> str:
+        """Load and return the content of a skill file.
+
+        Convenience method that loads the skill path and reads its content.
+        Supports both flat paths and nested paths.
+
+        Args:
+            skill_name: The skill path relative to the skills directory.
+                Can be flat (e.g., 'my-skill') or nested (e.g., 'ralph/prd').
+
+        Returns:
+            The content of the skill's SKILL.md file.
+
+        Raises:
+            SkillNotFoundError: If the skill directory or SKILL.md file does not exist.
+        """
+        skill_path = self.load(skill_name)
+        return skill_path.read_text(encoding="utf-8")
