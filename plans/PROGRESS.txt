@@ -6,6 +6,7 @@
 - Custom exceptions should have docstrings for both the class and `__init__` method (ruff D107)
 - Run `uv run ruff format` after making changes, as format check is strict
 - When constructing Pydantic models with aliases, use the alias name (e.g., `Manifest(syncedAt=...)` not `Manifest(synced_at=...)`)
+- When refactoring commands to use skills, create `_build_prompt_from_skill()` that loads skill content via `SkillLoader` and appends context section
 
 ---
 
@@ -165,3 +166,44 @@
 ---
 
 [Ralph Loop] 2026-01-21 - Iteration 4: US-004 (Implement ralph sync --remove) completed
+
+[Ralph Loop] 2026-01-21 09:04 UTC - Iteration 4: US-004 (Implement ralph sync --remove) completed
+
+---
+
+## 2026-01-21 - US-005
+
+**Story:** Refactor ralph prd to use skill loading
+
+### What was implemented
+- Replaced `_build_prd_prompt()` and `_build_non_interactive_prd_prompt()` functions with `_build_prompt_from_skill()`
+- New function uses `SkillLoader` to load `ralph-prd` skill content from `skills/ralph-prd/SKILL.md`
+- Injects context (output path, mode, feature description) into the loaded skill content
+- Added `SkillNotFoundError` handling with clear error message if skill is missing
+- Removed all embedded prompt template strings from prd.py
+
+### Tests written
+- Updated `TestBuildPrdPrompt` class to `TestBuildPromptFromSkill` with new tests:
+  - `test_prompt_includes_output_path` - Verifies output path is in prompt
+  - `test_prompt_loads_skill_content` - Verifies skill content is loaded
+  - `test_prompt_includes_context_section` - Verifies context section is added
+  - `test_interactive_mode_asks_questions` - Verifies interactive mode prompts user
+  - `test_raises_when_skill_not_found` - Verifies SkillNotFoundError raised
+- Updated `TestBuildNonInteractivePrdPrompt` class to `TestBuildPromptFromSkillNonInteractive`
+- Added `test_prd_handles_skill_not_found` test to TestPrdCommand
+- Updated integration tests to create skill fixtures
+
+### Files changed
+- `src/ralph/commands/prd.py` (refactored to use SkillLoader)
+- `tests/test_commands/test_prd.py` (updated test classes and fixtures)
+- `tests/test_integration/test_prd_automation.py` (added skill fixture creation)
+- `tests/test_integration/test_command_integration.py` (added skill fixture for prd tests)
+
+### Learnings for future iterations
+- When refactoring commands to use skills, tests need skill fixtures (directory with SKILL.md)
+- Integration tests in separate files may have their own fixtures that need updating
+- The pattern for skill-based commands: load skill, add context section, pass combined prompt to Claude
+
+---
+
+[Ralph Loop] 2026-01-21 - Iteration 5: US-005 (Refactor ralph prd to use skill loading) completed

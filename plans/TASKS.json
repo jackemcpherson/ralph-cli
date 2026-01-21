@@ -77,8 +77,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "First command refactor, establishes pattern"
+      "passes": true,
+      "notes": "Replaced _build_prd_prompt() and _build_non_interactive_prd_prompt() with _build_prompt_from_skill() that loads skill and injects context"
     },
     {
       "id": "US-006",
