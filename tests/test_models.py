@@ -7,13 +7,16 @@ import pytest
 from pydantic import ValidationError
 
 from ralph.models import (
+    Manifest,
     QualityCheck,
     QualityChecks,
     TasksFile,
     UserStory,
+    load_manifest,
     load_quality_checks,
     load_tasks,
     parse_quality_checks,
+    save_manifest,
     save_tasks,
 )
 
@@ -704,3 +707,184 @@ This file has no quality checks defined.
         checks = load_quality_checks(claude_md)
 
         assert checks.checks == []
+
+
+class TestManifest:
+    """Tests for the Manifest model."""
+
+    def test_manifest_valid_with_all_fields(self) -> None:
+        """Test Manifest with all fields provided."""
+        manifest = Manifest(
+            installed=["ralph-prd", "ralph-tasks", "ralph-iteration"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        assert manifest.installed == ["ralph-prd", "ralph-tasks", "ralph-iteration"]
+        assert manifest.synced_at == "2026-01-21T10:00:00Z"
+
+    def test_manifest_empty_installed_list(self) -> None:
+        """Test Manifest with empty installed list."""
+        manifest = Manifest(
+            installed=[],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        assert manifest.installed == []
+        assert manifest.synced_at == "2026-01-21T10:00:00Z"
+
+    def test_manifest_installed_defaults_to_empty(self) -> None:
+        """Test Manifest installed field defaults to empty list."""
+        manifest = Manifest(synced_at="2026-01-21T10:00:00Z")
+
+        assert manifest.installed == []
+
+    def test_manifest_camel_case_alias(self) -> None:
+        """Test Manifest accepts camelCase alias for synced_at."""
+        manifest = Manifest(
+            installed=["skill-a"],
+            syncedAt="2026-01-21T10:00:00Z",
+        )
+
+        assert manifest.synced_at == "2026-01-21T10:00:00Z"
+
+    def test_manifest_serialization_uses_alias(self) -> None:
+        """Test Manifest serialization uses camelCase alias."""
+        manifest = Manifest(
+            installed=["skill-a", "skill-b"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        json_str = manifest.model_dump_json(by_alias=True)
+        data = json.loads(json_str)
+
+        assert "syncedAt" in data
+        assert "synced_at" not in data
+        assert data["syncedAt"] == "2026-01-21T10:00:00Z"
+        assert data["installed"] == ["skill-a", "skill-b"]
+
+    def test_manifest_missing_required_synced_at(self) -> None:
+        """Test Manifest raises ValidationError for missing synced_at."""
+        with pytest.raises(ValidationError) as exc_info:
+            Manifest(installed=["skill-a"])  # type: ignore[call-arg]
+
+        errors = exc_info.value.errors()
+        missing_fields = {e["loc"][0] for e in errors}
+        assert "synced_at" in missing_fields or "syncedAt" in missing_fields
+
+    def test_manifest_with_many_skills(self) -> None:
+        """Test Manifest with many skills installed."""
+        skills = [f"skill-{i}" for i in range(50)]
+        manifest = Manifest(
+            installed=skills,
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        assert len(manifest.installed) == 50
+        assert manifest.installed[0] == "skill-0"
+        assert manifest.installed[49] == "skill-49"
+
+
+class TestLoadManifest:
+    """Tests for the load_manifest function."""
+
+    def test_load_manifest_valid_file(self, tmp_path: Path) -> None:
+        """Test loading a valid manifest file."""
+        manifest_data = {
+            "installed": ["ralph-prd", "ralph-tasks"],
+            "syncedAt": "2026-01-21T10:00:00Z",
+        }
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        manifest_file.write_text(json.dumps(manifest_data))
+
+        manifest = load_manifest(manifest_file)
+
+        assert manifest is not None
+        assert manifest.installed == ["ralph-prd", "ralph-tasks"]
+        assert manifest.synced_at == "2026-01-21T10:00:00Z"
+
+    def test_load_manifest_nonexistent_file(self, tmp_path: Path) -> None:
+        """Test loading a nonexistent file returns None."""
+        manifest_file = tmp_path / "nonexistent.json"
+
+        result = load_manifest(manifest_file)
+
+        assert result is None
+
+    def test_load_manifest_with_empty_installed(self, tmp_path: Path) -> None:
+        """Test loading manifest with empty installed list."""
+        manifest_data = {
+            "installed": [],
+            "syncedAt": "2026-01-21T10:00:00Z",
+        }
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        manifest_file.write_text(json.dumps(manifest_data))
+
+        manifest = load_manifest(manifest_file)
+
+        assert manifest is not None
+        assert manifest.installed == []
+
+
+class TestSaveManifest:
+    """Tests for the save_manifest function."""
+
+    def test_save_manifest_creates_file(self, tmp_path: Path) -> None:
+        """Test save_manifest creates a new file."""
+        manifest = Manifest(
+            installed=["skill-a"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        save_manifest(manifest, manifest_file)
+
+        assert manifest_file.exists()
+
+    def test_save_manifest_writes_valid_json(self, tmp_path: Path) -> None:
+        """Test save_manifest writes valid JSON."""
+        manifest = Manifest(
+            installed=["ralph-prd", "ralph-tasks"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        save_manifest(manifest, manifest_file)
+
+        content = manifest_file.read_text()
+        data = json.loads(content)
+
+        assert data["installed"] == ["ralph-prd", "ralph-tasks"]
+        assert data["syncedAt"] == "2026-01-21T10:00:00Z"
+
+    def test_save_manifest_uses_camel_case_alias(self, tmp_path: Path) -> None:
+        """Test save_manifest uses camelCase alias in output."""
+        manifest = Manifest(
+            installed=["skill-a"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        save_manifest(manifest, manifest_file)
+
+        content = manifest_file.read_text()
+        data = json.loads(content)
+
+        assert "syncedAt" in data
+        assert "synced_at" not in data
+
+    def test_save_and_load_round_trip(self, tmp_path: Path) -> None:
+        """Test that save_manifest and load_manifest are inverse operations."""
+        original = Manifest(
+            installed=["ralph-prd", "ralph-tasks", "ralph-iteration"],
+            synced_at="2026-01-21T10:00:00Z",
+        )
+
+        manifest_file = tmp_path / ".ralph-manifest.json"
+        save_manifest(original, manifest_file)
+        loaded = load_manifest(manifest_file)
+
+        assert loaded is not None
+        assert loaded.installed == original.installed
+        assert loaded.synced_at == original.synced_at
