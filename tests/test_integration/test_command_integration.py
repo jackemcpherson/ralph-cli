@@ -19,6 +19,24 @@ from typer.testing import CliRunner
 from ralph.cli import app
 
 
+def _create_ralph_prd_skill(project_root: Path) -> None:
+    """Create the ralph-prd skill directory with SKILL.md file."""
+    skill_dir = project_root / "skills" / "ralph-prd"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: ralph-prd
+description: Test PRD skill
+---
+
+# Ralph PRD Creation Skill
+
+You are helping create a Product Requirements Document (PRD).
+"""
+    )
+
+
 @pytest.fixture
 def runner() -> CliRunner:
     """Create a CliRunner for testing commands."""
@@ -764,8 +782,9 @@ class TestSkipPermissionsIntegration:
         try:
             os.chdir(python_project)
 
-            # Create plans directory
+            # Create plans directory and skill
             (python_project / "plans").mkdir()
+            _create_ralph_prd_skill(python_project)
 
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()
@@ -794,8 +813,9 @@ class TestSkipPermissionsIntegration:
         try:
             os.chdir(python_project)
 
-            # Create plans directory
+            # Create plans directory and skill
             (python_project / "plans").mkdir()
+            _create_ralph_prd_skill(python_project)
 
             with patch("ralph.commands.prd.ClaudeService") as mock_claude:
                 mock_instance = MagicMock()

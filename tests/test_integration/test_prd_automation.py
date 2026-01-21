@@ -21,23 +21,53 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+def _create_ralph_prd_skill(project_root: Path) -> None:
+    """Create the ralph-prd skill directory with SKILL.md file."""
+    skill_dir = project_root / "skills" / "ralph-prd"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: ralph-prd
+description: Test PRD skill
+---
+
+# Ralph PRD Creation Skill
+
+You are helping create a Product Requirements Document (PRD).
+
+## Output Format
+
+Write the PRD with these sections:
+- Overview
+- Goals
+- Non-Goals
+- Requirements
+- Technical Considerations
+- Success Criteria
+"""
+    )
+
+
 @pytest.fixture
 def project_with_plans(tmp_path: Path) -> Path:
-    """Create a project directory with plans/ directory."""
+    """Create a project directory with plans/ directory and ralph-prd skill."""
     plans_dir = tmp_path / "plans"
     plans_dir.mkdir()
+    _create_ralph_prd_skill(tmp_path)
     return tmp_path
 
 
 @pytest.fixture
 def project_with_spec(tmp_path: Path) -> Path:
-    """Create a project directory with plans/ directory and existing SPEC.md."""
+    """Create a project directory with plans/ directory, existing SPEC.md, and ralph-prd skill."""
     plans_dir = tmp_path / "plans"
     plans_dir.mkdir()
 
     spec_file = plans_dir / "SPEC.md"
     spec_file.write_text("# Existing PRD\n\nSome existing content.\n")
 
+    _create_ralph_prd_skill(tmp_path)
     return tmp_path
 
 

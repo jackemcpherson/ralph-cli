@@ -9,18 +9,17 @@ from typer.testing import CliRunner
 
 from ralph.cli import app
 from ralph.commands.prd import (
-    _build_non_interactive_prd_prompt,
-    _build_prd_prompt,
+    _build_prompt_from_skill,
     _check_file_modified,
     _get_file_mtime,
 )
-from ralph.services import ClaudeError
+from ralph.services import ClaudeError, SkillNotFoundError
 from tests.conftest import normalize_paths
 
 
 @pytest.fixture
 def initialized_project(temp_project: Path) -> Path:
-    """Create a temporary project with plans/ directory.
+    """Create a temporary project with plans/ directory and ralph-prd skill.
 
     Args:
         temp_project: Temporary project directory.
@@ -30,6 +29,32 @@ def initialized_project(temp_project: Path) -> Path:
     """
     plans_dir = temp_project / "plans"
     plans_dir.mkdir()
+
+    # Create skills directory with ralph-prd skill
+    skill_dir = temp_project / "skills" / "ralph-prd"
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(
+        """---
+name: ralph-prd
+description: Test PRD skill
+---
+
+# Ralph PRD Creation Skill
+
+You are helping create a Product Requirements Document (PRD).
+
+## Output Format
+
+Write the PRD with these sections:
+- Overview
+- Goals
+- Non-Goals
+- Requirements
+- Technical Considerations
+- Success Criteria
+"""
+    )
     return temp_project
 
 
@@ -97,8 +122,8 @@ class TestPrdCommand:
         finally:
             os.chdir(original_cwd)
 
-    def test_prd_includes_prd_prompt(self, runner: CliRunner, initialized_project: Path) -> None:
-        """Test that prd includes proper prompt for PRD creation."""
+    def test_prd_includes_skill_content(self, runner: CliRunner, initialized_project: Path) -> None:
+        """Test that prd includes skill content in prompt."""
         original_cwd = os.getcwd()
         try:
             os.chdir(initialized_project)
@@ -113,11 +138,12 @@ class TestPrdCommand:
             call_args = mock_instance.run_interactive.call_args
             prompt = call_args[0][0]
 
-            # Verify prompt includes key elements
-            assert "clarifying questions" in prompt
+            # Verify prompt includes skill content and context
+            assert "Ralph PRD Creation Skill" in prompt
             assert "Overview" in prompt
             assert "Goals" in prompt
             assert "Requirements" in prompt
+            assert "Context for This Session" in prompt
             assert "plans/SPEC.md" in normalize_paths(prompt)
         finally:
             os.chdir(original_cwd)
@@ -294,6 +320,22 @@ class TestPrdCommand:
         finally:
             os.chdir(original_cwd)
 
+    def test_prd_handles_skill_not_found(self, runner: CliRunner, temp_project: Path) -> None:
+        """Test that prd handles missing skill gracefully."""
+        original_cwd = os.getcwd()
+        try:
+            # Create only plans dir, no skills dir
+            plans_dir = temp_project / "plans"
+            plans_dir.mkdir()
+            os.chdir(temp_project)
+
+            result = runner.invoke(app, ["prd"])
+
+            assert result.exit_code == 1
+            assert "Skill not found" in result.output
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestPrdSkipPermissions:
     """Tests for skip_permissions functionality in prd command."""
@@ -360,20 +402,23 @@ class TestPrdSkipPermissions:
             os.chdir(original_cwd)
 
 
-class TestBuildPrdPrompt:
-    """Tests for the _build_prd_prompt helper function."""
+class TestBuildPromptFromSkill:
+    """Tests for the _build_prompt_from_skill helper function."""
 
-    def test_prompt_includes_output_path(self) -> None:
+    def test_prompt_includes_output_path(self, initialized_project: Path) -> None:
         """Test that prompt includes the output path."""
-        output_path = Path("/project/plans/SPEC.md")
-        prompt = _build_prd_prompt(output_path)
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path)
 
         assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
-    def test_prompt_includes_prd_structure(self) -> None:
-        """Test that prompt includes PRD structure guidance."""
-        prompt = _build_prd_prompt(Path("plans/SPEC.md"))
+    def test_prompt_loads_skill_content(self, initialized_project: Path) -> None:
+        """Test that prompt loads content from skill file."""
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path)
 
+        # Skill content should be in the prompt
+        assert "Ralph PRD Creation Skill" in prompt
         assert "Overview" in prompt
         assert "Goals" in prompt
         assert "Non-Goals" in prompt
@@ -381,12 +426,28 @@ class TestBuildPrdPrompt:
         assert "Technical Considerations" in prompt
         assert "Success Criteria" in prompt
 
-    def test_prompt_asks_clarifying_questions(self) -> None:
-        """Test that prompt asks for clarifying questions."""
-        prompt = _build_prd_prompt(Path("plans/SPEC.md"))
+    def test_prompt_includes_context_section(self, initialized_project: Path) -> None:
+        """Test that prompt includes context section."""
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path)
 
-        assert "clarifying questions" in prompt
-        assert "what feature" in prompt.lower()
+        assert "Context for This Session" in prompt
+        assert "Output path:" in prompt
+
+    def test_interactive_mode_asks_questions(self, initialized_project: Path) -> None:
+        """Test that interactive mode prompt asks for feature input."""
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path)
+
+        assert "Interactive" in prompt
+        assert "asking the user what feature" in prompt
+
+    def test_raises_when_skill_not_found(self, temp_project: Path) -> None:
+        """Test that raises SkillNotFoundError when skill is missing."""
+        output_path = temp_project / "plans" / "SPEC.md"
+
+        with pytest.raises(SkillNotFoundError):
+            _build_prompt_from_skill(temp_project, output_path)
 
 
 class TestPrdInputFlag:
@@ -451,10 +512,12 @@ class TestPrdInputFlag:
 
                 runner.invoke(app, ["prd", "--input", feature_description])
 
-            # Verify the prompt includes the feature description
+            # Verify the prompt includes the feature description and skill content
             call_args = mock_instance.run_print_mode.call_args
             prompt = call_args[0][0]
             assert feature_description in prompt
+            assert "Ralph PRD Creation Skill" in prompt
+            assert "Non-interactive" in prompt
         finally:
             os.chdir(original_cwd)
 
@@ -727,27 +790,31 @@ class TestPrdFileFlag:
             os.chdir(original_cwd)
 
 
-class TestBuildNonInteractivePrdPrompt:
-    """Tests for the _build_non_interactive_prd_prompt helper function."""
+class TestBuildPromptFromSkillNonInteractive:
+    """Tests for the _build_prompt_from_skill helper function with feature description."""
 
-    def test_prompt_includes_feature_description(self) -> None:
+    def test_prompt_includes_feature_description(self, initialized_project: Path) -> None:
         """Test that prompt includes the feature description."""
         feature = "Add user authentication with OAuth2"
-        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), feature)
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path, feature)
 
         assert feature in prompt
 
-    def test_prompt_includes_output_path(self) -> None:
+    def test_prompt_includes_output_path(self, initialized_project: Path) -> None:
         """Test that prompt includes the output path."""
-        output_path = Path("/project/plans/SPEC.md")
-        prompt = _build_non_interactive_prd_prompt(output_path, "Some feature")
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path, "Some feature")
 
         assert normalize_paths(str(output_path)) in normalize_paths(prompt)
 
-    def test_prompt_includes_prd_structure(self) -> None:
-        """Test that prompt includes PRD structure guidance."""
-        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), "Feature X")
+    def test_prompt_loads_skill_content(self, initialized_project: Path) -> None:
+        """Test that prompt loads skill content."""
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path, "Feature X")
 
+        # Skill content should be in the prompt
+        assert "Ralph PRD Creation Skill" in prompt
         assert "Overview" in prompt
         assert "Goals" in prompt
         assert "Non-Goals" in prompt
@@ -755,13 +822,15 @@ class TestBuildNonInteractivePrdPrompt:
         assert "Technical Considerations" in prompt
         assert "Success Criteria" in prompt
 
-    def test_prompt_does_not_ask_clarifying_questions(self) -> None:
-        """Test that non-interactive prompt doesn't ask for clarifying questions."""
-        prompt = _build_non_interactive_prd_prompt(Path("plans/SPEC.md"), "Feature X")
+    def test_non_interactive_mode_indicated(self, initialized_project: Path) -> None:
+        """Test that non-interactive mode is indicated in prompt."""
+        output_path = initialized_project / "plans" / "SPEC.md"
+        prompt = _build_prompt_from_skill(initialized_project, output_path, "Feature X")
 
-        # Non-interactive mode should NOT ask for clarifying questions
-        assert "clarifying questions" not in prompt
-        assert "what feature I want to build" not in prompt
+        # Non-interactive mode should be indicated
+        assert "Non-interactive" in prompt
+        # Should NOT ask user to provide feature (it's already provided)
+        assert "asking the user what feature" not in prompt
 
 
 class TestPrdMutualExclusivity:
