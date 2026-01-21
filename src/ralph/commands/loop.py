@@ -16,8 +16,16 @@ from ralph.commands.once import (
     _build_prompt_from_skill,
     _find_next_story,
 )
-from ralph.models import load_tasks
-from ralph.services import ClaudeError, ClaudeService, GitError, GitService, SkillNotFoundError
+from ralph.models import load_reviewer_configs, load_tasks
+from ralph.services import (
+    ClaudeError,
+    ClaudeService,
+    GitError,
+    GitService,
+    ReviewLoopService,
+    SkillNotFoundError,
+    detect_languages,
+)
 from ralph.utils import (
     append_file,
     console,
@@ -236,11 +244,20 @@ def loop(
 
     if stop_reason == LoopStopReason.ALL_COMPLETE:
         print_success("All stories complete!")
-        # Review loop will be integrated here in US-006
-        # The skip_review and strict flags control review behavior:
-        # - skip_review=True: Skip the review loop entirely
-        # - strict=True: Treat warning-level reviewers as blocking
-        logger.debug(f"Review loop options: skip_review={skip_review}, strict={strict}")
+
+        # Run review loop unless skipped
+        if skip_review:
+            console.print("[dim]Skipping review loop (--skip-review flag)[/dim]")
+        else:
+            review_success = _run_review_loop(
+                project_root=project_root,
+                progress_path=progress_path,
+                strict=strict,
+                verbose=verbose,
+            )
+            if not review_success:
+                print_warning("Review loop completed with failures")
+                # Still exit 0 since all stories passed - reviews are informational
     elif stop_reason == LoopStopReason.MAX_ITERATIONS:
         console.print(f"[dim]Reached maximum of {iterations} iterations.[/dim]")
     elif stop_reason == LoopStopReason.PERSISTENT_FAILURE:
@@ -330,3 +347,91 @@ def _append_loop_progress(
         append_file(progress_path, note)
     except OSError as e:
         logger.warning(f"Could not append to progress file: {e}")
+
+
+def _run_review_loop(
+    *,
+    project_root: Path,
+    progress_path: Path,
+    strict: bool,
+    verbose: bool,
+) -> bool:
+    """Run the automated review loop after all stories complete.
+
+    Loads configured reviewers from CLAUDE.md, detects project languages,
+    and executes each reviewer in order.
+
+    Args:
+        project_root: Path to the project root directory.
+        progress_path: Path to PROGRESS.txt for logging.
+        strict: Whether to treat warning-level reviewers as blocking.
+        verbose: Whether to show verbose output.
+
+    Returns:
+        True if all enforced reviewers passed, False otherwise.
+    """
+    console.print()
+    console.print("[bold]Review Loop[/bold]")
+    console.print()
+
+    # Load reviewer configuration from CLAUDE.md
+    claude_md_path = project_root / "CLAUDE.md"
+    reviewers = load_reviewer_configs(claude_md_path)
+
+    console.print(f"[dim]Loaded {len(reviewers)} reviewer(s) from configuration[/dim]")
+
+    # Detect project languages
+    detected_languages = detect_languages(project_root)
+    if detected_languages:
+        lang_names = ", ".join(lang.value for lang in detected_languages)
+        console.print(f"[dim]Detected languages: {lang_names}[/dim]")
+    else:
+        console.print("[dim]No specific languages detected[/dim]")
+
+    if strict:
+        console.print("[dim]Strict mode: warning-level reviewers are enforced[/dim]")
+
+    console.print()
+
+    # Create review loop service
+    skills_dir = project_root / "skills"
+    review_service = ReviewLoopService(
+        project_root=project_root,
+        skills_dir=skills_dir,
+        verbose=verbose,
+    )
+
+    # Run the review loop
+    results = review_service.run_review_loop(
+        reviewers=reviewers,
+        detected_languages=detected_languages,
+        strict=strict,
+        progress_path=progress_path,
+    )
+
+    # Display summary
+    console.print()
+    console.print("[bold]Review Summary[/bold]")
+    console.print()
+
+    passed = 0
+    failed = 0
+    skipped = 0
+
+    for result in results:
+        if result.skipped:
+            skipped += 1
+            console.print(f"  [dim]◦ {result.reviewer_name}: skipped (language filter)[/dim]")
+        elif result.success:
+            passed += 1
+            console.print(f"  [green]✓[/green] {result.reviewer_name}: passed")
+        else:
+            failed += 1
+            error_info = f" ({result.error})" if result.error else ""
+            attempts_text = f"failed after {result.attempts} attempt(s)"
+            console.print(f"  [red]✗[/red] {result.reviewer_name}: {attempts_text}{error_info}")
+
+    console.print()
+    console.print(f"[dim]Passed: {passed}, Failed: {failed}, Skipped: {skipped}[/dim]")
+
+    return failed == 0
