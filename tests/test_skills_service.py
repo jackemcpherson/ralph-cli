@@ -91,6 +91,19 @@ class TestSkillValidation:
         assert result is None
 
 
+def create_skill(skill_dir: Path, name: str, description: str | None = None) -> None:
+    """Create a skill directory with valid SKILL.md frontmatter.
+
+    Args:
+        skill_dir: Directory where the skill should be created.
+        name: Name of the skill for the frontmatter.
+        description: Optional description. Defaults to "Skill {name}".
+    """
+    skill_dir.mkdir(exist_ok=True)
+    desc = description or f"Skill {name}"
+    (skill_dir / "SKILL.md").write_text(f'---\nname: "{name}"\ndescription: "{desc}"\n---\n')
+
+
 class TestSkillSync:
     """Tests for skill syncing."""
 
@@ -158,11 +171,7 @@ class TestSkillSync:
         skills_dir.mkdir()
 
         for name in ["skill-a", "skill-b"]:
-            skill_dir = skills_dir / name
-            skill_dir.mkdir()
-            (skill_dir / "SKILL.md").write_text(
-                f'---\nname: "{name}"\ndescription: "Skill {name}"\n---\n'
-            )
+            create_skill(skills_dir / name, name)
 
         target_dir = tmp_path / "target"
         service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
@@ -173,6 +182,30 @@ class TestSkillSync:
         assert all(r.status == SyncStatus.CREATED for r in results)
         assert (target_dir / "skill-a").exists()
         assert (target_dir / "skill-b").exists()
+
+    def test_sync_overwrites_modified_target_file(self, tmp_path: Path) -> None:
+        """Test that sync overwrites target file even if modified locally."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        skill_dir = skills_dir / "my-skill"
+        skill_dir.mkdir()
+        source_content = '---\nname: "my-skill"\ndescription: "Source version"\n---\n'
+        (skill_dir / "SKILL.md").write_text(source_content)
+
+        # Create existing skill in target with different content
+        target_dir = tmp_path / "target"
+        target_skill = target_dir / "my-skill"
+        target_skill.mkdir(parents=True)
+        (target_skill / "SKILL.md").write_text("Modified locally by user")
+
+        service = SkillsService(skills_dir=skills_dir, target_dir=target_dir)
+
+        result = service.sync_skill(skill_dir)
+
+        assert result.status == SyncStatus.UPDATED
+        synced_content = (target_skill / "SKILL.md").read_text()
+        assert synced_content == source_content
+        assert "Modified locally" not in synced_content
 
 
 class TestManifestWriting:

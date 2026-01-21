@@ -87,6 +87,35 @@ checks:
         assert len(checks.checks) == 1
         assert checks.checks[0].required is False
 
+    def test_parse_checks_malformed_yaml_returns_empty(self) -> None:
+        """Test parsing malformed YAML gracefully returns empty checks."""
+        content = """<!-- RALPH:CHECKS:START -->
+```yaml
+checks:
+  - name: typecheck
+    command: [this is invalid yaml
+    required: true
+```
+<!-- RALPH:CHECKS:END -->
+"""
+        checks = parse_quality_checks(content)
+
+        assert checks.checks == []
+
+    def test_parse_checks_invalid_structure_returns_empty(self) -> None:
+        """Test parsing valid YAML with invalid structure returns empty checks."""
+        content = """<!-- RALPH:CHECKS:START -->
+```yaml
+not_checks:
+  - name: typecheck
+    command: uv run pyright
+```
+<!-- RALPH:CHECKS:END -->
+"""
+        checks = parse_quality_checks(content)
+
+        assert checks.checks == []
+
 
 class TestLoadQualityChecks:
     """Tests for the load_quality_checks function."""
