@@ -1,7 +1,7 @@
 """Unit tests for SkillLoader service.
 
 Focused tests for skill loading functionality:
-- Loading skill content from disk
+- Locating skill paths on disk
 - Error handling for missing skills
 - Multiple skill loading
 """
@@ -30,18 +30,20 @@ class TestSkillNotFoundError:
 class TestSkillLoader:
     """Tests for SkillLoader functionality."""
 
-    def test_load_returns_skill_content(self, tmp_path: Path) -> None:
-        """Test that load returns skill content for existing skill."""
+    def test_load_returns_skill_path(self, tmp_path: Path) -> None:
+        """Test that load returns skill path for existing skill."""
         skills_dir = tmp_path / "skills"
         skill_dir = skills_dir / "my-skill"
         skill_dir.mkdir(parents=True)
-        skill_content = "---\nname: my-skill\n---\n\n# My Skill\n\nSome content."
-        (skill_dir / "SKILL.md").write_text(skill_content)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text("---\nname: my-skill\n---\n\n# My Skill\n\nSome content.")
 
         loader = SkillLoader(skills_dir=skills_dir)
         result = loader.load("my-skill")
 
-        assert result == skill_content
+        assert isinstance(result, Path)
+        assert result == skill_file
+        assert result.exists()
 
     def test_load_raises_for_missing_skill(self, tmp_path: Path) -> None:
         """Test that load raises SkillNotFoundError for missing skill."""
@@ -67,20 +69,18 @@ class TestSkillLoader:
         with pytest.raises(SkillNotFoundError):
             loader.load("incomplete-skill")
 
-    def test_load_handles_utf8_content(self, tmp_path: Path) -> None:
-        """Test that load correctly handles UTF-8 content."""
+    def test_load_returns_correct_path_structure(self, tmp_path: Path) -> None:
+        """Test that load returns path with expected structure."""
         skills_dir = tmp_path / "skills"
-        skill_dir = skills_dir / "utf8-skill"
+        skill_dir = skills_dir / "test-skill"
         skill_dir.mkdir(parents=True)
-        skill_content = "---\nname: utf8\n---\n\nSpecial chars: éàü 日本語 🚀"
-        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+        (skill_dir / "SKILL.md").write_text("# Test")
 
         loader = SkillLoader(skills_dir=skills_dir)
-        result = loader.load("utf8-skill")
+        result = loader.load("test-skill")
 
-        assert "éàü" in result
-        assert "日本語" in result
-        assert "🚀" in result
+        assert result.name == "SKILL.md"
+        assert result.parent.name == "test-skill"
 
     def test_load_multiple_skills(self, tmp_path: Path) -> None:
         """Test that loader can load multiple different skills."""
@@ -97,6 +97,6 @@ class TestSkillLoader:
         result_b = loader.load("skill-b")
         result_c = loader.load("skill-c")
 
-        assert "skill-a" in result_a
-        assert "skill-b" in result_b
-        assert "skill-c" in result_c
+        assert result_a.parent.name == "skill-a"
+        assert result_b.parent.name == "skill-b"
+        assert result_c.parent.name == "skill-c"

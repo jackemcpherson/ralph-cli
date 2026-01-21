@@ -1,7 +1,7 @@
-"""Skill content loader service for Ralph CLI.
+"""Skill path loader service for Ralph CLI.
 
-This module provides a service for loading skill content from disk,
-enabling commands to delegate prompt logic to skill files.
+This module provides a service for locating skill files on disk,
+enabling commands to reference skills via @file syntax in Claude Code.
 """
 
 from pathlib import Path
@@ -30,10 +30,10 @@ class SkillNotFoundError(Exception):
 
 
 class SkillLoader(BaseModel):
-    """Service for loading skill content from disk.
+    """Service for locating skill files on disk.
 
-    Reads skill definitions from the skills directory, allowing
-    commands to delegate prompt generation to skill files.
+    Locates skill definitions in the skills directory, allowing
+    commands to reference skills via @file syntax in Claude Code.
 
     Attributes:
         skills_dir: Path to the skills directory containing skill subdirectories.
@@ -43,17 +43,17 @@ class SkillLoader(BaseModel):
 
     skills_dir: Path
 
-    def load(self, skill_name: str) -> str:
-        """Load skill content from disk.
+    def load(self, skill_name: str) -> Path:
+        """Return the path to a skill file, validating it exists.
 
-        Reads the SKILL.md file from the specified skill's directory
-        and returns its content as a string.
+        Locates the SKILL.md file from the specified skill's directory
+        and returns its path for use with @file references.
 
         Args:
             skill_name: The name of the skill directory to load (e.g., 'ralph-prd').
 
         Returns:
-            The content of the skill's SKILL.md file as a string.
+            The path to the skill's SKILL.md file.
 
         Raises:
             SkillNotFoundError: If the skill directory or SKILL.md file does not exist.
@@ -63,4 +63,4 @@ class SkillLoader(BaseModel):
         if not skill_path.exists():
             raise SkillNotFoundError(skill_name, skill_path)
 
-        return skill_path.read_text(encoding="utf-8")
+        return skill_path

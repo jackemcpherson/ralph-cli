@@ -16,9 +16,11 @@ from ralph.utils.files import (
     read_file,
     write_file,
 )
+from ralph.utils.prompt import build_skill_prompt
 
 __all__ = [
     "append_file",
+    "build_skill_prompt",
     "console",
     "create_spinner",
     "ensure_dir",

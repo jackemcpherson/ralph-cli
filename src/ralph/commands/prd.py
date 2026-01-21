@@ -10,8 +10,8 @@ from pathlib import Path
 
 import typer
 
-from ralph.services import ClaudeError, ClaudeService, SkillLoader, SkillNotFoundError
-from ralph.utils import console, print_error, print_success, print_warning
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
+from ralph.utils import build_skill_prompt, console, print_error, print_success, print_warning
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,11 @@ def prd(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        exit_code = claude.run_interactive(prompt, skip_permissions=True)
+        exit_code = claude.run_interactive(
+            prompt,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code == 0:
             console.print()
@@ -211,7 +215,11 @@ def _run_non_interactive(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        _, exit_code = claude.run_print_mode(prompt, skip_permissions=True)
+        _, exit_code = claude.run_print_mode(
+            prompt,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code == 0:
             console.print()
@@ -228,7 +236,7 @@ def _run_non_interactive(
 def _build_prompt_from_skill(
     project_root: Path, output_path: Path, feature_description: str | None = None
 ) -> str:
-    """Build the prompt by loading the ralph-prd skill and adding context.
+    """Build the prompt by referencing the ralph-prd skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -241,14 +249,8 @@ def _build_prompt_from_skill(
     Raises:
         SkillNotFoundError: If the ralph-prd skill is not found.
     """
-    # Load skill content from the skills directory
-    skills_dir = project_root / "skills"
-    loader = SkillLoader(skills_dir=skills_dir)
-    skill_content = loader.load("ralph-prd")
-
     # Build context section
     context_lines = [
-        "",
         "---",
         "",
         "## Context for This Session",
@@ -282,4 +284,5 @@ def _build_prompt_from_skill(
             ]
         )
 
-    return skill_content + "\n".join(context_lines)
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-prd", context)

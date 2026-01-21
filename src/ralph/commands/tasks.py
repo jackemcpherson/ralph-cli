@@ -15,9 +15,16 @@ import typer
 from pydantic import ValidationError
 
 from ralph.models import TasksFile, save_tasks
-from ralph.services import ClaudeError, ClaudeService, SkillLoader, SkillNotFoundError
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
 from ralph.services.scaffold import PROGRESS_TEMPLATE
-from ralph.utils import console, print_error, print_success, read_file, write_file
+from ralph.utils import (
+    build_skill_prompt,
+    console,
+    print_error,
+    print_success,
+    read_file,
+    write_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +98,12 @@ def tasks(
 
     try:
         claude = ClaudeService(working_dir=project_root, verbose=verbose)
-        output_text, exit_code = claude.run_print_mode(prompt, stream=True, skip_permissions=True)
+        output_text, exit_code = claude.run_print_mode(
+            prompt,
+            stream=True,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
 
         if exit_code != 0:
             print_error(f"Claude exited with code {exit_code}")
@@ -147,7 +159,7 @@ def tasks(
 def _build_prompt_from_skill(
     project_root: Path, spec_content: str, branch_name: str | None = None
 ) -> str:
-    """Build the prompt by loading the ralph-tasks skill and adding context.
+    """Build the prompt by referencing the ralph-tasks skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -160,14 +172,8 @@ def _build_prompt_from_skill(
     Raises:
         SkillNotFoundError: If the ralph-tasks skill is not found.
     """
-    # Load skill content from the skills directory
-    skills_dir = project_root / "skills"
-    loader = SkillLoader(skills_dir=skills_dir)
-    skill_content = loader.load("ralph-tasks")
-
     # Build context section
     context_lines = [
-        "",
         "---",
         "",
         "## Context for This Session",
@@ -192,7 +198,8 @@ def _build_prompt_from_skill(
         ]
     )
 
-    return skill_content + "\n".join(context_lines)
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-tasks", context)
 
 
 def _extract_json(text: str) -> str | None:

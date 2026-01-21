@@ -214,6 +214,34 @@ class TestPrdCommand:
         finally:
             os.chdir(original_cwd)
 
+    def test_prd_uses_autonomous_mode_prompt(
+        self, runner: CliRunner, project_with_skill: Path
+    ) -> None:
+        """Test that ralph prd uses append_system_prompt kwarg."""
+        original_cwd = os.getcwd()
+        captured_kwargs: dict = {}
+
+        try:
+            os.chdir(project_with_skill)
+
+            with patch("ralph.commands.prd.ClaudeService") as mock_claude:
+                mock_instance = MagicMock()
+
+                def capture_run_interactive(*args, **kwargs):
+                    captured_kwargs.update(kwargs)
+                    return 0
+
+                mock_instance.run_interactive.side_effect = capture_run_interactive
+                mock_claude.return_value = mock_instance
+
+                runner.invoke(app, ["prd"])
+
+            # Verify append_system_prompt was passed (the constant is accessed via mock)
+            assert "append_system_prompt" in captured_kwargs
+            assert captured_kwargs.get("append_system_prompt") is not None
+        finally:
+            os.chdir(original_cwd)
+
 
 class TestTasksCommand:
     """Integration tests for ralph tasks command."""
@@ -314,6 +342,38 @@ class TestOnceCommand:
             assert "--output-format" in captured_args
             format_idx = captured_args.index("--output-format")
             assert captured_args[format_idx + 1] == "stream-json"
+        finally:
+            os.chdir(original_cwd)
+
+    def test_once_uses_append_system_prompt_flag(
+        self, runner: CliRunner, project_with_tasks: Path
+    ) -> None:
+        """Test that ralph once passes --append-system-prompt flag."""
+        from ralph.services import ClaudeService
+
+        original_cwd = os.getcwd()
+        captured_args: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            captured_args.extend(args)
+            mock_process = MagicMock()
+            mock_process.stdout = StringIO("Done")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
+                runner.invoke(app, ["once"])
+
+            assert "--append-system-prompt" in captured_args
+            prompt_idx = captured_args.index("--append-system-prompt")
+            assert captured_args[prompt_idx + 1] == ClaudeService.AUTONOMOUS_MODE_PROMPT
         finally:
             os.chdir(original_cwd)
 
@@ -420,5 +480,83 @@ class TestSyncCommand:
 
             assert result.exit_code == 0
             assert "test-skill" in result.output
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestBuildSkillPrompt:
+    """Tests for build_skill_prompt utility."""
+
+    def test_prompt_starts_with_at_file_reference(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt creates @file reference."""
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Test Skill")
+
+        result = build_skill_prompt(tmp_path, "test-skill", "Some context")
+
+        assert result.startswith("Follow the instructions in @skills/test-skill/SKILL.md")
+
+    def test_prompt_includes_context(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt appends context."""
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Test Skill")
+
+        context = "## Context\n\nThis is test context."
+        result = build_skill_prompt(tmp_path, "test-skill", context)
+
+        assert context in result
+        assert "@skills/test-skill/SKILL.md" in result
+
+    def test_prompt_raises_for_missing_skill(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt raises SkillNotFoundError for missing skill."""
+        from ralph.services import SkillNotFoundError
+        from ralph.utils import build_skill_prompt
+
+        (tmp_path / "skills").mkdir()
+
+        with pytest.raises(SkillNotFoundError):
+            build_skill_prompt(tmp_path, "nonexistent-skill", "context")
+
+
+class TestOnceCommandPromptFormat:
+    """Tests for ralph once command prompt format."""
+
+    def test_once_prompt_uses_at_file_reference(self, project_with_tasks: Path) -> None:
+        """Test that ralph once uses @file reference in prompt."""
+        original_cwd = os.getcwd()
+        captured_prompt: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs):
+            # Find the --print flag and capture the prompt (next arg)
+            if "--print" in args:
+                idx = args.index("--print")
+                if idx + 1 < len(args):
+                    captured_prompt.append(args[idx + 1])
+            mock_process = MagicMock()
+            mock_process.stdout = StringIO("Done")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        try:
+            os.chdir(project_with_tasks)
+
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
+                from typer.testing import CliRunner
+
+                runner = CliRunner()
+                runner.invoke(app, ["once"])
+
+            assert len(captured_prompt) > 0
+            assert "@skills/ralph-iteration/SKILL.md" in captured_prompt[0]
         finally:
             os.chdir(original_cwd)

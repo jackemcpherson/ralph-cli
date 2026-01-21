@@ -11,8 +11,16 @@ from pathlib import Path
 import typer
 
 from ralph.models import TasksFile, UserStory, load_tasks
-from ralph.services import ClaudeError, ClaudeService, SkillLoader, SkillNotFoundError
-from ralph.utils import append_file, console, file_exists, print_error, print_success, print_warning
+from ralph.services import ClaudeError, ClaudeService, SkillNotFoundError
+from ralph.utils import (
+    append_file,
+    build_skill_prompt,
+    console,
+    file_exists,
+    print_error,
+    print_success,
+    print_warning,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +99,7 @@ def once(
             prompt,
             stream=True,
             skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
         )
 
         if exit_code != 0:
@@ -160,7 +169,7 @@ def _find_next_story(tasks: TasksFile) -> UserStory | None:
 
 
 def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attempts: int) -> str:
-    """Build the prompt by loading the ralph-iteration skill and adding context.
+    """Build the prompt by referencing the ralph-iteration skill and adding context.
 
     Args:
         project_root: Path to the project root directory.
@@ -173,16 +182,10 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
     Raises:
         SkillNotFoundError: If the ralph-iteration skill is not found.
     """
-    # Load skill content from the skills directory
-    skills_dir = project_root / "skills"
-    loader = SkillLoader(skills_dir=skills_dir)
-    skill_content = loader.load("ralph-iteration")
-
     # Build context section with story details
     criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
 
     context_lines = [
-        "",
         "---",
         "",
         "## Context for This Session",
@@ -204,7 +207,8 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
         "run quality checks, and commit your changes.",
     ]
 
-    return skill_content + "\n".join(context_lines)
+    context = "\n".join(context_lines)
+    return build_skill_prompt(project_root, "ralph-iteration", context)
 
 
 def _append_cli_summary(
