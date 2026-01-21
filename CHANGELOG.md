@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-01-21
+
+### Added
+
+- Windows runner (`windows-latest`) in CI matrix for cross-platform verification (#US-003)
+- Test coverage for `ralph init` -> PRD invocation flow (#US-002)
+
+### Fixed
+
+- PRD command invocation in `ralph init` now works correctly when user confirms PRD creation (#US-001)
+  - Typer Option defaults not applied when calling function directly
+  - Now explicitly passes `input_text=None, file=None` to avoid mutual exclusivity error
+- Console encoding tests fixed for Windows CI (#US-004)
+  - Tests no longer incorrectly assert `legacy_windows=False` when Rich auto-detects Windows
+
 ## [1.2.5] - 2026-01-20
 
 ### Added

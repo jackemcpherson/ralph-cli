@@ -560,6 +560,59 @@ class TestHandleMissingPrd:
         call_kwargs = mock_prd.call_args.kwargs
         assert call_kwargs.get("output") == Path("plans/SPEC.md")
 
+    def test_invokes_prd_with_explicit_none_parameters(self, temp_project: Path) -> None:
+        """Test that prd command is called with explicit input_text=None and file=None.
+
+        This test verifies the fix for US-001 where calling prd_command without
+        explicit parameters caused a mutual exclusivity error because Typer Option
+        defaults are not applied when calling functions directly (not through CLI).
+        """
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+
+        with (
+            patch("ralph.commands.init_cmd.Confirm.ask", return_value=True),
+            patch("ralph.commands.init_cmd.prd_command") as mock_prd,
+        ):
+            _handle_missing_prd(prd_path, temp_project)
+
+        mock_prd.assert_called_once()
+        call_kwargs = mock_prd.call_args.kwargs
+
+        # These parameters MUST be explicitly passed as None to avoid the
+        # "Cannot use both --input and --file" error when Typer Option objects
+        # are passed instead of actual values
+        assert "input_text" in call_kwargs, "input_text must be explicitly passed"
+        assert call_kwargs["input_text"] is None, "input_text must be None"
+        assert "file" in call_kwargs, "file must be explicitly passed"
+        assert call_kwargs["file"] is None, "file must be None"
+
+    def test_prd_invocation_does_not_trigger_mutual_exclusivity_error(
+        self, temp_project: Path
+    ) -> None:
+        """Test that prd command invocation doesn't raise mutual exclusivity error.
+
+        This integration test verifies that calling prd_command from _handle_missing_prd
+        doesn't trigger the "Cannot use both --input and --file" error by testing
+        with the actual prd function (not mocked) but mocking the ClaudeService.
+        """
+        plans_dir = temp_project / "plans"
+        plans_dir.mkdir()
+        prd_path = plans_dir / "SPEC.md"
+
+        with (
+            patch("ralph.commands.init_cmd.Confirm.ask", return_value=True),
+            patch("ralph.commands.prd.ClaudeService") as mock_claude,
+        ):
+            mock_instance = MagicMock()
+            mock_instance.run_interactive.return_value = 0
+            mock_claude.return_value = mock_instance
+
+            # This should NOT raise any exception about mutual exclusivity
+            # If the fix from US-001 is working, this will complete without error
+            _handle_missing_prd(prd_path, temp_project)
+
     def test_shows_message_when_declined(self, temp_project: Path) -> None:
         """Test that informational message is shown when user declines."""
         plans_dir = temp_project / "plans"

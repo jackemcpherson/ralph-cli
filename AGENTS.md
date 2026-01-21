@@ -71,6 +71,7 @@ ralph_cli/
 - Import `Iterator`, `Sequence`, etc. from `collections.abc` instead of `typing` (ruff UP035)
 - Use `X | None` instead of `Optional[X]` for type annotations (ruff UP045)
 - Use `ClassVar[T]` from `typing` for class-level constants in Pydantic `BaseModel` classes to avoid them being treated as fields
+- When calling Typer command functions directly (not through CLI), pass all Option parameters explicitly since Typer defaults are not applied programmatically
 
 ## Project-Specific Instructions
 
