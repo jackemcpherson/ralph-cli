@@ -45,6 +45,35 @@ checks:
 
 Run all checks before committing. Fix any failures before proceeding.
 
+## Reviewers
+
+<!-- RALPH:REVIEWERS:START -->
+```yaml
+reviewers:
+  - name: test-quality
+    skill: reviewers/test-quality
+    level: blocking
+  - name: code-simplifier
+    skill: reviewers/code-simplifier
+    level: blocking
+  - name: python-code
+    skill: reviewers/language/python
+    languages: [python]
+    level: blocking
+  - name: github-actions
+    skill: reviewers/github-actions
+    level: warning
+  - name: repo-structure
+    skill: reviewers/repo-structure
+    level: warning
+  - name: release
+    skill: reviewers/release
+    level: blocking
+```
+<!-- RALPH:REVIEWERS:END -->
+
+Reviewers run automatically after `ralph loop` completes all stories. Configure the review pipeline above.
+
 ## Technology Stack
 
 | Component | Technology |
@@ -79,13 +108,18 @@ ralph_cli/
 │       ├── services/           # Business logic (Claude, Git, etc.)
 │       └── utils/              # Console and file utilities
 ├── skills/                     # Claude Code skill definitions
-│   ├── ralph-prd/              # PRD creation skill
-│   ├── ralph-tasks/            # Task breakdown skill
-│   ├── ralph-iteration/        # Iteration execution skill
-│   ├── python-code-reviewer/   # Python code review
-│   ├── repo-structure-reviewer/# Repository structure review
-│   ├── github-actions-reviewer/# CI/CD workflow review
-│   └── test-quality-reviewer/  # Test quality review
+│   ├── ralph/                  # Core workflow skills
+│   │   ├── prd/
+│   │   ├── tasks/
+│   │   └── iteration/
+│   └── reviewers/              # Review pipeline skills
+│       ├── code-simplifier/
+│       ├── test-quality/
+│       ├── repo-structure/
+│       ├── github-actions/
+│       ├── release/
+│       └── language/
+│           └── python/
 └── tests/
 ```
 
@@ -142,3 +176,10 @@ Tags must match the version in pyproject.toml (e.g., `v1.2.6` for version `1.2.6
 **Quality checks in CLAUDE.md:**
 - Parsed from YAML between `<!-- RALPH:CHECKS:START -->` and `<!-- RALPH:CHECKS:END -->`
 - Each check has: name, command, required (boolean)
+
+**Reviewer configuration in CLAUDE.md:**
+- Parsed from YAML between `<!-- RALPH:REVIEWERS:START -->` and `<!-- RALPH:REVIEWERS:END -->`
+- Each reviewer has: name, skill (path), level (blocking/warning/suggestion)
+- Optional `languages` field filters reviewer to specific languages (e.g., `[python]`)
+- Levels: `blocking` = must pass, `warning` = logged (enforced with `--strict`), `suggestion` = informational
+- Default reviewers used when markers not present
