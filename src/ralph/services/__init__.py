@@ -3,6 +3,11 @@
 from ralph.services.claude import ClaudeError, ClaudeService
 from ralph.services.git import GitError, GitService
 from ralph.services.language import Language, LanguageDetector, detect_languages
+from ralph.services.review_loop import (
+    ReviewerResult,
+    ReviewLoopService,
+    filter_reviewers_by_language,
+)
 from ralph.services.scaffold import ProjectType, ScaffoldService
 from ralph.services.skill_loader import SkillLoader, SkillNotFoundError
 from ralph.services.skills import (
@@ -20,6 +25,8 @@ __all__ = [
     "Language",
     "LanguageDetector",
     "ProjectType",
+    "ReviewerResult",
+    "ReviewLoopService",
     "ScaffoldService",
     "SkillInfo",
     "SkillLoader",
@@ -28,4 +35,5 @@ __all__ = [
     "SkillSyncResult",
     "SyncStatus",
     "detect_languages",
+    "filter_reviewers_by_language",
 ]
