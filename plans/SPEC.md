@@ -1,12 +1,11 @@
-# Ralph CLI v1.2.5 Specification: Windows Compatibility & UX Improvements
+# Ralph CLI v2.0 Specification: Skills-First Architecture
 
 ## Metadata
 
 - **Status:** Draft
-- **Version:** 1.2.5
-- **Last Updated:** 2026-01-20
+- **Version:** 2.0.0
+- **Last Updated:** 2026-01-21
 - **Owner:** To be assigned
-- **Related Issues:** #5, #11, #12, #13, #14, #15
 
 ---
 
@@ -14,345 +13,210 @@
 
 ### 1.1 Problem Statement
 
-Ralph CLI v1.2 has several issues affecting Windows compatibility and user experience:
+Ralph CLI has accumulated architectural debt:
 
-1. **Windows Encoding Bug (#15):** Rich unicode warning symbols fail on Windows systems using cp1252 encoding, causing encoding errors or corrupted output.
+1. **Orphaned skills** - The `skills/` directory contains comprehensive instruction files (3,500-9,500 words each), but CLI commands build their own shorter prompts in Python code (300-1,200 words). The skills are never loaded or used at runtime.
 
-2. **Windows Path Bug (#14):** Tests fail on Windows due to path separator mismatches (forward vs backslashes), preventing CI from passing on Windows environments.
+2. **Duplicated prompt logic** - Every command has prompt-building logic embedded in Python, creating maintenance burden and drift between skills and actual behavior.
 
-3. **Empty Archive Bug (#13):** The `ralph tasks` command archives PROGRESS.txt even when it only contains boilerplate template text with no actual iteration content, cluttering the plans directory.
+3. **Overly complex codebase** - The codebase has grown more complex than necessary for a CLI that primarily orchestrates Claude invocations.
 
-4. **Inconsistent Permissions (#12):** Claude sessions invoked by different Ralph commands have inconsistent behavior regarding permission prompts and autonomous mode, causing unexpected interruptions.
+4. **Bloated test suite** - ~700 tests for a CLI project is excessive, with heavy mocking that tests implementation details rather than behavior.
 
-5. **Missing Auto-PRD (#11):** Running `ralph init` without an existing PRD file causes `claude init` to fail or produce suboptimal results because there's no specification to work with.
-
-6. **No Streaming (#5):** The `ralph tasks` command doesn't stream output, leaving users with no feedback during task generation.
+5. **Incomplete sync command** - `ralph sync` installs skills but provides no way to cleanly remove them.
 
 ### 1.2 Goals
 
-1. **Full Windows compatibility** - Commands work correctly on Windows with cp1252/legacy encodings
-2. **Cross-platform tests** - Test suite passes on both Unix and Windows
-3. **Smart archiving** - Only archive PROGRESS.txt when it has meaningful content
-4. **Consistent permissions** - All Claude invocations use the same flags
-5. **Guided initialization** - Auto-generate PRD if missing during init
-6. **Better feedback** - Stream output for all long-running commands
+1. **Skills-first architecture** - Commands become thin orchestration wrappers that load skills from disk and pass context to Claude. Skills are the source of truth for prompts and instructions.
+
+2. **Simplify codebase** - Remove redundant prompt logic from Python. Commands should assemble context (file paths, story data, branch info) and delegate to skills.
+
+3. **Lean test suite** - Replace ~700 tests with 30-50 focused tests covering happy paths and discrete logic units.
+
+4. **Safe skill removal** - `ralph sync --remove` cleanly uninstalls ralph skills without affecting other user skills.
 
 ### 1.3 Non-Goals
 
-- Changing the TASKS.json schema
-- Adding new CLI commands (beyond enhancing existing ones)
-- Modifying the core iteration logic
-- Windows-specific installation procedures
+- Backward compatibility with pre-2.0 usage patterns
+- Adding new CLI commands
+- Making `ralph init` skill-driven (it remains pure scaffolding)
+- Composing multiple skills per command (keep 1:1 mapping)
+- Build-time skill validation (use runtime discovery)
 
 ---
 
-## 2. Requirements
+## 2. Architecture
 
-### 2.1 Bug Fix: Rich Unicode on Windows (#15)
+### 2.1 Current State
 
-**Priority: Critical**
-
-Rich console attempts to render unicode symbols (warning triangles, checkmarks) that Windows cp1252 encoding cannot display.
-
-| ID | Requirement |
-|----|-------------|
-| FR-WIN15-01 | Configure Rich console to handle Windows legacy encodings |
-| FR-WIN15-02 | Use ASCII fallbacks for warning/error symbols on Windows |
-| FR-WIN15-03 | Auto-detect terminal encoding capabilities |
-| FR-WIN15-04 | No encoding errors on Windows terminals |
-
-**Files to Modify:**
-- `src/ralph/utils/console.py` - Rich console initialization
-
-**Technical Solution:**
-```python
-import sys
-from rich.console import Console
-
-def create_console() -> Console:
-    """Create Rich console with cross-platform encoding support."""
-    # Check for Windows legacy encoding
-    legacy_windows = (
-        sys.platform == "win32"
-        and sys.stdout.encoding.lower() in ("cp1252", "cp437", "ascii")
-    )
-    return Console(legacy_windows=legacy_windows)
+```
+Command → Build prompt in Python → ClaudeService.run()
+                ↓
+         Skills sit unused in skills/
 ```
 
-**Alternative:** Use `console.is_terminal` and `console.encoding` to conditionally substitute unicode symbols with ASCII equivalents.
+Commands embed prompt logic directly. `ClaudeService` has `system_prompt` and `allowed_tools` parameters that are never used.
 
-### 2.2 Bug Fix: Path Separators in Tests (#14)
+### 2.2 Target State
 
-**Priority: High**
-
-Tests assert specific path strings like `plans/SPEC.md` but Windows outputs `plans\SPEC.md`.
-
-| ID | Requirement |
-|----|-------------|
-| FR-WIN14-01 | Test assertions handle both Unix and Windows path separators |
-| FR-WIN14-02 | Path comparisons use normalized paths or both separators |
-| FR-WIN14-03 | All path-related tests pass on Windows |
-| FR-WIN14-04 | No changes to actual command output (display native paths) |
-
-**Affected Tests:**
-- `tests/test_commands/test_prd.py::test_prd_includes_prd_prompt`
-- `tests/test_commands/test_prd.py::test_prd_shows_output_path`
-- `tests/test_commands/test_prd.py::test_prd_with_custom_output_path`
-- `tests/test_commands/test_tasks.py::test_tasks_displays_informational_message`
-- `tests/test_commands/test_tasks.py::test_tasks_with_custom_output_path`
-
-**Technical Solution:**
-```python
-# Option 1: Normalize output for comparison
-def normalize_paths(text: str) -> str:
-    """Normalize path separators for cross-platform comparison."""
-    return text.replace("\\", "/")
-
-assert "plans/SPEC.md" in normalize_paths(result.output)
-
-# Option 2: Check both separators
-assert "plans/SPEC.md" in result.output or "plans\\SPEC.md" in result.output
+```
+Command → Load skill from disk → Assemble context → ClaudeService.run(skill_content + context)
 ```
 
-### 2.3 Bug Fix: Skip Empty PROGRESS.txt Archiving (#13)
+Skills become the source of truth. Python commands handle:
+- Argument parsing (Typer)
+- Context assembly (paths, story data, branch info)
+- Skill loading
+- Claude invocation
 
-**Priority: High**
+### 2.3 Command-to-Skill Mapping
 
-The archive logic triggers even when PROGRESS.txt contains only the boilerplate template with no actual iteration content.
-
-| ID | Requirement |
-|----|-------------|
-| FR-ARCH13-01 | Detect if PROGRESS.txt contains only template boilerplate |
-| FR-ARCH13-02 | Skip archiving if no meaningful content exists |
-| FR-ARCH13-03 | Return `None` (no archive path) when file is template-only |
-| FR-ARCH13-04 | Only archive files with actual iteration entries |
-
-**Files to Modify:**
-- `src/ralph/commands/tasks.py` - `_archive_progress_file()` function
-
-**Technical Solution:**
-```python
-def _has_meaningful_content(progress_path: Path) -> bool:
-    """Check if PROGRESS.txt has content beyond the template."""
-    content = progress_path.read_text()
-
-    # Check for iteration markers that indicate actual work
-    iteration_markers = [
-        "## Iteration",
-        "### Story:",
-        "**Status:**",
-        "**Completed:**",
-    ]
-    return any(marker in content for marker in iteration_markers)
-
-def _archive_progress_file(progress_path: Path) -> Path | None:
-    """Archive PROGRESS.txt if it has meaningful content."""
-    if not progress_path.exists():
-        return None
-    if not _has_meaningful_content(progress_path):
-        return None  # Skip archiving template-only files
-    # ... existing archival logic
-```
-
-### 2.4 Enhancement: Consistent Claude Flags (#12)
-
-**Priority: High**
-
-Different commands use different Claude flags, causing inconsistent behavior with permissions and autonomous mode.
-
-| ID | Requirement |
-|----|-------------|
-| FR-FLAGS12-01 | All Claude invocations use `--dangerously-skip-permissions` |
-| FR-FLAGS12-02 | All Claude invocations include autonomous mode configuration |
-| FR-FLAGS12-03 | Create centralized function for building Claude CLI args |
-| FR-FLAGS12-04 | No unexpected permission prompts during any Ralph operation |
-| FR-FLAGS12-05 | Document consistent flag behavior |
-
-**Commands to Audit:**
-- `ralph init` - runs `claude init`
-- `ralph prd` - PRD agent sessions
-- `ralph tasks` - task generation sessions
-- `ralph once` - single iteration
-- `ralph loop` - multiple iterations
-
-**Files to Modify:**
-- `src/ralph/services/claude.py` - Centralize flag handling
-- `src/ralph/commands/init_cmd.py`
-- `src/ralph/commands/prd.py`
-- `src/ralph/commands/tasks.py`
-
-**Technical Solution:**
-```python
-class ClaudeService:
-    # Centralized flags
-    SKIP_PERMISSIONS_FLAG = "--dangerously-skip-permissions"
-
-    def _build_base_args(self, skip_permissions: bool = True) -> list[str]:
-        """Build base args with consistent flag handling."""
-        args = ["claude"]
-        if skip_permissions:
-            args.append(self.SKIP_PERMISSIONS_FLAG)
-        return args
-```
-
-### 2.5 Enhancement: Auto-PRD in Init (#11)
-
-**Priority: Medium**
-
-`ralph init` fails or produces poor results when no PRD exists because `claude init` has no specification.
-
-| ID | Requirement |
-|----|-------------|
-| FR-INIT11-01 | Check for PRD file before running `claude init` |
-| FR-INIT11-02 | If PRD missing, prompt user to create one via PRD agent |
-| FR-INIT11-03 | Allow user to skip PRD creation and proceed anyway |
-| FR-INIT11-04 | Display clear feedback about the PRD generation step |
-| FR-INIT11-05 | Fail gracefully if PRD generation is cancelled |
-
-**Files to Modify:**
-- `src/ralph/commands/init_cmd.py`
-
-**Technical Solution:**
-```python
-def init_command():
-    # Check for PRD
-    prd_path = project_root / "plans" / "SPEC.md"
-    if not prd_path.exists():
-        console.print("[yellow]No PRD found at plans/SPEC.md[/yellow]")
-        if Confirm.ask("Would you like to create a PRD first?"):
-            # Run PRD flow
-            from ralph.commands.prd import prd_command
-            prd_command(output=prd_path)
-        else:
-            console.print("[dim]Proceeding without PRD...[/dim]")
-
-    # Continue with claude init
-    ...
-```
-
-### 2.6 Enhancement: Stream Output for Tasks (#5)
-
-**Priority: Low**
-
-`ralph tasks` runs with `stream=False`, providing no feedback during generation.
-
-| ID | Requirement |
-|----|-------------|
-| FR-STREAM5-01 | Change `stream=False` to `stream=True` in `ralph tasks` |
-| FR-STREAM5-02 | Users see Claude's progress during task breakdown |
-| FR-STREAM5-03 | JSON extraction continues to work from streamed output |
-
-**Files to Modify:**
-- `src/ralph/commands/tasks.py` - Line ~86
-
-**Change:**
-```python
-# Before
-output_text, exit_code = claude.run_print_mode(prompt, stream=False)
-
-# After
-output_text, exit_code = claude.run_print_mode(prompt, stream=True)
-```
+| Command | Skill | Responsibility |
+|---------|-------|----------------|
+| `ralph prd` | `ralph-prd` | Interactive PRD creation |
+| `ralph tasks` | `ralph-tasks` | Convert spec to TASKS.json |
+| `ralph once` | `ralph-iteration` | Execute single iteration |
+| `ralph loop` | `ralph-iteration` | Execute N iterations (reuses same skill) |
+| `ralph init` | None | Pure scaffolding, no AI |
+| `ralph sync` | None | Filesystem operations |
 
 ---
 
-## 3. Technical Considerations
+## 3. Requirements
 
-### 3.1 Windows Encoding Detection
+### 3.1 Skill Loading System
 
-Windows terminals can use various encodings:
-- `cp1252` - Western European (common)
-- `cp437` - Original IBM PC
-- `utf-8` - Modern terminals (Windows Terminal, VS Code)
+| ID | Requirement |
+|----|-------------|
+| FR-SKILL-01 | Create `SkillLoader` service that reads skill content from `skills/{name}/SKILL.md` |
+| FR-SKILL-02 | Skills are loaded at runtime when commands execute |
+| FR-SKILL-03 | Fail fast with clear error if skill file is missing or malformed |
+| FR-SKILL-04 | Skill content is passed to Claude as the primary prompt/instruction |
 
-Rich provides `legacy_windows` parameter that forces ASCII-safe output. We should detect the encoding and apply this setting automatically.
+### 3.2 Command Simplification
 
-### 3.2 Path Handling Strategy
+| ID | Requirement |
+|----|-------------|
+| FR-CMD-01 | `ralph prd` loads `ralph-prd` skill, passes output path as context |
+| FR-CMD-02 | `ralph tasks` loads `ralph-tasks` skill, passes spec file content as context |
+| FR-CMD-03 | `ralph once` loads `ralph-iteration` skill, passes story data and project context |
+| FR-CMD-04 | `ralph loop` reuses `ralph-iteration` skill for each iteration |
+| FR-CMD-05 | Remove all embedded prompt constants and `_build_*_prompt()` functions |
+| FR-CMD-06 | Commands assemble minimal context (paths, data) and delegate to skills |
 
-The fix should be in tests only, not in the production code. Commands should continue displaying native paths (backslashes on Windows). Test assertions should normalize for comparison.
+### 3.3 Sync Enhancement
 
-Create a test utility function for path normalization to avoid duplicating logic across test files.
+| ID | Requirement |
+|----|-------------|
+| FR-SYNC-01 | `ralph sync` writes manifest to `~/.claude/skills/.ralph-manifest.json` |
+| FR-SYNC-02 | Manifest contains list of installed skill directory names |
+| FR-SYNC-03 | `ralph sync --remove` reads manifest and deletes only listed directories |
+| FR-SYNC-04 | `ralph sync --remove` deletes the manifest file after cleanup |
+| FR-SYNC-05 | `ralph sync --remove` is idempotent (no error if already removed) |
+| FR-SYNC-06 | Never delete skills not listed in manifest |
 
-### 3.3 Content Detection for Archiving
-
-The PROGRESS.txt template contains:
+**Manifest format:**
+```json
+{
+  "installed": ["ralph-prd", "ralph-tasks", "ralph-iteration"],
+  "synced_at": "2026-01-21T12:00:00Z"
+}
 ```
-# Ralph Progress Log
 
-## Codebase Patterns
-...
-```
+### 3.4 Test Suite Overhaul
 
-Actual iteration content contains markers like:
-```
-## Iteration 1
-### Story: US-001
-**Status:** Completed
-```
-
-Detecting any iteration marker is a reliable heuristic for meaningful content.
-
-### 3.4 File Modification Summary
-
-| File | Changes |
-|------|---------|
-| `src/ralph/utils/console.py` | Windows encoding detection |
-| `src/ralph/services/claude.py` | Centralized flag handling |
-| `src/ralph/commands/init_cmd.py` | Auto-PRD prompt |
-| `src/ralph/commands/prd.py` | Use consistent flags |
-| `src/ralph/commands/tasks.py` | Enable streaming, smart archiving |
-| `tests/test_commands/test_prd.py` | Path normalization |
-| `tests/test_commands/test_tasks.py` | Path normalization |
-| `tests/conftest.py` | Add path normalization utility |
+| ID | Requirement |
+|----|-------------|
+| FR-TEST-01 | Replace existing test suite with focused tests |
+| FR-TEST-02 | Integration tests for happy path of each command (5-10 tests) |
+| FR-TEST-03 | Unit tests for discrete logic: skill loading, manifest handling, context assembly |
+| FR-TEST-04 | Minimal mocking - prefer testing real integration where practical |
+| FR-TEST-05 | Target 30-50 total tests |
 
 ---
 
-## 4. Success Criteria
+## 4. Technical Considerations
 
-| # | Criterion | Issue |
-|---|-----------|-------|
-| 1 | No encoding errors on Windows cp1252 terminals | #15 |
-| 2 | All tests pass on Windows | #14 |
-| 3 | Empty/template PROGRESS.txt is not archived | #13 |
-| 4 | All Claude invocations skip permissions | #12 |
-| 5 | `ralph init` prompts for PRD if missing | #11 |
-| 6 | `ralph tasks` streams output in real-time | #5 |
-| 7 | All existing tests continue to pass on Unix | - |
-| 8 | Quality checks (typecheck, lint, format, test) pass | - |
+### 4.1 Skill Loading Strategy
+
+Skills are loaded from the project's `skills/` directory at runtime:
+
+```python
+class SkillLoader:
+    def load(self, skill_name: str) -> str:
+        """Load skill content from skills/{skill_name}/SKILL.md"""
+        path = self.skills_dir / skill_name / "SKILL.md"
+        if not path.exists():
+            raise SkillNotFoundError(f"Skill '{skill_name}' not found at {path}")
+        return path.read_text()
+```
+
+### 4.2 Context Assembly Pattern
+
+Each command assembles context specific to its needs:
+
+```python
+# Example: ralph tasks
+skill_content = skill_loader.load("ralph-tasks")
+spec_content = spec_path.read_text()
+
+prompt = f"{skill_content}\n\n## Spec to Convert\n\n{spec_content}"
+claude.run_print_mode(prompt, ...)
+```
+
+### 4.3 ClaudeService Usage
+
+Leverage existing but unused parameters:
+- `system_prompt` - Could be used for skill content
+- `allowed_tools` - Could restrict tools per command if needed
+
+### 4.4 File Changes Summary
+
+| Directory | Changes |
+|-----------|---------|
+| `src/ralph/services/` | Add `SkillLoader`, enhance `SkillsService` for manifest |
+| `src/ralph/commands/` | Simplify all commands to use skill loading |
+| `src/ralph/models/` | Add `Manifest` model if needed |
+| `tests/` | Replace entire suite with focused tests |
+| `skills/` | No changes (skills are already comprehensive) |
 
 ---
 
-## 5. Testing Strategy
+## 5. Success Criteria
 
-### 5.1 Unit Tests
-
-- Test `create_console()` returns console with correct `legacy_windows` setting
-- Test `_has_meaningful_content()` with template-only and real content
-- Test `_archive_progress_file()` returns `None` for template-only files
-- Test path normalization utility function
-
-### 5.2 Integration Tests
-
-- Test `ralph init` prompts for PRD when missing
-- Test `ralph tasks` archives only meaningful PROGRESS.txt
-- Test `ralph tasks` streams output
-- Run full test suite on Windows (CI)
-
-### 5.3 Manual Testing
-
-- Run `ralph` commands on Windows with cp1252 encoding
-- Verify no unicode errors in terminal output
-- Verify archived files only created for real progress
+| # | Criterion |
+|---|-----------|
+| 1 | All commands load instructions from skill files, not Python code |
+| 2 | No `_build_*_prompt()` functions or prompt constants in command files |
+| 3 | `ralph sync` creates manifest at `~/.claude/skills/.ralph-manifest.json` |
+| 4 | `ralph sync --remove` cleanly removes only ralph skills |
+| 5 | Test count reduced from ~700 to 30-50 |
+| 6 | All quality checks pass (typecheck, lint, format, test) |
+| 7 | Commands produce equivalent behavior to pre-refactor |
 
 ---
 
-## Appendix A: Issue Reference
+## 6. Migration Notes
 
-| Issue | Title | Type | Priority |
-|-------|-------|------|----------|
-| #15 | Rich unicode warning symbol fails on Windows cp1252 | Bug | Critical |
-| #14 | Windows: Path separator mismatches in tests | Bug | High |
-| #13 | PROGRESS.txt archiving should skip empty files | Bug | High |
-| #12 | Consistent Claude session flags across all commands | Enhancement | High |
-| #11 | ralph init: Auto-run PRD agent if no PRD file exists | Enhancement | Medium |
-| #5 | ralph tasks does not stream output | Enhancement | Low |
+This is a major version bump (2.0.0). No migration path is provided for pre-release users. The CLI interface remains the same; only internals change.
+
+**Commands unchanged from user perspective:**
+- `ralph init` - Same behavior
+- `ralph prd` - Same behavior
+- `ralph tasks <spec>` - Same behavior
+- `ralph once` - Same behavior
+- `ralph loop [n]` - Same behavior
+- `ralph sync` - Same behavior, plus new `--remove` flag
+
+---
+
+## Appendix A: Current vs Target Line Counts (Estimated)
+
+| File | Current | Target | Change |
+|------|---------|--------|--------|
+| `commands/prd.py` | ~80 | ~30 | -60% |
+| `commands/tasks.py` | ~120 | ~40 | -65% |
+| `commands/once.py` | ~150 | ~50 | -65% |
+| `commands/loop.py` | ~80 | ~40 | -50% |
+| `services/skills.py` | ~50 | ~100 | +100% (adds loader + manifest) |
+| `tests/` | ~700 tests | ~40 tests | -94% |

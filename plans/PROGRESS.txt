@@ -364,3 +364,52 @@
 - Integration tests that verify specific CLI flags need to be updated when behavior changes (e.g., from append_system_prompt to skill content)
 
 ---
+
+[Ralph Loop] 2026-01-21 09:32 UTC - Iteration 9: US-009 (Remove redundant prompt code) completed
+
+---
+
+## 2026-01-21 - US-010
+
+**Story:** Replace test suite with focused tests
+
+### What was implemented
+- Replaced 682 tests with focused 48-test suite
+- Created 6 focused test files covering behavior not implementation:
+  - `test_skill_loader.py` - SkillLoader service tests (6 tests)
+  - `test_manifest.py` - Manifest model tests (4 tests)
+  - `test_tasks_model.py` - TasksFile/UserStory model tests (5 tests)
+  - `test_skills_service.py` - SkillsService tests (14 tests)
+  - `test_quality_checks.py` - Quality check parsing tests (7 tests)
+  - `test_commands_integration.py` - Command integration tests (12 tests)
+- Removed 20+ old test files covering implementation details
+- Simplified conftest.py to essential fixtures only
+
+### Tests written
+- **test_skill_loader.py**: Error message, loading content, missing skill handling, UTF-8 content, multiple skills
+- **test_manifest.py**: Creation/serialization, load/save round-trip
+- **test_tasks_model.py**: UserStory and TasksFile creation, camelCase aliases, load/save
+- **test_skills_service.py**: List skills, validate skills, sync skills, manifest writing, remove skills
+- **test_quality_checks.py**: QualityCheck model, parsing from CLAUDE.md
+- **test_commands_integration.py**: Happy path for init, prd, tasks, once, loop, sync commands
+
+### Files changed
+- `tests/conftest.py` (simplified to essential fixtures)
+- `tests/test_skill_loader.py` (new)
+- `tests/test_manifest.py` (new)
+- `tests/test_tasks_model.py` (new)
+- `tests/test_skills_service.py` (new)
+- `tests/test_quality_checks.py` (new)
+- `tests/test_commands_integration.py` (new)
+- Removed: `tests/test_commands/`, `tests/test_integration/`, `tests/test_services/`, `tests/test_utils/`
+- Removed: `tests/test_bug_fixes.py`, `tests/test_cli.py`, `tests/test_init.py`, `tests/test_models.py`
+
+### Learnings for future iterations
+- Tests should verify behavior (what the code does) not implementation (how it does it)
+- Integration tests for commands should mock only external dependencies (Claude CLI)
+- Consolidating related assertions into single tests reduces test count without losing coverage
+- 48 tests is sufficient to cover: skill loading, manifest handling, model serialization, and command happy paths
+
+---
+
+[Ralph Loop] 2026-01-21 10:30 UTC - Iteration 10: US-010 (Replace test suite with focused tests) completed

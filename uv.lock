@@ -402,7 +402,7 @@ wheels = [
 
 [[package]]
 name = "ralph-cli"
-version = "1.2.5"
+version = "1.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },

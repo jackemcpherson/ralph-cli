@@ -155,8 +155,8 @@
         "All tests pass"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Major test suite overhaul"
+      "passes": true,
+      "notes": "Replaced 682 tests with focused 48-test suite covering: skill loader (6), manifest (4), tasks model (5), skills service (14), quality checks (7), command integration (12)"
     },
     {
       "id": "US-011",
