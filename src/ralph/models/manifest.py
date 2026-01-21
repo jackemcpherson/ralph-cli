@@ -2,11 +2,19 @@
 
 This module defines the data model for .ralph-manifest.json file used
 to track which skills have been installed by ralph sync.
+
+Manifest versions:
+- Version 1 (legacy): installed contains flat directory names like "ralph-prd"
+- Version 2 (current): installed contains nested paths like "ralph/prd"
 """
 
 from pathlib import Path
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# Current manifest version for nested skill structure
+MANIFEST_VERSION = 2
 
 
 class Manifest(BaseModel):
@@ -16,15 +24,23 @@ class Manifest(BaseModel):
     they can be cleanly removed later with ralph sync --remove.
 
     Attributes:
-        installed: List of installed skill directory names.
+        version: Manifest format version (2 for nested paths).
+        installed: List of installed skill paths (e.g., "ralph/prd").
         synced_at: ISO timestamp string of when the sync occurred.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
+    # Default version for backwards compatibility with v1 manifests
+    LEGACY_VERSION: ClassVar[int] = 1
+
+    version: int = Field(
+        default=1,
+        description="Manifest format version (1=flat names, 2=nested paths)",
+    )
     installed: list[str] = Field(
         default_factory=list,
-        description="List of installed skill directory names",
+        description="List of installed skill paths",
     )
     synced_at: str = Field(
         ...,
