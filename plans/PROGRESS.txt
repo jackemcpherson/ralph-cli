@@ -345,3 +345,41 @@ Total: 27 new tests
 - Consistent with US-007 pattern for ralph core skills
 
 [Ralph Loop] 2026-01-22 - Iteration 8: US-008 (Restructure skills directory - reviewer skills) completed
+
+[Ralph Loop] 2026-01-21 22:32 UTC - Iteration 8: US-008 (Restructure skills directory - reviewer skills) completed
+
+---
+
+## 2026-01-22 - US-009
+
+**Story:** Create release reviewer skill
+
+### What was implemented
+- Created `skills/reviewers/release/SKILL.md` with comprehensive release readiness checks
+- Skill checks for:
+  - Version consistency between pyproject.toml and __init__.py
+  - Changelog entries for current version being released
+  - Documentation completeness (README.md, CLAUDE.md, AGENTS.md)
+  - PROGRESS.txt archive cleanup in plans/ directory
+  - Git tag readiness (version not already tagged)
+  - TODO/FIXME audit in source files
+- Follows established reviewer skill patterns with:
+  - Core rules (errors) vs recommended practices (warnings)
+  - Three-phase process: Gather, Analyze, Report
+  - Structured output format with version check table
+  - PASS/NEEDS_WORK verdict system
+
+### Tests written
+- No code tests needed - this is a skill definition (markdown file)
+- Skill follows established patterns from other reviewers
+- All existing tests (163) continue to pass
+
+### Files changed
+- `skills/reviewers/release/SKILL.md` (new)
+
+### Learnings for future iterations
+- Release reviewer is unique among reviewers in that it checks multiple version sources
+- The skill includes commands for both Python (pyproject.toml/__init__.py) and JavaScript (package.json) projects
+- PROGRESS.txt archives should be cleaned up before releases to keep plans/ directory tidy
+
+[Ralph Loop] 2026-01-22 - Iteration 9: US-009 (Create release reviewer skill) completed
