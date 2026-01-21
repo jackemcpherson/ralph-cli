@@ -81,7 +81,6 @@ def once(
     console.print(f"[dim]Stories remaining: {incomplete_count}[/dim]")
     console.print()
 
-    # Load skill content and build prompt
     try:
         prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
     except SkillNotFoundError as e:
@@ -184,7 +183,6 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
     Raises:
         SkillNotFoundError: If the ralph-iteration skill is not found.
     """
-    # Build context section with story details
     criteria_lines = "\n".join(f"  - {c}" for c in story.acceptance_criteria)
 
     context_lines = [

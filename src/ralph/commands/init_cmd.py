@@ -73,7 +73,6 @@ def _create_initial_commit(project_root: Path) -> bool:
         True if successful, False otherwise.
     """
     try:
-        # Stage all files
         add_result = subprocess.run(
             ["git", "add", "."],
             cwd=project_root,
@@ -85,7 +84,6 @@ def _create_initial_commit(project_root: Path) -> bool:
             logger.warning(f"git add failed: {add_result.stderr}")
             return False
 
-        # Create commit
         commit_result = subprocess.run(
             ["git", "commit", "-m", "Initial commit: Ralph workflow setup"],
             cwd=project_root,
@@ -128,7 +126,6 @@ def init(
         console.print("Use [bold]--force[/bold] to overwrite existing files.")
         raise typer.Exit(1)
 
-    # Initialize git repo if not already in one
     initialized_git = False
     if not _is_git_repo(project_root):
         console.print("[bold]Initializing git repository...[/bold]")
@@ -169,7 +166,6 @@ def init(
     if changelog_existed:
         console.print("[dim]  Skipped CHANGELOG.md (already exists)[/dim]")
 
-    # If the user didn't have meaningful PRD content before, prompt to create one
     if not had_prd_content_before:
         _handle_missing_prd(prd_path, project_root)
 
@@ -194,7 +190,6 @@ def init(
             print_warning(f"Failed to run Claude Code /init: {e}")
             console.print("[dim]You can run 'claude /init' manually later.[/dim]")
 
-    # Create initial commit if we initialized the git repo
     if initialized_git:
         console.print()
         console.print("[bold]Creating initial commit...[/bold]")

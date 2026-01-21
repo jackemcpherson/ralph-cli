@@ -123,10 +123,8 @@ def tasks(
             console.print(output_text[:2000])
             raise typer.Exit(1)
 
-        # Save the tasks (will overwrite if file already exists with same content)
         save_tasks(tasks_model, output_path)
 
-        # Archive PROGRESS.txt if it exists and has content
         archived_path = _archive_progress_file(project_root)
         if archived_path:
             console.print()

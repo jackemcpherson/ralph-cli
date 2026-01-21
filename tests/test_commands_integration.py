@@ -671,25 +671,20 @@ class TestInitGitInitialization:
 
     def test_init_initializes_git_when_not_in_repo(self, runner: CliRunner, tmp_path: Path) -> None:
         """Test that ralph init initializes git repo when not already in one."""
-        import subprocess
-
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
-        # Configure git for the test
-        subprocess.run(
-            ["git", "config", "--global", "user.email", "test@test.com"],
-            capture_output=True,
-            check=False,
-        )
-        subprocess.run(
-            ["git", "config", "--global", "user.name", "Test"],
-            capture_output=True,
-            check=False,
-        )
+
+        git_env = {
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@test.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@test.com",
+        }
 
         with working_directory(tmp_path):
             with (
                 patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
                 patch("ralph.commands.init_cmd.Confirm.ask", return_value=False),
+                patch.dict(os.environ, git_env),
             ):
                 mock_claude.return_value.run_interactive.return_value = 0
                 result = runner.invoke(app, ["init"])
