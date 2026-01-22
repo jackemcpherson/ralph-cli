@@ -47,6 +47,43 @@ git diff --name-only HEAD
 
 > **Note**: Filter results to code files (exclude configs, lockfiles, generated files).
 
+## Project Context
+
+Before applying built-in standards, check for project-specific conventions that may override or extend them.
+
+### Configuration Files
+
+**CLAUDE.md** (project root)
+
+The primary project configuration file. Look for:
+- Codebase Patterns section with project-specific conventions
+- Code style preferences and idioms
+- Project-specific complexity rules
+
+**AGENTS.md** (project root)
+
+Agent-specific instructions that may include:
+- Simplification preferences for autonomous agents
+- Patterns that should be preserved despite appearing complex
+- Project-specific naming conventions
+
+**.ralph/code-simplifier-standards.md** (optional override)
+
+Skill-specific overrides that completely customize the review:
+- Custom error/warning/suggestion classifications
+- Project-specific anti-patterns to flag
+- Patterns to ignore or allow
+
+### Precedence Rules
+
+When project configuration exists, apply rules in this order:
+
+1. **Skill-specific override** (`.ralph/code-simplifier-standards.md`) - highest priority
+2. **Project conventions** (`CLAUDE.md` and `AGENTS.md`) - override built-in defaults
+3. **Built-in standards** (this document) - baseline when no overrides exist
+
+Project rules always take precedence over built-in standards. If a project's CLAUDE.md says "nested ternaries are acceptable for simple boolean logic," respect that convention.
+
 ## Standards
 
 ### Core Rules
@@ -83,14 +120,6 @@ These produce **warnings** for improvement opportunities.
 - Unnecessary intermediate variables
 - Verbose patterns where simpler idioms exist
 - Comments describing what code obviously does
-
-### Project Overrides
-
-Projects can customize standards:
-- `CLAUDE.md` - Project-wide coding standards
-- `.ralph/code-simplifier-standards.md` - Skill-specific overrides
-
-When overrides exist, project rules take precedence.
 
 ## Your Process
 
