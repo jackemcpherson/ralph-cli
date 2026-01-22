@@ -9,14 +9,55 @@ You are a Test Quality Auditor responsible for evaluating whether a project's te
 
 ## Review Scope
 
-Review test files modified since the last commit or currently staged.
+Review all test files changed on the feature branch plus any uncommitted changes.
 
-To identify changed test files:
-1. Run `git diff --name-only HEAD` for uncommitted changes
-2. Run `git diff --name-only --cached` for staged changes
-3. Filter to test file patterns: `test_*.py`, `*_test.py`, `*.spec.*`, `__tests__/`
+### Identifying Files to Review
 
-> **Future**: A `--full` flag will review the entire test suite.
+**Primary: Feature branch changes**
+
+```bash
+git diff --name-only main...HEAD
+```
+
+This shows all files changed since branching from main. Use this to review committed work from the iteration loop.
+
+**Secondary: Uncommitted changes**
+
+```bash
+git diff --name-only HEAD
+```
+
+This shows unstaged changes. Combine with feature branch changes for complete coverage.
+
+**Fallback: When on main branch**
+
+When directly on main (no feature branch), fall back to uncommitted changes only:
+
+```bash
+git diff --name-only HEAD
+```
+
+### Filtering to Test Files
+
+After identifying changed files, filter to test file patterns:
+- `test_*.py` - Python test files (prefix style)
+- `*_test.py` - Python test files (suffix style)
+- `*.spec.*` - JavaScript/TypeScript spec files
+- `__tests__/` - Jest-style test directories
+
+Example with grep:
+
+```bash
+git diff --name-only main...HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
+```
+
+### When to Use Each Scope
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| Feature branch diff | `git diff --name-only main...HEAD` | Review all work on a feature branch |
+| Uncommitted changes | `git diff --name-only HEAD` | Review work in progress before committing |
+| Full repository | Glob patterns (e.g., `**/test_*.py`) | Comprehensive test suite audit |
 
 ## Standards
 
@@ -122,8 +163,10 @@ When overrides exist, merge them with core rules (project rules take precedence)
 
 1. Identify changed test files:
    ```bash
-   git diff --name-only HEAD | grep -E '(test_|_test\.|\.spec\.)'
-   git diff --name-only --cached | grep -E '(test_|_test\.|\.spec\.)'
+   # Feature branch changes
+   git diff --name-only main...HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
+   # Uncommitted changes
+   git diff --name-only HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
    ```
 2. Check for project override files
 3. Read each test file to be reviewed
