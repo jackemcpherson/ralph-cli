@@ -1,14 +1,18 @@
 """Skills sync service for Ralph CLI.
 
 This module provides services for managing and syncing Claude Code skills
-from a local skills directory to the global ~/.claude/skills/ directory.
+from bundled package resources or a local skills directory to the global
+~/.claude/skills/ directory.
 """
 
 import logging
 import re
 import shutil
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from enum import Enum
+from importlib.resources import as_file, files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -16,6 +20,18 @@ from pydantic import BaseModel, ConfigDict
 from ralph.models.manifest import MANIFEST_VERSION, Manifest, load_manifest, save_manifest
 
 logger = logging.getLogger(__name__)
+
+BUNDLED_SKILLS = [
+    "ralph/iteration",
+    "ralph/prd",
+    "ralph/tasks",
+    "reviewers/code-simplifier",
+    "reviewers/github-actions",
+    "reviewers/language/python",
+    "reviewers/release",
+    "reviewers/repo-structure",
+    "reviewers/test-quality",
+]
 
 
 class SyncStatus(Enum):
@@ -44,7 +60,7 @@ class SkillInfo(BaseModel):
     Attributes:
         name: The skill name from frontmatter.
         description: The skill description from frontmatter.
-        path: Path to the skill directory.
+        path: Path to the skill directory (None for package skills).
         relative_path: Relative path from skills root (e.g., "ralph/prd").
     """
 
@@ -52,7 +68,7 @@ class SkillInfo(BaseModel):
 
     name: str
     description: str
-    path: Path
+    path: Path | None = None
     relative_path: str = ""
 
 
@@ -64,7 +80,7 @@ class SkillSyncResult(BaseModel):
     Attributes:
         skill_name: Name of the skill that was synced.
         status: The sync status outcome.
-        source_path: Path to the source skill directory.
+        source_path: Path to the source skill directory (may be "package:" for bundled).
         target_path: Path to the target skill directory (if synced).
         error: Error message if sync failed.
     """
@@ -73,7 +89,7 @@ class SkillSyncResult(BaseModel):
 
     skill_name: str
     status: SyncStatus
-    source_path: Path
+    source_path: Path | str
     target_path: Path | None = None
     error: str | None = None
 
@@ -81,13 +97,16 @@ class SkillSyncResult(BaseModel):
 class SkillsService(BaseModel):
     """Service for managing and syncing Claude Code skills.
 
-    Provides methods to list, validate, and sync skills from a local
-    skills/ directory to the global ~/.claude/skills/ directory.
+    Provides methods to list, validate, and sync skills from either bundled
+    package resources or a local skills/ directory to the global
+    ~/.claude/skills/ directory.
+
+    When skills_dir is None, skills are synced from bundled package resources.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    skills_dir: Path
+    skills_dir: Path | None = None
     target_dir: Path = Path.home() / ".claude" / "skills"
 
     def list_local_skills(self) -> list[Path]:
@@ -100,16 +119,23 @@ class SkillsService(BaseModel):
         Returns:
             List of paths to skill directories containing SKILL.md files.
         """
-        if not self.skills_dir.exists():
+        if self.skills_dir is None or not self.skills_dir.exists():
             return []
 
         skill_paths: list[Path] = []
 
-        # Recursively find all SKILL.md files
         for skill_md in self.skills_dir.rglob("SKILL.md"):
             skill_paths.append(skill_md.parent)
 
         return sorted(skill_paths, key=lambda p: str(p))
+
+    def list_bundled_skills(self) -> Iterator[str]:
+        """Iterate over bundled skill paths.
+
+        Yields:
+            Skill paths like 'ralph/iteration', 'reviewers/test-quality'.
+        """
+        yield from BUNDLED_SKILLS
 
     def validate_skill(self, skill_path: Path) -> SkillInfo | None:
         """Validate a skill directory has required frontmatter.
@@ -142,12 +168,12 @@ class SkillsService(BaseModel):
         if not name or not description:
             return None
 
-        # Calculate relative path from skills_dir (e.g., "ralph/prd")
-        # Always use forward slashes for cross-platform consistency in manifest
         try:
-            relative_path = skill_path.relative_to(self.skills_dir).as_posix()
+            if self.skills_dir:
+                relative_path = skill_path.relative_to(self.skills_dir).as_posix()
+            else:
+                relative_path = skill_path.name
         except ValueError:
-            # skill_path is not under skills_dir, use the directory name
             relative_path = skill_path.name
 
         return SkillInfo(
@@ -157,8 +183,50 @@ class SkillsService(BaseModel):
             relative_path=relative_path,
         )
 
+    def _validate_bundled_skill(self, skill_name: str) -> SkillInfo | None:
+        """Validate a bundled skill has required frontmatter.
+
+        Args:
+            skill_name: The skill path (e.g., 'ralph/prd').
+
+        Returns:
+            SkillInfo if valid, None if invalid or not found.
+        """
+        skill_parts = skill_name.split("/")
+        package_path = "ralph.skills"
+        for part in skill_parts:
+            package_path += f".{part.replace('-', '_')}"
+
+        try:
+            resource_files = files(package_path)
+            skill_file = resource_files.joinpath("SKILL.md")
+
+            if not skill_file.is_file():
+                return None
+
+            content = skill_file.read_text(encoding="utf-8")
+            frontmatter = self._parse_frontmatter(content)
+
+            if frontmatter is None:
+                return None
+
+            name = frontmatter.get("name")
+            description = frontmatter.get("description")
+
+            if not name or not description:
+                return None
+
+            return SkillInfo(
+                name=str(name),
+                description=str(description),
+                path=None,
+                relative_path=skill_name,
+            )
+        except (ModuleNotFoundError, TypeError):
+            return None
+
     def sync_skill(self, skill_path: Path) -> SkillSyncResult:
-        """Sync a single skill to the global skills directory.
+        """Sync a single skill from filesystem to the global skills directory.
 
         Copies the skill directory to ~/.claude/skills/, preserving the
         nested directory structure. For example, skills/ralph/prd/ is
@@ -180,19 +248,15 @@ class SkillsService(BaseModel):
                 error="Missing or invalid SKILL.md frontmatter (requires 'name' and 'description')",
             )
 
-        # Use the relative path to preserve nested structure
         target_path = self.target_dir / skill_info.relative_path
         status = SyncStatus.UPDATED if target_path.exists() else SyncStatus.CREATED
 
         try:
-            # Ensure parent directories exist (for nested paths like ralph/prd)
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Remove existing skill directory if it exists
             if target_path.exists():
                 shutil.rmtree(target_path)
 
-            # Copy the skill directory
             shutil.copytree(skill_path, target_path)
 
             return SkillSyncResult(
@@ -209,29 +273,103 @@ class SkillsService(BaseModel):
                 error=str(e),
             )
 
+    def _sync_bundled_skill(self, skill_name: str) -> SkillSyncResult:
+        """Sync a single bundled skill to the global skills directory.
+
+        Args:
+            skill_name: The skill path (e.g., 'ralph/prd').
+
+        Returns:
+            SkillSyncResult with the sync status and details.
+        """
+        skill_info = self._validate_bundled_skill(skill_name)
+
+        if skill_info is None:
+            return SkillSyncResult(
+                skill_name=skill_name,
+                status=SyncStatus.INVALID,
+                source_path=f"package:ralph.skills.{skill_name}",
+                error="Missing or invalid SKILL.md frontmatter",
+            )
+
+        target_path = self.target_dir / skill_name
+        status = SyncStatus.UPDATED if target_path.exists() else SyncStatus.CREATED
+
+        skill_parts = skill_name.split("/")
+        package_path = "ralph.skills"
+        for part in skill_parts:
+            package_path += f".{part.replace('-', '_')}"
+
+        try:
+            resource_files = files(package_path)
+            self._copy_traversable_to_path(resource_files, target_path)
+
+            return SkillSyncResult(
+                skill_name=skill_name,
+                status=status,
+                source_path=f"package:{package_path}",
+                target_path=target_path,
+            )
+        except (OSError, ModuleNotFoundError) as e:
+            return SkillSyncResult(
+                skill_name=skill_name,
+                status=SyncStatus.SKIPPED,
+                source_path=f"package:{package_path}",
+                error=str(e),
+            )
+
+    def _copy_traversable_to_path(self, source: Traversable, target: Path) -> None:
+        """Copy a Traversable resource to a filesystem path.
+
+        Args:
+            source: The Traversable resource to copy.
+            target: The target filesystem path.
+        """
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        if target.exists():
+            shutil.rmtree(target)
+
+        target.mkdir(parents=True, exist_ok=True)
+
+        for item in source.iterdir():
+            if item.name.startswith("__pycache__"):
+                continue
+
+            item_target = target / item.name
+
+            if item.is_file():
+                with as_file(item) as source_file:
+                    shutil.copy2(source_file, item_target)
+            elif item.is_dir():
+                self._copy_traversable_to_path(item, item_target)
+
     def sync_all(self) -> list[SkillSyncResult]:
         """Sync all valid skills to the global skills directory.
 
-        Iterates through all skills in the local skills/ directory,
-        validates them, and syncs valid ones to ~/.claude/skills/.
+        When skills_dir is None, syncs bundled package skills.
+        When skills_dir is set, syncs from the local filesystem.
+
         Before syncing, cleans up old flat-structure skills from v1 manifests.
         After syncing, writes a manifest file to track installed skills.
 
         Returns:
             List of SkillSyncResult for each skill processed.
         """
-        # Clean up old flat-structure skills from v1 manifests
         self._cleanup_old_flat_skills()
 
         results: list[SkillSyncResult] = []
 
-        skill_paths = self.list_local_skills()
+        if self.skills_dir is None:
+            for skill_name in self.list_bundled_skills():
+                result = self._sync_bundled_skill(skill_name)
+                results.append(result)
+        else:
+            skill_paths = self.list_local_skills()
+            for skill_path in skill_paths:
+                result = self.sync_skill(skill_path)
+                results.append(result)
 
-        for skill_path in skill_paths:
-            result = self.sync_skill(skill_path)
-            results.append(result)
-
-        # Write manifest with successfully installed skills
         self._write_manifest(results)
 
         return results
@@ -252,14 +390,12 @@ class SkillsService(BaseModel):
         if manifest is None:
             return []
 
-        # Only clean up if manifest is version 1 (or has no version field)
         if manifest.version >= MANIFEST_VERSION:
             return []
 
         removed: list[str] = []
 
         for skill_name in manifest.installed:
-            # Skip if it looks like a nested path (contains /)
             if "/" in skill_name:
                 continue
 
@@ -284,24 +420,19 @@ class SkillsService(BaseModel):
         Args:
             results: List of sync results to extract installed skills from.
         """
-        # Extract successfully installed skill paths (e.g., "ralph/prd")
         installed_skills: list[str] = []
         for result in results:
             if result.status in (SyncStatus.CREATED, SyncStatus.UPDATED):
-                # Use the skill_name which is now the relative path
                 installed_skills.append(result.skill_name)
 
-        # Create manifest with current timestamp and version 2
         manifest = Manifest(
             version=MANIFEST_VERSION,
             installed=sorted(installed_skills),
             syncedAt=datetime.now(UTC).isoformat(),
         )
 
-        # Ensure target directory exists
         self.target_dir.mkdir(parents=True, exist_ok=True)
 
-        # Write manifest file
         manifest_path = self.target_dir / ".ralph-manifest.json"
         save_manifest(manifest, manifest_path)
 
@@ -324,25 +455,21 @@ class SkillsService(BaseModel):
         manifest = load_manifest(manifest_path)
 
         if manifest is None:
-            # No manifest found - nothing to remove
             return []
 
         removed: list[str] = []
 
         for skill_path in manifest.installed:
-            # skill_path can be either flat ("ralph-prd") or nested ("ralph/prd")
             skill_dir = self.target_dir / skill_path
             if skill_dir.exists() and skill_dir.is_dir():
                 try:
                     shutil.rmtree(skill_dir)
                     removed.append(skill_path)
 
-                    # Clean up empty parent directories for nested paths
                     self._cleanup_empty_parents(skill_dir.parent)
                 except OSError as e:
                     logger.warning(f"Failed to remove skill {skill_path}: {e}")
 
-        # Remove the manifest file
         try:
             manifest_path.unlink()
         except OSError as e:
@@ -361,15 +488,12 @@ class SkillsService(BaseModel):
         """
         while directory != self.target_dir and directory.is_relative_to(self.target_dir):
             try:
-                # Only remove if directory is empty
                 if directory.exists() and not any(directory.iterdir()):
                     directory.rmdir()
                     logger.debug(f"Removed empty directory: {directory}")
                 else:
-                    # Stop if directory is not empty
                     break
             except OSError:
-                # Stop on any error
                 break
             directory = directory.parent
 

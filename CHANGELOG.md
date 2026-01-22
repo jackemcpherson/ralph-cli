@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.4] - 2026-01-22
+
+### Changed
+
+- **Skills bundled with package** - Skills now ship with `pip install ralph-cli` and work immediately without `ralph sync`
+- `ralph sync` now syncs bundled package skills by default; use `--skills-dir` for custom skills
+- Skill content is now inlined in prompts instead of using `@file` references (package resources don't have stable filesystem paths)
+- Moved `skills/` directory into package at `src/ralph/skills/`
+
+### Fixed
+
+- Skills no longer require a local `skills/` directory - bundled skills are used by default (#32)
+
 ## [2.0.3] - 2026-01-22
 
 ### Changed

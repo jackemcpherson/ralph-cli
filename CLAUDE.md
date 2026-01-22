@@ -106,22 +106,23 @@ ralph_cli/
 │       ├── commands/           # Command implementations
 │       ├── models/             # Pydantic models
 │       ├── services/           # Business logic (Claude, Git, etc.)
+│       ├── skills/             # Bundled skill definitions (packaged)
+│       │   ├── ralph/          # Core workflow skills
+│       │   │   ├── iteration/
+│       │   │   ├── prd/
+│       │   │   └── tasks/
+│       │   └── reviewers/      # Review pipeline skills
+│       │       ├── code_simplifier/
+│       │       ├── github_actions/
+│       │       ├── language/python/
+│       │       ├── release/
+│       │       ├── repo_structure/
+│       │       └── test_quality/
 │       └── utils/              # Console and file utilities
-├── skills/                     # Claude Code skill definitions
-│   ├── ralph/                  # Core workflow skills
-│   │   ├── prd/
-│   │   ├── tasks/
-│   │   └── iteration/
-│   └── reviewers/              # Review pipeline skills
-│       ├── code-simplifier/
-│       ├── test-quality/
-│       ├── repo-structure/
-│       ├── github-actions/
-│       ├── release/
-│       └── language/
-│           └── python/
 └── tests/
 ```
+
+**Note:** Skills are bundled with the package for immediate use after `pip install ralph-cli`. Use `ralph sync` to copy them to `~/.claude/skills/` for native Claude Code integration.
 
 ## Codebase Patterns
 

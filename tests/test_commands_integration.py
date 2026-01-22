@@ -665,15 +665,18 @@ class TestSyncCommand:
         assert "test-skill" in result.output
         assert "Synced 1 skill" in result.output
 
-    def test_sync_shows_warning_when_no_skills_dir(
-        self, runner: CliRunner, python_project: Path
-    ) -> None:
-        """Test that sync shows message when skills/ doesn't exist."""
+    def test_sync_bundled_skills_by_default(self, runner: CliRunner, python_project: Path) -> None:
+        """Test that sync uses bundled skills by default."""
         with working_directory(python_project):
-            result = runner.invoke(app, ["sync"])
+            with patch("ralph.commands.sync.SkillsService") as mock_service_cls:
+                mock_service = mock_service_cls.return_value
+                mock_service.target_dir = Path.home() / ".claude" / "skills"
+                mock_service.sync_all.return_value = []
+
+                result = runner.invoke(app, ["sync"])
 
         assert result.exit_code == 0
-        assert "Skills directory not found" in result.output
+        assert "Syncing bundled skills from" in result.output
 
     def test_sync_remove_flag_works(
         self,
@@ -697,31 +700,33 @@ class TestSyncCommand:
 class TestBuildSkillPrompt:
     """Tests for build_skill_prompt utility."""
 
-    def test_prompt_starts_with_at_file_reference(self, tmp_path: Path) -> None:
-        """Test that build_skill_prompt creates @file reference."""
+    def test_prompt_inlines_skill_content(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt inlines skill content."""
         from ralph.utils import build_skill_prompt
 
-        skill_dir = tmp_path / "skills" / "test-skill"
+        skill_dir = tmp_path / "skills" / "test_skill"
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Test Skill")
+        (skill_dir / "SKILL.md").write_text("# Test Skill\n\nSkill instructions here.")
 
-        result = build_skill_prompt(tmp_path, "test-skill", "Some context")
+        result = build_skill_prompt("test_skill", "Some context", skills_dir=tmp_path / "skills")
 
-        assert result.startswith("Follow the instructions in @skills/test-skill/SKILL.md")
+        assert "Follow these instructions:" in result
+        assert "# Test Skill" in result
+        assert "Skill instructions here." in result
 
     def test_prompt_includes_context(self, tmp_path: Path) -> None:
         """Test that build_skill_prompt appends context."""
         from ralph.utils import build_skill_prompt
 
-        skill_dir = tmp_path / "skills" / "test-skill"
+        skill_dir = tmp_path / "skills" / "test_skill"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("# Test Skill")
 
         context = "## Context\n\nThis is test context."
-        result = build_skill_prompt(tmp_path, "test-skill", context)
+        result = build_skill_prompt("test_skill", context, skills_dir=tmp_path / "skills")
 
         assert context in result
-        assert "@skills/test-skill/SKILL.md" in result
+        assert "# Test Skill" in result
 
     def test_prompt_raises_for_missing_skill(self, tmp_path: Path) -> None:
         """Test that build_skill_prompt raises SkillNotFoundError for missing skill."""
@@ -731,18 +736,17 @@ class TestBuildSkillPrompt:
         (tmp_path / "skills").mkdir()
 
         with pytest.raises(SkillNotFoundError):
-            build_skill_prompt(tmp_path, "nonexistent-skill", "context")
+            build_skill_prompt("nonexistent_skill", "context", skills_dir=tmp_path / "skills")
 
 
 class TestOnceCommandPromptFormat:
     """Tests for ralph once command prompt format."""
 
-    def test_once_prompt_uses_at_file_reference(self, project_with_tasks: Path) -> None:
-        """Test that ralph once uses @file reference in prompt."""
+    def test_once_prompt_inlines_skill_content(self, project_with_tasks: Path) -> None:
+        """Test that ralph once inlines skill content in prompt."""
         captured_prompt: list[str] = []
 
         def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
-            # Find the --print flag and capture the prompt (next arg)
             if "--print" in args:
                 idx = args.index("--print")
                 if idx + 1 < len(args):
@@ -762,7 +766,8 @@ class TestOnceCommandPromptFormat:
                 runner.invoke(app, ["once"])
 
         assert len(captured_prompt) > 0
-        assert "@skills/ralph/iteration/SKILL.md" in captured_prompt[0]
+        assert "Follow these instructions:" in captured_prompt[0]
+        assert "Ralph Iteration Skill" in captured_prompt[0]
 
 
 class TestTasksJsonExtraction:
@@ -976,41 +981,31 @@ class TestInitGitInitialization:
 
 
 class TestCommandSkillPaths:
-    """Tests verifying that commands use the new nested skill paths."""
+    """Tests verifying that commands use bundled skills correctly."""
 
-    def test_prd_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
-        """Test that prd command uses ralph/prd skill path."""
+    def test_prd_command_loads_bundled_skill(self) -> None:
+        """Test that prd command loads the bundled ralph/prd skill."""
         from ralph.commands.prd import _build_prompt_from_skill
 
-        skill_dir = tmp_path / "skills" / "ralph" / "prd"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# PRD Skill")
+        output_path = Path("/tmp/SPEC.md")
+        prompt = _build_prompt_from_skill(output_path)
 
-        output_path = tmp_path / "plans" / "SPEC.md"
-        prompt = _build_prompt_from_skill(tmp_path, output_path)
+        assert "Follow these instructions:" in prompt
+        assert "Ralph PRD" in prompt
 
-        assert "@skills/ralph/prd/SKILL.md" in prompt
-
-    def test_tasks_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
-        """Test that tasks command uses ralph/tasks skill path."""
+    def test_tasks_command_loads_bundled_skill(self) -> None:
+        """Test that tasks command loads the bundled ralph/tasks skill."""
         from ralph.commands.tasks import _build_prompt_from_skill
 
-        skill_dir = tmp_path / "skills" / "ralph" / "tasks"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Tasks Skill")
+        prompt = _build_prompt_from_skill("Test spec content")
 
-        prompt = _build_prompt_from_skill(tmp_path, "Test spec content")
+        assert "Follow these instructions:" in prompt
+        assert "Ralph Tasks" in prompt
 
-        assert "@skills/ralph/tasks/SKILL.md" in prompt
-
-    def test_once_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
-        """Test that once command uses ralph/iteration skill path."""
+    def test_once_command_loads_bundled_skill(self) -> None:
+        """Test that once command loads the bundled ralph/iteration skill."""
         from ralph.commands.once import _build_prompt_from_skill
         from ralph.models import UserStory
-
-        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
 
         story = UserStory(
             id="US-001",
@@ -1022,19 +1017,15 @@ class TestCommandSkillPaths:
             notes="",
         )
 
-        prompt = _build_prompt_from_skill(tmp_path, story, max_fix_attempts=3)
+        prompt = _build_prompt_from_skill(story, max_fix_attempts=3)
 
-        assert "@skills/ralph/iteration/SKILL.md" in prompt
+        assert "Follow these instructions:" in prompt
+        assert "Ralph Iteration" in prompt
 
-    def test_loop_command_uses_nested_skill_path(self, tmp_path: Path) -> None:
-        """Test that loop command (via once) uses ralph/iteration skill path."""
-        # loop command imports _build_prompt_from_skill from once
+    def test_loop_command_loads_bundled_skill(self) -> None:
+        """Test that loop command (via once) loads the bundled ralph/iteration skill."""
         from ralph.commands.once import _build_prompt_from_skill
         from ralph.models import UserStory
-
-        skill_dir = tmp_path / "skills" / "ralph" / "iteration"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text("# Iteration Skill")
 
         story = UserStory(
             id="US-002",
@@ -1046,9 +1037,9 @@ class TestCommandSkillPaths:
             notes="",
         )
 
-        prompt = _build_prompt_from_skill(tmp_path, story, max_fix_attempts=3)
+        prompt = _build_prompt_from_skill(story, max_fix_attempts=3)
 
-        assert "@skills/ralph/iteration/SKILL.md" in prompt
+        assert "Follow these instructions:" in prompt
         assert "US-002" in prompt
         assert "Another story" in prompt
 
