@@ -9,14 +9,94 @@ You are a Test Quality Auditor responsible for evaluating whether a project's te
 
 ## Review Scope
 
-Review test files modified since the last commit or currently staged.
+Review all test files changed on the feature branch plus any uncommitted changes.
 
-To identify changed test files:
-1. Run `git diff --name-only HEAD` for uncommitted changes
-2. Run `git diff --name-only --cached` for staged changes
-3. Filter to test file patterns: `test_*.py`, `*_test.py`, `*.spec.*`, `__tests__/`
+### Identifying Files to Review
 
-> **Future**: A `--full` flag will review the entire test suite.
+**Primary: Feature branch changes**
+
+```bash
+git diff --name-only main...HEAD
+```
+
+This shows all files changed since branching from main. Use this to review committed work from the iteration loop.
+
+**Secondary: Uncommitted changes**
+
+```bash
+git diff --name-only HEAD
+```
+
+This shows unstaged changes. Combine with feature branch changes for complete coverage.
+
+**Fallback: When on main branch**
+
+When directly on main (no feature branch), fall back to uncommitted changes only:
+
+```bash
+git diff --name-only HEAD
+```
+
+### Filtering to Test Files
+
+After identifying changed files, filter to test file patterns:
+- `test_*.py` - Python test files (prefix style)
+- `*_test.py` - Python test files (suffix style)
+- `*.spec.*` - JavaScript/TypeScript spec files
+- `__tests__/` - Jest-style test directories
+
+Example with grep:
+
+```bash
+git diff --name-only main...HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
+```
+
+### When to Use Each Scope
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| Feature branch diff | `git diff --name-only main...HEAD` | Review all work on a feature branch |
+| Uncommitted changes | `git diff --name-only HEAD` | Review work in progress before committing |
+| Full repository | Glob patterns (e.g., `**/test_*.py`) | Comprehensive test suite audit |
+
+## Project Context
+
+Before applying built-in standards, check for project-specific testing conventions that may override or extend them.
+
+### Configuration Files
+
+**CLAUDE.md** (project root)
+
+The primary project configuration file. Look for:
+- Testing requirements and conventions in the Codebase Patterns section
+- Test organization preferences (unit vs integration separation)
+- Coverage requirements or exemptions
+- Framework-specific testing patterns
+
+**AGENTS.md** (project root)
+
+Agent-specific instructions that may include:
+- Testing conventions for autonomous agents
+- Patterns that are intentionally tested despite appearing like framework tests
+- Project-specific test naming conventions
+
+**.ralph/test-quality-reviewer-standards.md** (optional override)
+
+Skill-specific overrides that completely customize the review:
+- Custom error/warning/suggestion classifications
+- Project-specific anti-patterns to flag
+- Test patterns to ignore or allow
+- Coverage requirements
+
+### Precedence Rules
+
+When project configuration exists, apply rules in this order:
+
+1. **Skill-specific override** (`.ralph/test-quality-reviewer-standards.md`) - highest priority
+2. **Project conventions** (`CLAUDE.md` and `AGENTS.md`) - override built-in defaults
+3. **Built-in standards** (this document) - baseline when no overrides exist
+
+Project rules always take precedence over built-in standards. If a project's CLAUDE.md says "enum value tests are required for public API stability," respect that convention.
 
 ## Standards
 
@@ -108,13 +188,106 @@ These are non-blocking recommendations. Violations produce **warnings**.
 - Magic numbers/strings are named constants or fixtures
 - Test data is realistic and representative
 
-### Project Overrides
+### Test Appropriateness
 
-Projects can customize standards:
-- `CLAUDE.md` - Project-wide testing requirements
-- `.ralph/test-quality-reviewer-standards.md` - Skill-specific overrides
+These are non-blocking recommendations. Violations produce **warnings** to help keep test suites lean and focused.
 
-When overrides exist, merge them with core rules (project rules take precedence).
+**Framework/Standard Library Testing Anti-Pattern**
+
+Don't test behavior that's guaranteed by frameworks or the standard library. These tests add maintenance burden without catching real bugs.
+
+Examples of framework behavior that shouldn't be tested:
+- Enum values match their definitions
+- Pydantic models validate fields correctly
+- NamedTuple fields are accessible by name
+- dataclass fields have correct defaults
+- typing constructs work as documented
+- SQLAlchemy models have declared columns
+
+```python
+# BAD: Testing that Python enums work
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+def test_status_enum_values():
+    assert Status.ACTIVE.value == "active"  # Tests Python, not your code
+    assert Status.INACTIVE.value == "inactive"
+
+# BAD: Testing that Pydantic validation works
+class User(BaseModel):
+    name: str
+    age: int
+
+def test_user_requires_name():
+    with pytest.raises(ValidationError):
+        User(age=25)  # Tests Pydantic, not your code
+
+# BAD: Testing NamedTuple field access
+Point = NamedTuple("Point", [("x", int), ("y", int)])
+
+def test_point_has_x_and_y():
+    p = Point(1, 2)
+    assert p.x == 1  # Tests Python NamedTuple, not your code
+    assert p.y == 2
+```
+
+Instead, test your business logic that *uses* these constructs.
+
+**Redundant Test Anti-Pattern**
+
+Don't verify the same behavior multiple ways. Each test should add unique value.
+
+```python
+# BAD: Same behavior tested multiple times
+def test_user_creation():
+    user = User(name="Alice", age=30)
+    assert user.name == "Alice"
+
+def test_user_name_is_set():
+    user = User(name="Alice", age=30)
+    assert user.name == "Alice"  # Duplicate of above
+
+def test_user_has_correct_name():
+    user = User(name="Alice", age=30)
+    assert "Alice" == user.name  # Same test, different assertion order
+```
+
+**Test Consolidation Opportunities**
+
+Look for tests that could be combined without losing clarity:
+- Multiple tests that share identical setup
+- Tests that verify closely related aspects of the same behavior
+- Parameterized scenarios written as separate test functions
+
+```python
+# BEFORE: Separate tests with repeated setup
+def test_calculate_discount_regular_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="regular")
+    assert calculate_discount(cart, customer) == 0
+
+def test_calculate_discount_silver_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="silver")
+    assert calculate_discount(cart, customer) == 10
+
+def test_calculate_discount_gold_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="gold")
+    assert calculate_discount(cart, customer) == 20
+
+# AFTER: Consolidated with parameterization
+@pytest.mark.parametrize("tier,expected_discount", [
+    ("regular", 0),
+    ("silver", 10),
+    ("gold", 20),
+])
+def test_calculate_discount_by_customer_tier(tier, expected_discount):
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier=tier)
+    assert calculate_discount(cart, customer) == expected_discount
+```
 
 ## Your Process
 
@@ -122,8 +295,10 @@ When overrides exist, merge them with core rules (project rules take precedence)
 
 1. Identify changed test files:
    ```bash
-   git diff --name-only HEAD | grep -E '(test_|_test\.|\.spec\.)'
-   git diff --name-only --cached | grep -E '(test_|_test\.|\.spec\.)'
+   # Feature branch changes
+   git diff --name-only main...HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
+   # Uncommitted changes
+   git diff --name-only HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
    ```
 2. Check for project override files
 3. Read each test file to be reviewed

@@ -1,257 +1,172 @@
 {
-  "project": "ReviewLoop",
-  "branchName": "ralph/review-loop",
-  "description": "Add automated review loop to ralph loop command with configurable reviewer pipeline, language detection, and restructured skills directory",
+  "project": "RalphCLI",
+  "branchName": "ralph/v2.0.3-reviewer-fixes",
+  "description": "Patch release fixing reviewer scope, test appropriateness checks, and project context references",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create ReviewerConfig Pydantic model",
-      "description": "As a developer, I want a Pydantic model for reviewer configuration so that reviewer settings can be validated and typed",
+      "title": "Update REVIEWER_TEMPLATE.md with new review scope pattern",
+      "description": "As a skill author, I need the reviewer template to document the correct review scope pattern so that new reviewers use git diff main...HEAD consistently.",
       "acceptanceCriteria": [
-        "ReviewerConfig model with fields: name, skill, level, languages (optional)",
-        "Level is an enum with values: blocking, warning, suggestion",
-        "Languages field accepts list of strings or None",
-        "Typecheck passes",
-        "Unit tests for model validation"
+        "Update skills/REVIEWER_TEMPLATE.md Review Scope section to use git diff main...HEAD",
+        "Include git diff HEAD for uncommitted changes as secondary check",
+        "Add note about falling back to uncommitted changes when on main branch",
+        "Document when to use diff-based vs full-repository review scope",
+        "Template passes markdown lint validation"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Implemented in src/ralph/models/reviewer.py with 16 unit tests"
+      "notes": "Added feature branch diff pattern (main...HEAD), uncommitted changes (HEAD), main branch fallback, and use case table."
     },
     {
       "id": "US-002",
-      "title": "Implement reviewer configuration parsing from CLAUDE.md",
-      "description": "As a developer, I want to parse reviewer configuration from CLAUDE.md YAML blocks so that reviewers can be configured per-project",
+      "title": "Standardize code-simplifier review scope to feature branch diff",
+      "description": "As a developer, I need code-simplifier to review all files changed on the feature branch so that committed code from ralph loop gets reviewed.",
       "acceptanceCriteria": [
-        "Parse YAML between <!-- RALPH:REVIEWERS:START --> and <!-- RALPH:REVIEWERS:END --> markers",
-        "Return list of ReviewerConfig objects",
-        "Return default reviewers when markers not present",
-        "Consistent pattern with existing checks parsing",
-        "Typecheck passes",
-        "Unit tests for parsing with and without markers"
+        "Update skills/reviewers/code-simplifier/SKILL.md Review Scope section",
+        "Use git diff --name-only main...HEAD for feature branch changes",
+        "Include git diff --name-only HEAD for uncommitted changes",
+        "Add note about fallback behavior when on main branch",
+        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Implemented in src/ralph/models/reviewer.py with 16 new tests for parsing functions"
+      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, and main branch fallback."
     },
     {
       "id": "US-003",
-      "title": "Implement language detection service",
-      "description": "As a developer, I want to auto-detect project languages from marker files so that language-specific reviewers can be filtered appropriately",
+      "title": "Standardize test-quality-reviewer review scope to feature branch diff",
+      "description": "As a developer, I need test-quality-reviewer to review all test files changed on the feature branch so that committed tests from ralph loop get reviewed.",
       "acceptanceCriteria": [
-        "Detect Python from pyproject.toml, setup.py, requirements.txt",
-        "Detect JavaScript/TypeScript from package.json, tsconfig.json",
-        "Detect Go from go.mod",
-        "Detect Rust from Cargo.toml",
-        "Return set of detected languages",
-        "Support multiple languages detected simultaneously",
-        "Typecheck passes",
-        "Unit tests for each language detection"
+        "Update skills/reviewers/test-quality/SKILL.md Review Scope section",
+        "Use git diff --name-only main...HEAD for feature branch changes",
+        "Include git diff --name-only HEAD for uncommitted changes",
+        "Filter to test file patterns (test_*.py, *_test.py, *.spec.*, __tests__/)",
+        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Implemented in src/ralph/services/language.py with 28 unit tests"
+      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, main branch fallback, and test file filtering."
     },
     {
       "id": "US-004",
-      "title": "Add --skip-review and --strict flags to ralph loop",
-      "description": "As a user, I want CLI flags to control review behavior so that I can skip reviews or enforce stricter checking",
+      "title": "Standardize python-code-reviewer review scope to feature branch diff",
+      "description": "As a developer, I need python-code-reviewer to review all Python files changed on the feature branch so that committed code from ralph loop gets reviewed.",
       "acceptanceCriteria": [
-        "--skip-review flag added to loop command",
-        "--strict flag added to loop command",
-        "Flags stored and passed to review loop execution",
-        "Help text describes flag behavior",
-        "Typecheck passes"
+        "Update skills/reviewers/language/python/SKILL.md Review Scope section",
+        "Use git diff --name-only main...HEAD -- '*.py' for feature branch changes",
+        "Include git diff --name-only HEAD -- '*.py' for uncommitted changes",
+        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Implemented flags in loop.py with 6 new tests for flag acceptance and help text"
+      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, main branch fallback, and Python file filtering."
     },
     {
       "id": "US-005",
-      "title": "Implement review loop execution service",
-      "description": "As a developer, I want a service that executes configured reviewers in order so that code quality is automatically checked after stories complete",
+      "title": "Add Test Appropriateness section to test-quality-reviewer",
+      "description": "As a developer, I need test-quality-reviewer to identify over-testing patterns so that test suites stay lean and focused on meaningful coverage.",
       "acceptanceCriteria": [
-        "Execute reviewers in configured order",
-        "Skip reviewers whose language filter doesn't match detected languages",
-        "Spawn fresh Claude instance for each reviewer",
-        "Retry up to 3 times for blocking reviewers on failure",
-        "Continue to next reviewer after 3 failed attempts",
-        "Append summary to PROGRESS.txt after each reviewer",
-        "Handle blocking/warning/suggestion levels per behavior matrix",
-        "Typecheck passes",
-        "Unit tests for reviewer filtering and retry logic"
+        "Add Test Appropriateness subsection under Standards in skills/reviewers/test-quality/SKILL.md",
+        "Document framework/stdlib testing anti-pattern (testing enum values, Pydantic validation, NamedTuple fields)",
+        "Document redundant test anti-pattern (same behavior verified multiple ways)",
+        "Document test consolidation opportunities",
+        "Classify over-testing indicators as warnings (not errors)",
+        "Add examples of framework testing anti-patterns"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Implemented ReviewLoopService in src/ralph/services/review_loop.py with 27 unit tests covering filtering, retry logic, and progress logging"
+      "notes": "Added Test Appropriateness subsection with framework/stdlib anti-pattern, redundant test anti-pattern, and test consolidation guidance. All classified as warnings."
     },
     {
       "id": "US-006",
-      "title": "Integrate review loop into ralph loop command",
-      "description": "As a user, I want ralph loop to automatically run the review loop after all stories pass so that code quality is assured",
+      "title": "Add Project Context section to code-simplifier",
+      "description": "As a developer, I need code-simplifier to respect project-specific conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "Review loop runs after all stories pass (default behavior)",
-        "Review loop skipped when --skip-review flag provided",
-        "Warning reviewers enforced when --strict flag provided",
-        "Console output shows review progress",
-        "Typecheck passes"
+        "Add Project Context section to skills/reviewers/code-simplifier/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/code-simplifier-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Integrated ReviewLoopService into loop.py with _run_review_loop function. Added 5 new tests for review loop integration."
+      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/code-simplifier-standards.md documentation. Includes precedence rules."
     },
     {
       "id": "US-007",
-      "title": "Restructure skills directory - ralph core skills",
-      "description": "As a maintainer, I want ralph core skills moved to ralph/ subdirectory so that skills are logically organized",
+      "title": "Add Project Context section to test-quality-reviewer",
+      "description": "As a developer, I need test-quality-reviewer to respect project-specific testing conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "Move ralph-prd/ to ralph/prd/",
-        "Move ralph-tasks/ to ralph/tasks/",
-        "Move ralph-iteration/ to ralph/iteration/",
-        "SKILL.md files preserved in new locations",
-        "Old directories removed"
+        "Add Project Context section to skills/reviewers/test-quality/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/test-quality-reviewer-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "Restructured skills/ralph-prd, ralph-tasks, ralph-iteration to skills/ralph/prd, tasks, iteration"
+      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/test-quality-reviewer-standards.md documentation. Includes precedence rules. Removed redundant Project Overrides subsection."
     },
     {
       "id": "US-008",
-      "title": "Restructure skills directory - reviewer skills",
-      "description": "As a maintainer, I want reviewer skills moved to reviewers/ subdirectory so that skills are logically organized",
+      "title": "Add Project Context section to python-code-reviewer",
+      "description": "As a developer, I need python-code-reviewer to respect project-specific Python conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "Move code-simplifier/ to reviewers/code-simplifier/",
-        "Move test-quality-reviewer/ to reviewers/test-quality/",
-        "Move repo-structure-reviewer/ to reviewers/repo-structure/",
-        "Move github-actions-reviewer/ to reviewers/github-actions/",
-        "Move python-code-reviewer/ to reviewers/language/python/",
-        "SKILL.md files preserved in new locations",
-        "Old directories removed"
+        "Add Project Context section to skills/reviewers/language/python/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/python-code-reviewer-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "Restructured all reviewer skills to skills/reviewers/ with nested language/python/ for Python reviewer"
+      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/python-code-reviewer-standards.md documentation. Includes precedence rules. Removed redundant Project Overrides subsection."
     },
     {
       "id": "US-009",
-      "title": "Create release reviewer skill",
-      "description": "As a user, I want a release reviewer skill so that release readiness is automatically checked",
+      "title": "Add Project Context section to repo-structure-reviewer",
+      "description": "As a developer, I need repo-structure-reviewer to respect project-specific structure conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "Create reviewers/release/SKILL.md",
-        "Check for changelog entries corresponding to changes",
-        "Verify version consistency between pyproject.toml and __init__.py",
-        "Verify documentation completeness (CHANGELOG.md, AGENTS.md, CLAUDE.md, README.md)",
-        "Clean up PROGRESS.txt archives in plans/",
-        "Verify git tag readiness (version not already tagged)",
-        "Check for TODOs/FIXMEs that should be addressed"
+        "Add Project Context section to skills/reviewers/repo-structure/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/repo-structure-reviewer-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Created skills/reviewers/release/SKILL.md with comprehensive release readiness checks"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Update SkillLoader for nested paths",
-      "description": "As a developer, I want SkillLoader to accept nested paths so that restructured skills can be loaded",
+      "title": "Add Project Context section to github-actions-reviewer",
+      "description": "As a developer, I need github-actions-reviewer to respect project-specific CI/CD conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "SkillLoader accepts paths like ralph/prd and reviewers/code-simplifier",
-        "Skill content loaded correctly from nested directories",
-        "Typecheck passes",
-        "Unit tests for nested path loading"
+        "Add Project Context section to skills/reviewers/github-actions/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/github-actions-reviewer-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Updated SkillLoader.load() docstring, added get_content() method, added 10 new tests for nested paths"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Update command skill references to new paths",
-      "description": "As a developer, I want all command skill references updated to use new nested paths so that commands work with restructured skills",
+      "title": "Add Project Context section to release-reviewer",
+      "description": "As a developer, I need release-reviewer to respect project-specific release conventions from CLAUDE.md and AGENTS.md.",
       "acceptanceCriteria": [
-        "prd command uses ralph/prd skill path",
-        "tasks command uses ralph/tasks skill path",
-        "iteration commands use ralph/iteration skill path",
-        "All commands function correctly with new paths",
-        "Typecheck passes"
+        "Add Project Context section to skills/reviewers/release/SKILL.md",
+        "Document checking for CLAUDE.md at project root",
+        "Document checking for AGENTS.md at project root",
+        "Document checking for .ralph/release-reviewer-standards.md override file",
+        "State that project rules take precedence over built-in standards"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Updated prd, tasks, and once commands to use ralph/prd, ralph/tasks, and ralph/iteration skill paths. Added 4 new tests in TestCommandSkillPaths class."
-    },
-    {
-      "id": "US-012",
-      "title": "Update ralph sync for nested structure",
-      "description": "As a user, I want ralph sync to handle nested skill directories so that skills install correctly to ~/.claude/skills/",
-      "acceptanceCriteria": [
-        "Sync mirrors nested structure to ~/.claude/skills/",
-        "Manifest version updated to 2",
-        "Manifest stores full paths like ralph/prd",
-        "Old flat-structure skills cleaned up during sync",
-        "Typecheck passes",
-        "Unit tests for nested sync"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Updated SkillsService with recursive skill discovery, nested structure mirroring, manifest v2 with full paths, and v1 flat skill cleanup. Added 16 new tests."
-    },
-    {
-      "id": "US-013",
-      "title": "Update ralph sync --remove for nested structure",
-      "description": "As a user, I want ralph sync --remove to handle nested skill directories so that skills can be properly uninstalled",
-      "acceptanceCriteria": [
-        "Remove command removes nested directories correctly",
-        "Handles both old flat and new nested structures",
-        "Typecheck passes",
-        "Unit tests for nested removal"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Implementation already completed in US-012. Added 2 new tests: deeply nested removal (3+ levels) and mixed flat/nested manifest handling. Total 5 tests in TestRemoveNestedSkills class."
-    },
-    {
-      "id": "US-014",
-      "title": "Add default reviewer configuration",
-      "description": "As a user, I want sensible default reviewers when no configuration exists so that review loop works out of the box",
-      "acceptanceCriteria": [
-        "Default configuration includes all reviewers from spec",
-        "test-quality, code-simplifier, python-code as blocking",
-        "github-actions, repo-structure as warning",
-        "release as blocking",
-        "python-code filtered to python language",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Implementation completed in US-002. Added 3 new tests: skill paths verification, exact count verification (6 reviewers), and non-python reviewers have no language filter. Total 7 tests in TestGetDefaultReviewers class."
-    },
-    {
-      "id": "US-015",
-      "title": "Update CLAUDE.md with reviewer configuration example",
-      "description": "As a user, I want CLAUDE.md to document reviewer configuration so that I can customize the review pipeline",
-      "acceptanceCriteria": [
-        "Add RALPH:REVIEWERS markers with default configuration",
-        "Document configuration format in comments or README",
-        "Consistent with existing checks documentation pattern"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Added Reviewers section with RALPH:REVIEWERS markers, default config, updated Project Structure for nested skills, and documented format in File Formats section."
-    },
-    {
-      "id": "US-016",
-      "title": "Integration tests for review loop",
-      "description": "As a developer, I want integration tests for the review loop so that the feature is properly validated",
-      "acceptanceCriteria": [
-        "Test review loop runs after stories complete",
-        "Test --skip-review bypasses review loop",
-        "Test --strict enforces warning reviewers",
-        "Test language filtering works correctly",
-        "All tests pass"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Added TestReviewLoopIntegration class with 8 integration tests covering all acceptance criteria: review loop execution, skip-review flag, strict mode, language filtering (Go vs Python), warning reviewer handling, retry logic, and progress file appending."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

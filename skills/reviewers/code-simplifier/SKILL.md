@@ -9,14 +9,80 @@ You are an expert code simplification reviewer focused on identifying opportunit
 
 ## Review Scope
 
-Review code files modified since the last commit or currently staged.
+Review all code files changed on the feature branch plus any uncommitted changes.
 
-To identify changed files:
-1. Run `git diff --name-only HEAD` for uncommitted changes
-2. Run `git diff --name-only --cached` for staged changes
-3. Filter to code files (exclude configs, lockfiles, generated files)
+### Identifying Files to Review
 
-> **Future**: A `--full` flag will review the entire codebase.
+**Primary: Feature branch changes**
+
+```bash
+git diff --name-only main...HEAD
+```
+
+This shows all files changed since branching from main. Use this to review committed work from the iteration loop.
+
+**Secondary: Uncommitted changes**
+
+```bash
+git diff --name-only HEAD
+```
+
+This shows unstaged changes. Combine with feature branch changes for complete coverage.
+
+**Fallback: When on main branch**
+
+When directly on main (no feature branch), fall back to uncommitted changes only:
+
+```bash
+git diff --name-only HEAD
+```
+
+### When to Use Each Scope
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| Feature branch diff | `git diff --name-only main...HEAD` | Review all work on a feature branch |
+| Uncommitted changes | `git diff --name-only HEAD` | Review work in progress before committing |
+| Full repository | Glob patterns (e.g., `**/*.py`) | Comprehensive codebase audit |
+
+> **Note**: Filter results to code files (exclude configs, lockfiles, generated files).
+
+## Project Context
+
+Before applying built-in standards, check for project-specific conventions that may override or extend them.
+
+### Configuration Files
+
+**CLAUDE.md** (project root)
+
+The primary project configuration file. Look for:
+- Codebase Patterns section with project-specific conventions
+- Code style preferences and idioms
+- Project-specific complexity rules
+
+**AGENTS.md** (project root)
+
+Agent-specific instructions that may include:
+- Simplification preferences for autonomous agents
+- Patterns that should be preserved despite appearing complex
+- Project-specific naming conventions
+
+**.ralph/code-simplifier-standards.md** (optional override)
+
+Skill-specific overrides that completely customize the review:
+- Custom error/warning/suggestion classifications
+- Project-specific anti-patterns to flag
+- Patterns to ignore or allow
+
+### Precedence Rules
+
+When project configuration exists, apply rules in this order:
+
+1. **Skill-specific override** (`.ralph/code-simplifier-standards.md`) - highest priority
+2. **Project conventions** (`CLAUDE.md` and `AGENTS.md`) - override built-in defaults
+3. **Built-in standards** (this document) - baseline when no overrides exist
+
+Project rules always take precedence over built-in standards. If a project's CLAUDE.md says "nested ternaries are acceptable for simple boolean logic," respect that convention.
 
 ## Standards
 
@@ -54,14 +120,6 @@ These produce **warnings** for improvement opportunities.
 - Unnecessary intermediate variables
 - Verbose patterns where simpler idioms exist
 - Comments describing what code obviously does
-
-### Project Overrides
-
-Projects can customize standards:
-- `CLAUDE.md` - Project-wide coding standards
-- `.ralph/code-simplifier-standards.md` - Skill-specific overrides
-
-When overrides exist, project rules take precedence.
 
 ## Your Process
 
