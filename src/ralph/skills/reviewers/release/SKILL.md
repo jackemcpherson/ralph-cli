@@ -174,47 +174,101 @@ Classify each issue:
 
 ## Output Format
 
+**IMPORTANT**: You MUST append your review output to `plans/PROGRESS.txt` using this exact format. This enables the fix loop to parse and automatically resolve findings.
+
 ```markdown
-## Review: release-reviewer - [project name] v[version]
+[Review] YYYY-MM-DD HH:MM UTC - release ({level})
 
-### Version Check
+### Verdict: {PASSED|NEEDS_WORK}
 
-| Source | Version | Status |
-|--------|---------|--------|
-| pyproject.toml | X.Y.Z | - |
-| __init__.py | X.Y.Z | Match/Mismatch |
-| Git tag vX.Y.Z | Exists/Available | - |
+### Findings
 
-### Issues Found
+1. **RL-001**: {Category} - {Brief description}
+   - File: {path/to/file.ext}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-| Severity | Location | Issue | Suggestion |
-|----------|----------|-------|------------|
-| error | pyproject.toml vs __init__.py | Version mismatch: 1.2.3 vs 1.2.2 | Update __init__.py to 1.2.3 |
-| error | CHANGELOG.md | No entry for v1.2.3 | Add changelog entry for this release |
-| error | git status | Uncommitted changes present | Commit or stash changes |
-| warning | plans/ | Found PROGRESS.20260115.txt | Delete archived PROGRESS files |
-| warning | src/main.py:42 | TODO without issue tag | Tag with issue number or address |
+2. **RL-002**: {Category} - {Brief description}
+   - File: {path/to/file.ext}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-### Documentation Status
+---
+```
 
-| File | Status | Notes |
-|------|--------|-------|
-| README.md | OK | - |
-| CHANGELOG.md | OK | Has v1.2.3 entry |
-| CLAUDE.md | OK | - |
-| AGENTS.md | OK | In sync with CLAUDE.md |
+### Format Details
 
-### Summary
-- X errors (must fix before release)
-- Y warnings (should fix)
-- Z suggestions (consider)
+- **Header**: `[Review]` with timestamp, reviewer name (`release`), and level (from CLAUDE.md config)
+- **Verdict**: Must be exactly `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- **Findings**: Numbered list with unique IDs prefixed `RL-` (Release)
+- **Finding fields**:
+  - `File:` path with line number (use `:0` if line unknown, use `:1` for whole-file issues)
+  - `Issue:` detailed problem description
+  - `Suggestion:` actionable fix recommendation
+- **Separator**: Must end with `---` on its own line
 
-<ralph-review>VERDICT</ralph-review>
+### Finding ID Categories
+
+Use these category prefixes in finding descriptions:
+
+| Category | Description |
+|----------|-------------|
+| Version Mismatch | Version differs between sources |
+| Missing Changelog | No entry for current version |
+| Missing Documentation | Required doc file missing |
+| Documentation Placeholder | TODO/placeholder in docs |
+| Pattern Mismatch | CLAUDE.md and AGENTS.md out of sync |
+| Tag Exists | Git tag already exists for version |
+| Dirty Working Directory | Uncommitted changes present |
+| Archive Cleanup | PROGRESS.txt archives not deleted |
+| Untagged TODO | TODO without issue reference |
+
+### Example Output
+
+For a passing review:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - release (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+```
+
+For a review with findings:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - release (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **RL-001**: Version Mismatch - __init__.py version differs from pyproject.toml
+   - File: src/ralph/__init__.py:1
+   - Issue: Version in __init__.py is "1.2.2" but pyproject.toml has "1.2.3". These must match for release.
+   - Suggestion: Update __init__.py to set `__version__ = "1.2.3"` to match pyproject.toml.
+
+2. **RL-002**: Missing Changelog - No entry for v1.2.3
+   - File: CHANGELOG.md:1
+   - Issue: CHANGELOG.md does not contain an entry for version 1.2.3 which is being released.
+   - Suggestion: Add a changelog section for v1.2.3 documenting the changes in this release.
+
+3. **RL-003**: Archive Cleanup - PROGRESS.txt archive file found
+   - File: plans/PROGRESS.20260115.txt:0
+   - Issue: Found archived PROGRESS file that should be deleted before release.
+   - Suggestion: Delete plans/PROGRESS.20260115.txt or move it out of the plans/ directory.
+
+---
 ```
 
 ### Verdict Values
 
-- **PASS**: No errors found. Release is ready to proceed.
+- **PASSED**: No errors found. Release is ready to proceed.
 - **NEEDS_WORK**: Has errors that must be fixed before release.
 
 ## Quality Checklist
