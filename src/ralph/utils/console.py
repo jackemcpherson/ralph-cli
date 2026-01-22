@@ -84,6 +84,20 @@ def print_step(step: int, total: int, message: str) -> None:
     console.print(f"[bold blue][{step}/{total}][/bold blue] {message}")
 
 
+def print_review_step(step: int, total: int, reviewer_name: str) -> None:
+    """Print a review progress step.
+
+    Displays the review counter and reviewer name in a format consistent
+    with the iteration loop, using 'Review X/Y' prefix.
+
+    Args:
+        step: Current review number (1-indexed).
+        total: Total number of reviews.
+        reviewer_name: Name of the reviewer being executed.
+    """
+    console.print(f"[bold blue][Review {step}/{total}][/bold blue] {reviewer_name}")
+
+
 @contextmanager
 def create_spinner(message: str) -> Iterator[None]:
     """Create a spinner context manager for long operations.

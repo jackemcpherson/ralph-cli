@@ -1667,3 +1667,103 @@ reviewers:
         assert "[Review Loop]" in progress_content
         assert "test-quality" in progress_content
         assert "passed" in progress_content
+
+    def test_review_loop_displays_progress_counters(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that review loop displays progress counters before each reviewer."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0
+        # Verify progress counters are displayed (4 reviewers configured)
+        assert "[Review 1/4]" in result.output
+        assert "[Review 2/4]" in result.output
+        assert "[Review 3/4]" in result.output
+        assert "[Review 4/4]" in result.output
+        # Verify reviewer names are displayed
+        assert "test-quality" in result.output
+        assert "code-simplifier" in result.output
+        assert "python-code" in result.output
+        assert "github-actions" in result.output
+
+
+class TestPrintReviewStep:
+    """Tests for print_review_step console utility."""
+
+    def test_print_review_step_formats_correctly(self) -> None:
+        """Test that print_review_step outputs the expected format."""
+        from io import StringIO
+
+        from rich.console import Console
+
+        from ralph.utils.console import print_review_step
+
+        # Create a console that writes to a string without terminal colors
+        output = StringIO()
+        test_console = Console(file=output, force_terminal=False, no_color=True)
+
+        # Temporarily replace the console
+        with patch("ralph.utils.console.console", test_console):
+            print_review_step(1, 5, "test-reviewer")
+
+        output_text = output.getvalue()
+        # Verify the output contains expected elements
+        assert "Review 1/5" in output_text
+        assert "test-reviewer" in output_text
+
+    def test_print_review_step_matches_print_step_style(self) -> None:
+        """Test that print_review_step uses consistent styling with print_step."""
+        from io import StringIO
+
+        from rich.console import Console
+
+        from ralph.utils.console import print_review_step, print_step
+
+        # Test print_step without colors
+        step_output = StringIO()
+        step_console = Console(file=step_output, force_terminal=False, no_color=True)
+        with patch("ralph.utils.console.console", step_console):
+            print_step(1, 5, "test message")
+
+        # Test print_review_step without colors
+        review_output = StringIO()
+        review_console = Console(file=review_output, force_terminal=False, no_color=True)
+        with patch("ralph.utils.console.console", review_console):
+            print_review_step(1, 5, "test message")
+
+        # Both should contain the counter in brackets
+        step_text = step_output.getvalue()
+        review_text = review_output.getvalue()
+
+        # Check that both have similar structure
+        assert "[1/5]" in step_text
+        assert "[Review 1/5]" in review_text
+        assert "test message" in step_text
+        assert "test message" in review_text
