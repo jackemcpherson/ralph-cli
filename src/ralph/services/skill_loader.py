@@ -103,6 +103,58 @@ class SkillLoader(BaseModel):
 
         return self._get_package_skill_content(skill_name)
 
+    def get_path(self, skill_name: str) -> Path:
+        """Return the filesystem path to a skill file.
+
+        Locates the SKILL.md file from the specified skill's directory
+        and returns its path. Works with both filesystem skills_dir and
+        bundled package resources.
+
+        Args:
+            skill_name: The skill path relative to the skills directory.
+                Can be flat (e.g., 'my-skill') or nested (e.g., 'ralph/prd').
+
+        Returns:
+            The path to the skill's SKILL.md file.
+
+        Raises:
+            SkillNotFoundError: If the skill cannot be found.
+        """
+        if self.skills_dir is not None:
+            return self.load(skill_name)
+
+        return self._get_package_skill_path(skill_name)
+
+    def _get_package_skill_path(self, skill_name: str) -> Path:
+        """Get the filesystem path to a bundled package skill.
+
+        Args:
+            skill_name: The skill path (e.g., 'ralph/prd' or 'reviewers/test-quality').
+
+        Returns:
+            The filesystem path to the skill's SKILL.md file.
+
+        Raises:
+            SkillNotFoundError: If the skill cannot be found in the package.
+        """
+        skill_parts = skill_name.split("/")
+
+        package_path = "ralph.skills"
+        for part in skill_parts:
+            package_path += f".{part.replace('-', '_')}"
+
+        try:
+            resource_files = files(package_path)
+            skill_file = resource_files.joinpath("SKILL.md")
+
+            if skill_file.is_file():
+                # Convert Traversable to Path - works for normal installs
+                return Path(str(skill_file))
+
+            raise SkillNotFoundError(skill_name, f"package:{package_path}/SKILL.md")
+        except (ModuleNotFoundError, TypeError) as e:
+            raise SkillNotFoundError(skill_name, f"package:{package_path}/SKILL.md") from e
+
     def _get_package_skill_content(self, skill_name: str) -> str:
         """Load skill content from bundled package resources.
 

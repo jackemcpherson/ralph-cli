@@ -22,6 +22,7 @@ from ralph.services import (
     ClaudeService,
     GitError,
     GitService,
+    ReviewerResult,
     ReviewLoopService,
     SkillNotFoundError,
     detect_languages,
@@ -31,6 +32,7 @@ from ralph.utils import (
     console,
     file_exists,
     print_error,
+    print_review_step,
     print_step,
     print_success,
     print_warning,
@@ -287,7 +289,7 @@ def loop(
     except FileNotFoundError:
         print_error("Could not load plans/TASKS.json")
         raise typer.Exit(1)
-    except Exception as e:
+    except (ValidationError, OSError) as e:
         print_error(f"Error parsing TASKS.json: {e}")
         raise typer.Exit(1)
 
@@ -507,7 +509,7 @@ def _run_review_loop(
     """Run the automated review loop after all stories complete.
 
     Loads configured reviewers from CLAUDE.md, detects project languages,
-    and executes each reviewer in order.
+    and executes each reviewer in order with progress display.
 
     Args:
         project_root: Path to the project root directory.
@@ -546,13 +548,47 @@ def _run_review_loop(
         verbose=verbose,
     )
 
-    # Run the review loop
-    results = review_service.run_review_loop(
-        reviewers=reviewers,
-        detected_languages=detected_languages,
-        strict=strict,
-        progress_path=progress_path,
-    )
+    # Run each reviewer with progress display
+    results = []
+    total_reviewers = len(reviewers)
+
+    for i, reviewer in enumerate(reviewers, start=1):
+        # Check if reviewer should be skipped due to language filter
+        if not review_service.should_run_reviewer(reviewer, detected_languages):
+            logger.info(
+                f"Skipping reviewer {reviewer.name} (language filter: {reviewer.languages})"
+            )
+            result = ReviewerResult(
+                reviewer_name=reviewer.name,
+                success=True,
+                skipped=True,
+                attempts=0,
+            )
+            results.append(result)
+            review_service._append_review_summary(progress_path, reviewer, result)
+            continue
+
+        # Display progress counter and reviewer name
+        print_review_step(i, total_reviewers, reviewer.name)
+        console.print()
+
+        # Run the reviewer
+        enforced = review_service.is_enforced(reviewer, strict)
+        result = review_service.run_reviewer(reviewer, enforced=enforced)
+        results.append(result)
+
+        # Log to progress file
+        review_service._append_review_summary(progress_path, reviewer, result)
+
+        # Log result
+        if result.success:
+            logger.info(f"Reviewer {reviewer.name} completed successfully")
+        elif result.skipped:
+            logger.info(f"Reviewer {reviewer.name} skipped")
+        else:
+            logger.warning(f"Reviewer {reviewer.name} failed after {result.attempts} attempts")
+
+        console.print()
 
     # Display summary
     console.print()

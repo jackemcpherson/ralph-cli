@@ -7,18 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
-## [2.0.4] - 2026-01-22
-
-### Changed
-
-- **Skills bundled with package** - Skills now ship with `pip install ralph-cli` and work immediately without `ralph sync`
-- `ralph sync` now syncs bundled package skills by default; use `--skills-dir` for custom skills
-- Skill content is now inlined in prompts instead of using `@file` references (package resources don't have stable filesystem paths)
-- Moved `skills/` directory into package at `src/ralph/skills/`
+## [2.0.5] - 2026-01-22
 
 ### Fixed
 
-- Skills no longer require a local `skills/` directory - bundled skills are used by default (#32)
+- Project structure in AGENTS.md updated to reflect bundled skills in `src/ralph/skills/`
+- Cleaned up archived PROGRESS files before release
+
+## [2.0.4] - 2026-01-22
+
+### Fixed
+
+- `ralph init --skip-claude` now completes without interactive prompts for automation use cases (US-001)
+- Prompts now use `@filepath` references to bundled skill files, reducing token usage (US-002)
+- Review loop now displays `[Review X/Y]` progress counters with rich formatting (US-003)
 
 ## [2.0.3] - 2026-01-22
 

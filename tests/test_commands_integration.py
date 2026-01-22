@@ -183,6 +183,75 @@ class TestInitCommand:
         mock_claude.assert_not_called()
         assert (python_project / "CLAUDE.md").is_file()
 
+    def test_init_skip_claude_skips_prd_prompt(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that --skip-claude skips the PRD prompt without blocking."""
+        with working_directory(python_project):
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask") as mock_confirm,
+            ):
+                result = runner.invoke(app, ["init", "--skip-claude"])
+
+        assert result.exit_code == 0
+        # Confirm.ask should NOT be called when --skip-claude is passed
+        mock_confirm.assert_not_called()
+        mock_claude.assert_not_called()
+        # Verify all files are still created correctly
+        assert (python_project / "plans").is_dir()
+        assert (python_project / "plans" / "SPEC.md").is_file()
+        assert (python_project / "plans" / "TASKS.json").is_file()
+        assert (python_project / "plans" / "PROGRESS.txt").is_file()
+        assert (python_project / "CLAUDE.md").is_file()
+        assert (python_project / "AGENTS.md").is_file()
+        assert (python_project / "CHANGELOG.md").is_file()
+        # Verify the skip message is shown
+        assert "Skipping PRD creation" in result.output
+
+
+class TestHandleMissingPrd:
+    """Unit tests for _handle_missing_prd function."""
+
+    def test_handle_missing_prd_skips_prompt_when_skip_claude_true(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd skips prompt when skip_claude=True."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask") as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path, skip_claude=True)
+
+        # Confirm.ask should NOT be called
+        mock_confirm.assert_not_called()
+
+    def test_handle_missing_prd_prompts_when_skip_claude_false(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd prompts user when skip_claude=False."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path, skip_claude=False)
+
+        # Confirm.ask SHOULD be called
+        mock_confirm.assert_called_once()
+
+    def test_handle_missing_prd_prompts_by_default(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd prompts by default (backwards compatibility)."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path)
+
+        # Confirm.ask SHOULD be called when skip_claude not specified
+        mock_confirm.assert_called_once()
+
 
 class TestPrdCommand:
     """Integration tests for ralph prd command."""
@@ -700,8 +769,8 @@ class TestSyncCommand:
 class TestBuildSkillPrompt:
     """Tests for build_skill_prompt utility."""
 
-    def test_prompt_inlines_skill_content(self, tmp_path: Path) -> None:
-        """Test that build_skill_prompt inlines skill content."""
+    def test_prompt_uses_file_reference(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt uses @filepath for skill content."""
         from ralph.utils import build_skill_prompt
 
         skill_dir = tmp_path / "skills" / "test_skill"
@@ -711,11 +780,35 @@ class TestBuildSkillPrompt:
         result = build_skill_prompt("test_skill", "Some context", skills_dir=tmp_path / "skills")
 
         assert "Follow these instructions:" in result
-        assert "# Test Skill" in result
-        assert "Skill instructions here." in result
+        # Should contain @filepath reference pointing to actual SKILL.md
+        assert "@" in result
+        assert "SKILL.md" in result
+        # Skill content should NOT be inline in the prompt
+        assert "# Test Skill" not in result
+        assert "Skill instructions here." not in result
 
-    def test_prompt_includes_context(self, tmp_path: Path) -> None:
-        """Test that build_skill_prompt appends context."""
+    def test_prompt_file_contains_skill_content(self, tmp_path: Path) -> None:
+        """Test that the referenced file contains the skill content."""
+        import re
+
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "test_skill"
+        skill_dir.mkdir(parents=True)
+        skill_content = "# Test Skill\n\nSkill instructions here."
+        (skill_dir / "SKILL.md").write_text(skill_content)
+
+        result = build_skill_prompt("test_skill", "Some context", skills_dir=tmp_path / "skills")
+
+        # Extract the file path from the @filepath reference (handle Unix and Windows paths)
+        match = re.search(r"@([^\s]+SKILL\.md)", result)
+        assert match is not None
+        file_path = Path(match.group(1))
+        assert file_path.exists()
+        assert file_path.read_text() == skill_content
+
+    def test_prompt_includes_context_inline(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt keeps context inline."""
         from ralph.utils import build_skill_prompt
 
         skill_dir = tmp_path / "skills" / "test_skill"
@@ -725,8 +818,8 @@ class TestBuildSkillPrompt:
         context = "## Context\n\nThis is test context."
         result = build_skill_prompt("test_skill", context, skills_dir=tmp_path / "skills")
 
+        # Context should be inline in the prompt
         assert context in result
-        assert "# Test Skill" in result
 
     def test_prompt_raises_for_missing_skill(self, tmp_path: Path) -> None:
         """Test that build_skill_prompt raises SkillNotFoundError for missing skill."""
@@ -738,12 +831,27 @@ class TestBuildSkillPrompt:
         with pytest.raises(SkillNotFoundError):
             build_skill_prompt("nonexistent_skill", "context", skills_dir=tmp_path / "skills")
 
+    def test_prompt_handles_nested_skill_names(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt handles nested skill names (e.g., ralph/prd)."""
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "ralph" / "prd"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Ralph PRD Skill")
+
+        result = build_skill_prompt("ralph/prd", "Context", skills_dir=tmp_path / "skills")
+
+        # Should reference the actual skill file path (platform-agnostic check)
+        assert "SKILL.md" in result
+        # Verify it's inside the ralph/prd directory structure
+        assert "ralph" in result and "prd" in result
+
 
 class TestOnceCommandPromptFormat:
     """Tests for ralph once command prompt format."""
 
-    def test_once_prompt_inlines_skill_content(self, project_with_tasks: Path) -> None:
-        """Test that ralph once inlines skill content in prompt."""
+    def test_once_prompt_uses_file_reference(self, project_with_tasks: Path) -> None:
+        """Test that ralph once uses @filepath reference for skill content."""
         captured_prompt: list[str] = []
 
         def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
@@ -767,7 +875,45 @@ class TestOnceCommandPromptFormat:
 
         assert len(captured_prompt) > 0
         assert "Follow these instructions:" in captured_prompt[0]
-        assert "Ralph Iteration Skill" in captured_prompt[0]
+        # Should use file reference, not inline content
+        assert "@" in captured_prompt[0]
+        # Should reference bundled skill file directly
+        assert "SKILL.md" in captured_prompt[0]
+
+    def test_once_prompt_skill_file_contains_content(self, project_with_tasks: Path) -> None:
+        """Test that the skill file referenced by ralph once contains iteration skill."""
+        import re
+
+        captured_prompt: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            if "--print" in args:
+                idx = args.index("--print")
+                if idx + 1 < len(args):
+                    captured_prompt.append(args[idx + 1])
+            mock_process = MagicMock()
+            mock_process.stdout = StringIO("Done")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_tasks):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
+                runner = CliRunner()
+                runner.invoke(app, ["once"])
+
+        assert len(captured_prompt) > 0
+        # Extract the file path from the @filepath reference (handle Unix and Windows paths)
+        match = re.search(r"@([^\s]+SKILL\.md)", captured_prompt[0])
+        assert match is not None
+        file_path = Path(match.group(1))
+        assert file_path.exists()
+        # Verify the file contains iteration skill content
+        content = file_path.read_text()
+        assert "Ralph Iteration Skill" in content
 
 
 class TestTasksJsonExtraction:
@@ -984,26 +1130,30 @@ class TestCommandSkillPaths:
     """Tests verifying that commands use bundled skills correctly."""
 
     def test_prd_command_loads_bundled_skill(self) -> None:
-        """Test that prd command loads the bundled ralph/prd skill."""
+        """Test that prd command references the bundled ralph/prd skill."""
         from ralph.commands.prd import _build_prompt_from_skill
 
         output_path = Path("/tmp/SPEC.md")
         prompt = _build_prompt_from_skill(output_path)
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph PRD" in prompt
+        # Should reference bundled skill file directly (platform-agnostic)
+        assert "SKILL.md" in prompt
+        assert "ralph" in prompt and "prd" in prompt
 
     def test_tasks_command_loads_bundled_skill(self) -> None:
-        """Test that tasks command loads the bundled ralph/tasks skill."""
+        """Test that tasks command references the bundled ralph/tasks skill."""
         from ralph.commands.tasks import _build_prompt_from_skill
 
         prompt = _build_prompt_from_skill("Test spec content")
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph Tasks" in prompt
+        # Should reference bundled skill file directly (platform-agnostic)
+        assert "SKILL.md" in prompt
+        assert "ralph" in prompt and "tasks" in prompt
 
     def test_once_command_loads_bundled_skill(self) -> None:
-        """Test that once command loads the bundled ralph/iteration skill."""
+        """Test that once command references the bundled ralph/iteration skill."""
         from ralph.commands.once import _build_prompt_from_skill
         from ralph.models import UserStory
 
@@ -1020,7 +1170,9 @@ class TestCommandSkillPaths:
         prompt = _build_prompt_from_skill(story, max_fix_attempts=3)
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph Iteration" in prompt
+        # Should reference bundled skill file directly (platform-agnostic)
+        assert "SKILL.md" in prompt
+        assert "ralph" in prompt and "iteration" in prompt
 
     def test_loop_command_loads_bundled_skill(self) -> None:
         """Test that loop command (via once) loads the bundled ralph/iteration skill."""
@@ -1520,3 +1672,103 @@ reviewers:
         assert "[Review Loop]" in progress_content
         assert "test-quality" in progress_content
         assert "passed" in progress_content
+
+    def test_review_loop_displays_progress_counters(
+        self, runner: CliRunner, project_with_pending_story: Path
+    ) -> None:
+        """Test that review loop displays progress counters before each reviewer."""
+
+        def mock_story_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            """Mock Popen that simulates completing a story with COMPLETE tag."""
+            mock_process = MagicMock()
+            json_output = json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [{"type": "text", "text": "Story done <ralph>COMPLETE</ralph>"}]
+                    },
+                }
+            )
+            mock_process.stdout = StringIO(json_output + "\n")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_pending_story):
+            with (
+                patch("ralph.commands.loop._setup_branch", return_value=True),
+                patch("subprocess.Popen", side_effect=mock_story_popen),
+                patch("ralph.services.review_loop.ClaudeService") as mock_claude_class,
+            ):
+                mock_claude = MagicMock()
+                mock_claude.run_print_mode.return_value = ("Success", 0)
+                mock_claude_class.return_value = mock_claude
+
+                result = runner.invoke(app, ["loop", "1"])
+
+        assert result.exit_code == 0
+        # Verify progress counters are displayed (4 reviewers configured)
+        assert "[Review 1/4]" in result.output
+        assert "[Review 2/4]" in result.output
+        assert "[Review 3/4]" in result.output
+        assert "[Review 4/4]" in result.output
+        # Verify reviewer names are displayed
+        assert "test-quality" in result.output
+        assert "code-simplifier" in result.output
+        assert "python-code" in result.output
+        assert "github-actions" in result.output
+
+
+class TestPrintReviewStep:
+    """Tests for print_review_step console utility."""
+
+    def test_print_review_step_formats_correctly(self) -> None:
+        """Test that print_review_step outputs the expected format."""
+        from io import StringIO
+
+        from rich.console import Console
+
+        from ralph.utils.console import print_review_step
+
+        # Create a console that writes to a string without terminal colors
+        output = StringIO()
+        test_console = Console(file=output, force_terminal=False, no_color=True)
+
+        # Temporarily replace the console
+        with patch("ralph.utils.console.console", test_console):
+            print_review_step(1, 5, "test-reviewer")
+
+        output_text = output.getvalue()
+        # Verify the output contains expected elements
+        assert "Review 1/5" in output_text
+        assert "test-reviewer" in output_text
+
+    def test_print_review_step_matches_print_step_style(self) -> None:
+        """Test that print_review_step uses consistent styling with print_step."""
+        from io import StringIO
+
+        from rich.console import Console
+
+        from ralph.utils.console import print_review_step, print_step
+
+        # Test print_step without colors
+        step_output = StringIO()
+        step_console = Console(file=step_output, force_terminal=False, no_color=True)
+        with patch("ralph.utils.console.console", step_console):
+            print_step(1, 5, "test message")
+
+        # Test print_review_step without colors
+        review_output = StringIO()
+        review_console = Console(file=review_output, force_terminal=False, no_color=True)
+        with patch("ralph.utils.console.console", review_console):
+            print_review_step(1, 5, "test message")
+
+        # Both should contain the counter in brackets
+        step_text = step_output.getvalue()
+        review_text = review_output.getvalue()
+
+        # Check that both have similar structure
+        assert "[1/5]" in step_text
+        assert "[Review 1/5]" in review_text
+        assert "test message" in step_text
+        assert "test message" in review_text

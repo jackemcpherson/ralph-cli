@@ -52,17 +52,23 @@ ralph_cli/
 │       ├── commands/           # Command implementations
 │       ├── models/             # Pydantic models
 │       ├── services/           # Business logic (Claude, Git, etc.)
+│       ├── skills/             # Bundled skill definitions (packaged)
+│       │   ├── ralph/          # Core workflow skills
+│       │   │   ├── iteration/
+│       │   │   ├── prd/
+│       │   │   └── tasks/
+│       │   └── reviewers/      # Review pipeline skills
+│       │       ├── code_simplifier/
+│       │       ├── github_actions/
+│       │       ├── language/python/
+│       │       ├── release/
+│       │       ├── repo_structure/
+│       │       └── test_quality/
 │       └── utils/              # Console and file utilities
-├── skills/                     # Claude Code skill definitions
-│   ├── ralph-prd/              # PRD creation skill
-│   ├── ralph-tasks/            # Task breakdown skill
-│   ├── ralph-iteration/        # Iteration execution skill
-│   ├── python-code-reviewer/   # Python code review
-│   ├── repo-structure-reviewer/# Repository structure review
-│   ├── github-actions-reviewer/# CI/CD workflow review
-│   └── test-quality-reviewer/  # Test quality review
 └── tests/
 ```
+
+**Note:** Skills are bundled with the package for immediate use after `pip install ralph-cli`. Use `ralph sync` to copy them to `~/.claude/skills/` for native Claude Code integration.
 
 ## Codebase Patterns
 
@@ -76,6 +82,7 @@ ralph_cli/
 - Use `X | None` instead of `Optional[X]` for type annotations (ruff UP045)
 - Use `ClassVar[T]` from `typing` for class-level constants in Pydantic `BaseModel` classes to avoid them being treated as fields
 - When calling Typer command functions directly (not through CLI), pass all Option parameters explicitly since Typer defaults are not applied programmatically
+- **Prompt construction**: Use `@filepath` notation with `build_skill_prompt()` to reference bundled skill files directly, reducing token usage. The function uses `SkillLoader.get_path()` to get the actual filesystem path to SKILL.md files. Example: `build_skill_prompt("ralph/prd", context)` produces `@/path/to/skills/ralph/prd/SKILL.md`
 
 ## Project-Specific Instructions
 

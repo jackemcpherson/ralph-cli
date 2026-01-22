@@ -167,7 +167,7 @@ def init(
         console.print("[dim]  Skipped CHANGELOG.md (already exists)[/dim]")
 
     if not had_prd_content_before:
-        _handle_missing_prd(prd_path, project_root)
+        _handle_missing_prd(prd_path, project_root, skip_claude=skip_claude)
 
     if not skip_claude:
         console.print()
@@ -307,7 +307,7 @@ def _has_prd_content(prd_path: Path) -> bool:
     return False
 
 
-def _handle_missing_prd(prd_path: Path, project_root: Path) -> None:
+def _handle_missing_prd(prd_path: Path, project_root: Path, *, skip_claude: bool = False) -> None:
     """Handle the case when PRD is missing or empty.
 
     Prompts the user to create a PRD using the prd command, or continues
@@ -316,6 +316,7 @@ def _handle_missing_prd(prd_path: Path, project_root: Path) -> None:
     Args:
         prd_path: Path to the PRD file (plans/SPEC.md).
         project_root: Path to the project root directory.
+        skip_claude: If True, skip the interactive prompt and continue without PRD.
     """
     console.print()
     print_warning("No PRD found at plans/SPEC.md")
@@ -325,6 +326,14 @@ def _handle_missing_prd(prd_path: Path, project_root: Path) -> None:
         "your project goals.[/dim]"
     )
     console.print()
+
+    # In non-interactive mode, skip the prompt and continue without PRD
+    if skip_claude:
+        console.print(
+            "[dim]Skipping PRD creation (--skip-claude mode). "
+            "You can create one later with 'ralph prd' or edit plans/SPEC.md directly.[/dim]"
+        )
+        return
 
     if Confirm.ask("Would you like to create a PRD first?", default=True):
         console.print()

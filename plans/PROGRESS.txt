@@ -14,268 +14,124 @@
 
 ## 2026-01-22 - US-001
 
-**Story:** Update REVIEWER_TEMPLATE.md with new review scope pattern
+**Story:** Skip PRD prompt in non-interactive init mode
 
 ### What was implemented
-- Rewrote the Review Scope section in skills/REVIEWER_TEMPLATE.md
-- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
-- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
-- Added fallback behavior when on main branch (use uncommitted changes only)
-- Added "When to Use Each Scope" table documenting feature branch diff, uncommitted changes, and full repository scopes
-- Updated HTML comments to reflect new scope pattern
+- Added `skip_claude` parameter to `_handle_missing_prd` function in `src/ralph/commands/init_cmd.py`
+- When `skip_claude=True`, the function skips the `Confirm.ask` prompt and prints a message instead
+- Updated the call site in `init()` to pass `skip_claude=skip_claude` to `_handle_missing_prd`
 
 ### Tests written
-- No code tests needed (documentation-only change)
-- Template passes all quality checks (pyright, ruff lint, ruff format, pytest)
+- `test_init_skip_claude_skips_prd_prompt` - Integration test verifying --skip-claude completes without calling Confirm.ask and all files are created
+- `test_handle_missing_prd_skips_prompt_when_skip_claude_true` - Unit test for the function with skip_claude=True
+- `test_handle_missing_prd_prompts_when_skip_claude_false` - Unit test verifying prompt is shown when skip_claude=False
+- `test_handle_missing_prd_prompts_by_default` - Unit test for backwards compatibility (prompts when parameter not specified)
 
 ### Files changed
-- skills/REVIEWER_TEMPLATE.md
+- `src/ralph/commands/init_cmd.py` - Added skip_claude parameter and logic
+- `tests/test_commands_integration.py` - Added 4 new tests
 
 ### Learnings for future iterations
-- The three-dot syntax `main...HEAD` shows all commits reachable from HEAD but not from main (feature branch work)
-- The `git diff --name-only HEAD` shows uncommitted changes only
-- Reviewers need both patterns to cover committed work on the branch plus work in progress
+- Using keyword-only arguments (with `*`) ensures the parameter must be passed explicitly, improving code clarity
+- The existing test already mocked `Confirm.ask` which masked the blocking behavior; new test verifies the fix
 
 ---
 
-[Ralph Loop] 2026-01-22 02:57 UTC - Iteration 1: US-001 (Update REVIEWER_TEMPLATE.md with new review scope pattern) completed
+[Ralph Loop] 2026-01-22 05:09 UTC - Iteration 1: US-001 (Skip PRD prompt in non-interactive init mode) completed
 
 ---
 
 ## 2026-01-22 - US-002
 
-**Story:** Standardize code-simplifier review scope to feature branch diff
+**Story:** Use file references in skill prompt construction
 
 ### What was implemented
-- Replaced the Review Scope section in skills/reviewers/code-simplifier/SKILL.md
-- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
-- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
-- Added fallback behavior when on main branch (use uncommitted changes only)
-- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
-- Removed the old "Future --full flag" note
+- Added `get_path()` method to `SkillLoader` in `src/ralph/services/skill_loader.py` to return filesystem paths to bundled skill files
+- Updated `build_skill_prompt()` in `src/ralph/utils/prompt.py` to use direct file references instead of copying to temp files
+- Prompts now use `@{actual_skill_path}` notation pointing to the bundled SKILL.md files
+- Removed temp file creation logic - no longer needed since bundled files have stable filesystem paths
 
-### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+### Tests updated
+- `test_prompt_uses_file_reference` - Updated to check for SKILL.md in path
+- `test_prompt_handles_nested_skill_names` - Updated to check for actual path format
+- `test_once_prompt_uses_file_reference` - Updated to check for SKILL.md
+- `TestCommandSkillPaths` tests - Updated to check for direct file references
+
+### Documentation
+- Added prompt construction pattern to CLAUDE.md Codebase Patterns section
+- Added prompt construction pattern to AGENTS.md Codebase Patterns section
 
 ### Files changed
-- skills/reviewers/code-simplifier/SKILL.md
+- `src/ralph/services/skill_loader.py` - Added `get_path()` and `_get_package_skill_path()` methods
+- `src/ralph/utils/prompt.py` - Simplified to use direct file references
+- `tests/test_commands_integration.py` - Updated tests for new path format
+- `CLAUDE.md` - Documented prompt construction pattern
+- `AGENTS.md` - Documented prompt construction pattern
 
 ### Learnings for future iterations
-- Reviewer skills should follow the REVIEWER_TEMPLATE.md pattern for consistency
-- All reviewers in this release need the same Review Scope update (US-003, US-004)
-
----
-
-[Ralph Loop] 2026-01-22 02:59 UTC - Iteration 2: US-002 (Standardize code-simplifier review scope to feature branch diff) completed
+- `importlib.resources.files()` returns Traversables that can be converted to filesystem Paths for normal package installs
+- Direct file references are simpler and more efficient than temp file copying
 
 ---
 
 ## 2026-01-22 - US-003
 
-**Story:** Standardize test-quality-reviewer review scope to feature branch diff
+**Story:** Add rich formatting to review loop display
 
 ### What was implemented
-- Replaced the Review Scope section in skills/reviewers/test-quality/SKILL.md
-- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
-- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
-- Added fallback behavior when on main branch (use uncommitted changes only)
-- Added "Filtering to Test Files" subsection with patterns: `test_*.py`, `*_test.py`, `*.spec.*`, `__tests__/`
-- Added grep example for filtering test files from diff output
-- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
-- Updated Phase 1: Gather section to use new git diff commands
-- Removed the old "Future --full flag" note
+- Added `print_review_step()` function to `src/ralph/utils/console.py` that displays `[Review X/Y] reviewer-name` with bold blue styling, matching the iteration loop style
+- Refactored `_run_review_loop()` in `src/ralph/commands/loop.py` to iterate through reviewers directly and display progress before each one runs
+- The review loop now shows progress counters like `[Review 1/4]` before each reviewer executes
 
 ### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+- `test_review_loop_displays_progress_counters` - Integration test verifying progress counters are displayed for each reviewer
+- `test_print_review_step_formats_correctly` - Unit test verifying the expected output format
+- `test_print_review_step_matches_print_step_style` - Unit test verifying consistent styling with print_step()
 
 ### Files changed
-- skills/reviewers/test-quality/SKILL.md
+- `src/ralph/utils/console.py` - Added `print_review_step()` function
+- `src/ralph/utils/__init__.py` - Exported `print_review_step`
+- `src/ralph/commands/loop.py` - Refactored `_run_review_loop()` to display progress counters
+- `tests/test_commands_integration.py` - Added 3 new tests
 
 ### Learnings for future iterations
-- Test-quality-reviewer needed an additional "Filtering to Test Files" subsection specific to its scope
-- The grep pattern for test files should include `__tests__/` for Jest-style directory matching
+- Keep Rich console output in the command layer (loop.py) rather than the service layer for better separation of concerns
+- When testing Rich output, use `no_color=True` and `force_terminal=False` to get plain text for assertions
 
 ---
 
-[Ralph Loop] 2026-01-22 03:02 UTC - Iteration 3: US-003 (Standardize test-quality-reviewer review scope to feature branch diff) completed
-
-[Ralph Loop] 2026-01-22 03:01 UTC - Iteration 3: US-003 (Standardize test-quality-reviewer review scope to feature branch diff) completed
+[Ralph Loop] 2026-01-22 05:25 UTC - Iteration 1: US-003 (Add rich formatting to review loop display) completed
 
 ---
 
 ## 2026-01-22 - US-004
 
-**Story:** Standardize python-code-reviewer review scope to feature branch diff
+**Story:** Bump version to 2.0.4
 
 ### What was implemented
-- Replaced the Review Scope section in skills/reviewers/language/python/SKILL.md
-- Added primary scope: `git diff --name-only main...HEAD -- '*.py'` for feature branch changes
-- Added secondary scope: `git diff --name-only HEAD -- '*.py'` for uncommitted changes
-- Added fallback behavior when on main branch (use uncommitted changes only)
-- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
-- Updated Phase 1: Gather section to use new git diff commands
-- Removed the old "Future --full flag" note
+- Verified version already set to 2.0.4 in both `pyproject.toml` and `src/ralph/__init__.py`
+- Updated CHANGELOG.md to document the three fixes from this release (US-001, US-002, US-003)
+- Replaced previous 2.0.4 changelog entry with accurate release notes
 
 ### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+- No new tests required for version bump
 
 ### Files changed
-- skills/reviewers/language/python/SKILL.md
+- `CHANGELOG.md` - Updated v2.0.4 entry with the three fixes
 
 ### Learnings for future iterations
-- Python-code-reviewer uses `-- '*.py'` filter in git diff commands to scope to Python files only
-- The pattern matches REVIEWER_TEMPLATE.md but with Python-specific file filtering
+- Version files may already be updated by previous development work; always verify current state before making changes
 
 ---
 
-[Ralph Loop] 2026-01-22 03:03 UTC - Iteration 4: US-004 (Standardize python-code-reviewer review scope to feature branch diff) completed
+[Review Loop] 2026-01-22 05:27 UTC - test-quality (blocking): passed
 
----
+[Review Loop] 2026-01-22 05:27 UTC - code-simplifier (blocking): passed
 
-## 2026-01-22 - US-005
+[Review Loop] 2026-01-22 05:28 UTC - python-code (blocking): passed
 
-**Story:** Add Test Appropriateness section to test-quality-reviewer
+[Review Loop] 2026-01-22 05:28 UTC - github-actions (warning): passed
 
-### What was implemented
-- Added Test Appropriateness subsection under Standards in skills/reviewers/test-quality/SKILL.md
-- Documented Framework/Standard Library Testing Anti-Pattern with examples:
-  - Testing enum values match their definitions
-  - Testing Pydantic model validation
-  - Testing NamedTuple field access
-  - Testing dataclass field defaults
-  - Testing typing constructs
-  - Testing SQLAlchemy model columns
-- Documented Redundant Test Anti-Pattern with examples of duplicate behavior verification
-- Documented Test Consolidation Opportunities:
-  - Multiple tests with identical setup
-  - Tests verifying related aspects of same behavior
-  - Parameterized scenarios as separate functions
-- All indicators classified as warnings (non-blocking), not errors
-- Added concrete Python code examples for each anti-pattern
+[Review Loop] 2026-01-22 05:29 UTC - repo-structure (warning): passed
 
-### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
-
-### Files changed
-- skills/reviewers/test-quality/SKILL.md
-
-### Learnings for future iterations
-- Test appropriateness warnings focus on keeping test suites lean by avoiding framework testing
-- The distinction between testing your code vs testing the framework is important for meaningful tests
-- Parameterized tests via pytest.mark.parametrize consolidate repetitive test cases effectively
-
----
-
-[Ralph Loop] 2026-01-22 03:10 UTC - Iteration 5: US-005 (Add Test Appropriateness section to test-quality-reviewer) completed
-
-[Ralph Loop] 2026-01-22 03:05 UTC - Iteration 5: US-005 (Add Test Appropriateness section to test-quality-reviewer) completed
-
----
-
-## 2026-01-22 - US-006
-
-**Story:** Add Project Context section to code-simplifier
-
-### What was implemented
-- Added new Project Context section to skills/reviewers/code-simplifier/SKILL.md
-- Documented CLAUDE.md at project root as primary configuration file
-- Documented AGENTS.md at project root for agent-specific instructions
-- Documented .ralph/code-simplifier-standards.md as optional skill-specific override
-- Added Precedence Rules subsection stating project rules take precedence over built-in standards
-- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
-
-### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
-
-### Files changed
-- skills/reviewers/code-simplifier/SKILL.md
-
-### Learnings for future iterations
-- Project Context section provides a standard pattern for all reviewer skills to follow
-- The precedence order (skill override > project conventions > built-in) is consistent across reviewers
-- US-007 through US-011 will follow the same pattern for other reviewers
-
----
-
-[Ralph Loop] 2026-01-22 03:07 UTC - Iteration 6: US-006 (Add Project Context section to code-simplifier) completed
-
----
-
-## 2026-01-22 - US-007
-
-**Story:** Add Project Context section to test-quality-reviewer
-
-### What was implemented
-- Added new Project Context section to skills/reviewers/test-quality/SKILL.md
-- Documented CLAUDE.md at project root as primary configuration file for testing requirements
-- Documented AGENTS.md at project root for agent-specific testing conventions
-- Documented .ralph/test-quality-reviewer-standards.md as optional skill-specific override
-- Added Precedence Rules subsection stating project rules take precedence over built-in standards
-- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
-
-### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
-
-### Files changed
-- skills/reviewers/test-quality/SKILL.md
-
-### Learnings for future iterations
-- Project Context section follows the same pattern established in US-006 for code-simplifier
-- The precedence order (skill override > project conventions > built-in) is consistent across reviewers
-- US-008 through US-011 will follow the same pattern for remaining reviewers
-
----
-
-[Ralph Loop] 2026-01-22 03:15 UTC - Iteration 7: US-007 (Add Project Context section to test-quality-reviewer) completed
-
-[Ralph Loop] 2026-01-22 03:09 UTC - Iteration 7: US-007 (Add Project Context section to test-quality-reviewer) completed
-
----
-
-## 2026-01-22 - US-008
-
-**Story:** Add Project Context section to python-code-reviewer
-
-### What was implemented
-- Added new Project Context section to skills/reviewers/language/python/SKILL.md
-- Documented CLAUDE.md at project root as primary configuration file with Python-specific items:
-  - Codebase Patterns section with Python-specific conventions
-  - Type annotation preferences and idioms
-  - Docstring format requirements
-  - Logging configuration patterns
-- Documented AGENTS.md at project root for agent-specific Python coding standards
-- Documented .ralph/python-code-reviewer-standards.md as optional skill-specific override
-- Added Precedence Rules subsection stating project rules take precedence over built-in standards
-- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
-
-### Tests written
-- No code tests needed (documentation-only change)
-- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
-
-### Files changed
-- skills/reviewers/language/python/SKILL.md
-
-### Learnings for future iterations
-- Project Context section follows the same pattern established in US-006 and US-007
-- Python-code-reviewer includes language-specific items like type annotation preferences and docstring formats
-- US-009 through US-011 will follow the same pattern for remaining reviewers
-
----
-
-[Review Loop] 2026-01-22 03:11 UTC - test-quality (blocking): passed
-
-[Review Loop] 2026-01-22 03:11 UTC - code-simplifier (blocking): passed
-
-[Review Loop] 2026-01-22 03:12 UTC - python-code (blocking): passed
-
-[Review Loop] 2026-01-22 03:12 UTC - github-actions (warning): passed
-
-[Review Loop] 2026-01-22 03:13 UTC - repo-structure (warning): passed
-
-[Review Loop] 2026-01-22 03:14 UTC - release (blocking): passed
+[Review Loop] 2026-01-22 05:31 UTC - release (blocking): passed
