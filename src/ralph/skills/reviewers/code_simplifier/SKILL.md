@@ -164,28 +164,94 @@ Classify each finding:
 
 ## Output Format
 
+**IMPORTANT**: You MUST append your review output to `plans/PROGRESS.txt` using this exact format. This enables the fix loop to parse and automatically resolve findings.
+
 ```markdown
-## Review: code-simplifier - [X files reviewed]
+[Review] YYYY-MM-DD HH:MM UTC - code-simplifier ({level})
 
-### Issues Found
+### Verdict: {PASSED|NEEDS_WORK}
 
-| Severity | Location | Issue | Suggestion |
-|----------|----------|-------|------------|
-| error | file.py:42 | Nested ternary operator | Use if/else or match statement |
-| warning | file.py:55 | 5 levels of nesting | Use early return to flatten |
-| suggestion | file.py:70 | Variable `d` is unclear | Rename to `duration_seconds` |
+### Findings
 
-### Summary
-- X errors (must fix)
-- Y warnings (should fix)
-- Z suggestions (consider)
+1. **CS-001**: {Category} - {Brief description}
+   - File: {path/to/file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-<ralph-review>VERDICT</ralph-review>
+2. **CS-002**: {Category} - {Brief description}
+   - File: {path/to/file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
+
+---
+```
+
+### Format Details
+
+- **Header**: `[Review]` with timestamp, reviewer name (`code-simplifier`), and level (from CLAUDE.md config)
+- **Verdict**: Must be exactly `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- **Findings**: Numbered list with unique IDs prefixed `CS-` (Code Simplifier)
+- **Finding fields**:
+  - `File:` path with line number (use `:0` if line unknown)
+  - `Issue:` detailed problem description
+  - `Suggestion:` actionable fix recommendation
+- **Separator**: Must end with `---` on its own line
+
+### Finding ID Categories
+
+Use these category prefixes in finding IDs:
+
+| Category | Description |
+|----------|-------------|
+| Nested Ternary | Conditional operators inside conditional operators |
+| Dense Code | Multiple unrelated operations on single line |
+| Dead Code | Commented-out code or unused declarations |
+| Deep Nesting | 4+ levels of nesting that could use early returns |
+| Cryptic Name | Single-letter or unclear variable/function names |
+| Redundant Code | Unnecessary intermediate variables or verbose patterns |
+| Redundant Comment | Comments stating what code obviously does |
+
+### Example Output
+
+For a passing review:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+```
+
+For a review with findings:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - code-simplifier (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **CS-001**: Nested Ternary - Conditional inside conditional expression
+   - File: src/utils/parser.py:42
+   - Issue: The expression `a if b else (c if d else e)` contains a nested ternary operator, which reduces readability.
+   - Suggestion: Refactor to use if/else statements or a match statement for clarity.
+
+2. **CS-002**: Deep Nesting - Function has 5 levels of indentation
+   - File: src/services/processor.py:88
+   - Issue: The process_data function has deeply nested conditionals that make the logic hard to follow.
+   - Suggestion: Use early returns to flatten the structure, e.g., `if not condition: return` at the start.
+
+---
 ```
 
 ### Verdict Values
 
-- **PASS**: No errors found. Warnings are acceptable but noted.
+- **PASSED**: No errors found. Warnings are acceptable but noted.
 - **NEEDS_WORK**: Has errors that must be fixed.
 
 ## Quality Checklist

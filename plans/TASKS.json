@@ -1,66 +1,203 @@
 {
   "project": "ralph-cli",
-  "branchName": "ralph/release-v2.0.4",
-  "description": "Minor release fixing non-interactive init, optimizing prompts with file references, and adding rich formatting to review loop",
+  "branchName": "ralph/review-auto-fix",
+  "description": "Add automatic fix loop to resolve review findings without human intervention",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Skip PRD prompt in non-interactive init mode",
-      "description": "As a developer using Ralph CLI in automation, I want `ralph init --skip-claude` to complete without interactive prompts so that I can script the initialization process.",
+      "title": "Create Finding model for structured review output",
+      "description": "As a developer, I need Pydantic models to parse structured findings from reviewer output so that the fix loop can process them programmatically.",
       "acceptanceCriteria": [
-        "Pass skip_claude flag to _handle_missing_prd function",
-        "_handle_missing_prd skips the Confirm.ask prompt when skip_claude is True",
-        "All files are still created correctly when --skip-claude is passed",
-        "Running `ralph init --skip-claude` completes without waiting for user input",
+        "Create src/ralph/models/finding.py with Finding Pydantic model",
+        "Finding model has fields: id, category, file_path, line_number, issue, suggestion",
+        "Create ReviewOutput model with verdict (PASSED/NEEDS_WORK) and findings list",
+        "Implement parse_review_output() function to extract ReviewOutput from markdown text",
+        "Parser handles both PASSED (no findings) and NEEDS_WORK (with findings) cases",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Added skip_claude parameter to _handle_missing_prd function. When True, skips Confirm.ask prompt and continues without PRD."
+      "notes": "Finding, ReviewOutput, and Verdict Pydantic models with parse_review_output() function."
     },
     {
       "id": "US-002",
-      "title": "Use file references in skill prompt construction",
-      "description": "As a developer using Ralph CLI, I want prompts to use @ file references instead of inline text to reduce token usage when invoking Claude.",
+      "title": "Add print_fix_step console output function",
+      "description": "As a developer running ralph loop, I want to see clear progress indicators when fixes are being attempted so I can track the fix loop progress.",
       "acceptanceCriteria": [
-        "Modify build_skill_prompt to write skill content to a temporary file",
-        "Use @filepath notation in the prompt string instead of inline content",
-        "Ensure temporary files are placed in an appropriate location",
-        "Document the preferred pattern for prompt construction in CLAUDE.md or AGENTS.md",
+        "Add print_fix_step() function to src/ralph/utils/console.py",
+        "Function displays '[Fix X/Y] finding-id' with consistent Rich styling",
+        "Styling matches existing print_review_step() pattern (bold blue prefix)",
+        "Export print_fix_step from src/ralph/utils/__init__.py",
         "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Updated build_skill_prompt to use direct file references to bundled SKILL.md files instead of temp files. Added get_path() method to SkillLoader. Documented pattern in both CLAUDE.md and AGENTS.md."
+      "notes": "Added print_fix_step() with bold blue styling matching print_review_step()."
     },
     {
       "id": "US-003",
-      "title": "Add rich formatting to review loop display",
-      "description": "As a developer running ralph loop, I want the review loop to display progress counters and reviewer names with consistent Rich formatting so I can track review progress.",
+      "title": "Create FixLoopService for fix attempt logic",
+      "description": "As a developer, I need a service to orchestrate fix attempts with retry logic so that findings can be automatically resolved.",
       "acceptanceCriteria": [
-        "Display 'Review X/Y' counter before each reviewer runs, matching ralph loop style",
-        "Display current reviewer name being executed",
-        "Use print_step or similar Rich formatting consistent with the loop command",
-        "Review loop output visually matches the iteration loop style",
+        "Create src/ralph/services/fix_loop.py with FixLoopService class",
+        "Implement attempt_fix() method that invokes Claude to fix a single finding",
+        "Implement run_fix_loop() that iterates through findings with retry logic (max 3 attempts per finding)",
+        "Service creates individual commits for each successful fix using format: fix(review): [reviewer] - [finding-id] - [description]",
+        "Service logs fix results to PROGRESS.txt using structured format from SPEC.md",
+        "Failed fixes after 3 retries are logged and skipped (don't block other findings)",
         "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Added print_review_step() function to console.py that displays [Review X/Y] prefix with bold blue styling. Refactored _run_review_loop to iterate reviewers directly and display progress before each one."
+      "notes": "FixLoopService with attempt_fix(), run_fix_loop(), commit creation, and PROGRESS.txt logging."
     },
     {
       "id": "US-004",
-      "title": "Bump version to 2.0.4",
-      "description": "As a maintainer, I need the version bumped to 2.0.4 in preparation for release.",
+      "title": "Update ReviewLoopService to parse structured output",
+      "description": "As a developer, I need the review loop to capture and parse structured reviewer output so it can be passed to the fix loop.",
       "acceptanceCriteria": [
-        "Update version in pyproject.toml to 2.0.4",
-        "Update __version__ in src/ralph/__init__.py to 2.0.4",
-        "Add CHANGELOG.md entry for v2.0.4 with the three fixes",
+        "Modify run_reviewer() to capture Claude's text output (not just exit code)",
+        "Parse output using parse_review_output() to extract verdict and findings",
+        "Update _append_review_summary() to log the full structured format to PROGRESS.txt",
+        "ReviewerResult now includes parsed ReviewOutput when available",
         "Typecheck passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Version already at 2.0.4. Updated CHANGELOG.md with the three fixes from US-001, US-002, US-003."
+      "notes": "ReviewLoopService now captures text output, parses with parse_review_output(), includes ReviewOutput in ReviewerResult, and logs structured format to PROGRESS.txt."
+    },
+    {
+      "id": "US-005",
+      "title": "Integrate fix loop into review loop workflow",
+      "description": "As a developer running ralph loop, I want the fix loop to automatically run after a reviewer returns NEEDS_WORK so that issues are resolved without manual intervention.",
+      "acceptanceCriteria": [
+        "Modify run_review_loop() to call FixLoopService when verdict is NEEDS_WORK",
+        "Fix loop only runs for blocking reviewers by default",
+        "Fix loop runs for all levels (blocking, warning, suggestion) when strict=True",
+        "Fix loop is skipped for language-filtered reviewers",
+        "Console output shows fix progress using print_fix_step()",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Integrated FixLoopService into run_review_loop() with should_run_fix_loop() logic and on_fix_step callback support."
+    },
+    {
+      "id": "US-006",
+      "title": "Update test-quality reviewer with structured output",
+      "description": "As a developer, I need the test-quality reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/test_quality/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Findings with TQ-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
+    },
+    {
+      "id": "US-007",
+      "title": "Update code-simplifier reviewer with structured output",
+      "description": "As a developer, I need the code-simplifier reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/code_simplifier/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Findings with CS-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
+    },
+    {
+      "id": "US-008",
+      "title": "Update python-code reviewer with structured output",
+      "description": "As a developer, I need the python-code reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/language/python/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Update github-actions reviewer with structured output",
+      "description": "As a developer, I need the github-actions reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/github_actions/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Update repo-structure reviewer with structured output",
+      "description": "As a developer, I need the repo-structure reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/repo_structure/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Update release reviewer with structured output",
+      "description": "As a developer, I need the release reviewer to output findings in the structured format so the fix loop can parse and process them.",
+      "acceptanceCriteria": [
+        "Update src/ralph/skills/reviewers/release/SKILL.md output format section",
+        "Output includes [Review] header with timestamp, reviewer name, and level",
+        "Verdict section uses ### Verdict: PASSED or ### Verdict: NEEDS_WORK",
+        "Findings section lists each issue with FINDING-ID, category, file path, line number, issue description, and suggestion",
+        "Output ends with --- separator",
+        "Instructions tell reviewer to append this format to PROGRESS.txt",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create GitHub issue for --no-fix flag enhancement",
+      "description": "As a maintainer, I want a GitHub issue logged for the future --no-fix flag so that users can opt out of auto-fix behavior when desired.",
+      "acceptanceCriteria": [
+        "Create GitHub issue titled 'Add --no-fix flag to disable auto-fix in review loop'",
+        "Issue describes the use case: users who want review-only mode without automatic fixes",
+        "Issue is labeled as 'enhancement' and 'low priority'",
+        "Issue references this feature implementation for context",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
