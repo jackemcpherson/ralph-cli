@@ -27,19 +27,48 @@ You are a [role] responsible for reviewing [scope] against [standard]. Your goal
 
 <!--
   SCOPE: Define what gets reviewed.
-  - Changed files since last commit? Staged files? Entire codebase?
+  - Feature branch changes (diff vs main) plus uncommitted changes
   - Specific file patterns to include/exclude?
-  - Note any future expansion (e.g., --full flag)
+  - Note fallback behavior when on main branch
 -->
 
-Review files modified since the last commit or currently staged.
+Review all files changed on the feature branch plus any uncommitted changes.
 
-To identify changed files:
-1. Run `git diff --name-only HEAD` for uncommitted changes
-2. Run `git diff --name-only --cached` for staged changes
-3. Filter to relevant file patterns (e.g., `*.py` for Python)
+### Identifying Files to Review
 
-> **Future**: A `--full` flag will review the entire codebase.
+**Primary: Feature branch changes**
+
+```bash
+git diff --name-only main...HEAD
+```
+
+This shows all files changed since branching from main. Use this to review committed work from the iteration loop.
+
+**Secondary: Uncommitted changes**
+
+```bash
+git diff --name-only HEAD
+```
+
+This shows unstaged changes. Combine with feature branch changes for complete coverage.
+
+**Fallback: When on main branch**
+
+When directly on main (no feature branch), fall back to uncommitted changes only:
+
+```bash
+git diff --name-only HEAD
+```
+
+### When to Use Each Scope
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| Feature branch diff | `git diff --name-only main...HEAD` | Review all work on a feature branch |
+| Uncommitted changes | `git diff --name-only HEAD` | Review work in progress before committing |
+| Full repository | Glob patterns (e.g., `**/*.py`) | Comprehensive codebase audit |
+
+> **Note**: Filter results to relevant file patterns (e.g., `-- '*.py'` for Python files).
 
 ## Standards
 
