@@ -86,9 +86,8 @@ def tasks(
     console.print(f"[dim]Output will be saved to:[/dim] [cyan]{output}[/cyan]")
     console.print()
 
-    # Load skill content and build prompt
     try:
-        prompt = _build_prompt_from_skill(project_root, spec_content, branch_name)
+        prompt = _build_prompt_from_skill(spec_content, branch_name)
     except SkillNotFoundError as e:
         print_error(f"Skill not found: {e}")
         raise typer.Exit(1) from e
@@ -146,13 +145,10 @@ def tasks(
         raise typer.Exit(1) from e
 
 
-def _build_prompt_from_skill(
-    project_root: Path, spec_content: str, branch_name: str | None = None
-) -> str:
-    """Build the prompt by referencing the ralph/tasks skill and adding context.
+def _build_prompt_from_skill(spec_content: str, branch_name: str | None = None) -> str:
+    """Build the prompt by loading the ralph/tasks skill and adding context.
 
     Args:
-        project_root: Path to the project root directory.
         spec_content: Content of the specification file.
         branch_name: Optional git branch name for the feature.
 
@@ -162,7 +158,6 @@ def _build_prompt_from_skill(
     Raises:
         SkillNotFoundError: If the ralph/tasks skill is not found.
     """
-    # Build context section
     context_lines = [
         "---",
         "",
@@ -189,7 +184,7 @@ def _build_prompt_from_skill(
     )
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph/tasks", context)
+    return build_skill_prompt("ralph/tasks", context)
 
 
 def _extract_json(text: str) -> str | None:

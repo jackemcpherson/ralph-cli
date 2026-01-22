@@ -146,9 +146,8 @@ def prd(
     console.print("[dim]Running with auto-approved permissions for PRD creation[/dim]")
     console.print()
 
-    # Load skill content and build prompt
     try:
-        prompt = _build_prompt_from_skill(project_root, output_path)
+        prompt = _build_prompt_from_skill(output_path)
     except SkillNotFoundError as e:
         print_error(f"Skill not found: {e}")
         raise typer.Exit(1) from e
@@ -205,7 +204,7 @@ def _run_non_interactive(
 
     # Load skill content and build prompt with feature description
     try:
-        prompt = _build_prompt_from_skill(project_root, output_path, feature_description)
+        prompt = _build_prompt_from_skill(output_path, feature_description)
     except SkillNotFoundError as e:
         print_error(f"Skill not found: {e}")
         raise typer.Exit(1) from e
@@ -233,13 +232,10 @@ def _run_non_interactive(
         raise typer.Exit(1) from e
 
 
-def _build_prompt_from_skill(
-    project_root: Path, output_path: Path, feature_description: str | None = None
-) -> str:
-    """Build the prompt by referencing the ralph/prd skill and adding context.
+def _build_prompt_from_skill(output_path: Path, feature_description: str | None = None) -> str:
+    """Build the prompt by loading the ralph/prd skill and adding context.
 
     Args:
-        project_root: Path to the project root directory.
         output_path: Path where the PRD should be saved.
         feature_description: Optional feature description for non-interactive mode.
 
@@ -249,7 +245,6 @@ def _build_prompt_from_skill(
     Raises:
         SkillNotFoundError: If the ralph/prd skill is not found.
     """
-    # Build context section
     context_lines = [
         "---",
         "",
@@ -259,7 +254,6 @@ def _build_prompt_from_skill(
     ]
 
     if feature_description:
-        # Non-interactive mode: provide feature description directly
         context_lines.extend(
             [
                 "",
@@ -274,7 +268,6 @@ def _build_prompt_from_skill(
             ]
         )
     else:
-        # Interactive mode: Claude will ask questions
         context_lines.extend(
             [
                 "",
@@ -285,4 +278,4 @@ def _build_prompt_from_skill(
         )
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph/prd", context)
+    return build_skill_prompt("ralph/prd", context)

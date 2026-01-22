@@ -2,6 +2,7 @@
 
 This module implements the 'ralph sync' command which copies
 skill definitions to the global Claude Code skills directory.
+By default, syncs bundled skills from the package.
 """
 
 import logging
@@ -12,7 +13,6 @@ import typer
 from ralph.services import SkillsService, SyncStatus
 from ralph.utils import (
     console,
-    get_project_root,
     print_error,
     print_success,
     print_warning,
@@ -26,7 +26,7 @@ def sync(
         None,
         "--skills-dir",
         "-s",
-        help="Custom skills directory (default: <project-root>/skills/).",
+        help="Custom skills directory (default: use bundled package skills).",
     ),
     remove: bool = typer.Option(
         False,
@@ -37,23 +37,19 @@ def sync(
 ) -> None:
     """Sync Ralph skills to Claude Code.
 
-    Copies skill definitions from the repo's skills/ directory
-    to ~/.claude/skills/ for global access. Each skill must have
-    a SKILL.md file with valid YAML frontmatter (name, description).
+    By default, copies bundled skill definitions from the ralph-cli package
+    to ~/.claude/skills/ for native Claude Code integration.
 
+    Use --skills-dir to sync from a custom directory instead.
     Use --remove to uninstall ralph skills that were previously synced.
-    This only removes skills listed in the manifest, leaving other skills intact.
     """
-    if skills_dir is None:
-        skills_dir = get_project_root() / "skills"
-
     service = SkillsService(skills_dir=skills_dir)
 
     if remove:
         _handle_remove(service)
         return
 
-    if not skills_dir.exists():
+    if skills_dir is not None and not skills_dir.exists():
         print_warning(f"Skills directory not found: {skills_dir}")
         console.print("\nTo create skills, add a skills/ directory with subdirectories")
         console.print("containing SKILL.md files with frontmatter:\n")
@@ -63,14 +59,16 @@ def sync(
         console.print("  ---")
         raise typer.Exit(0)
 
-    skill_paths = service.list_local_skills()
+    if skills_dir is None:
+        console.print("\n[bold]Syncing bundled skills from:[/bold] ralph-cli package")
+    else:
+        skill_paths = service.list_local_skills()
+        if not skill_paths:
+            print_warning(f"No skills found in {skills_dir}")
+            console.print("\nSkills are subdirectories containing a SKILL.md file.")
+            raise typer.Exit(0)
+        console.print(f"\n[bold]Syncing skills from:[/bold] {skills_dir}")
 
-    if not skill_paths:
-        print_warning(f"No skills found in {skills_dir}")
-        console.print("\nSkills are subdirectories containing a SKILL.md file.")
-        raise typer.Exit(0)
-
-    console.print(f"\n[bold]Syncing skills from:[/bold] {skills_dir}")
     console.print(f"[bold]Target directory:[/bold] {service.target_dir}\n")
 
     results = service.sync_all()

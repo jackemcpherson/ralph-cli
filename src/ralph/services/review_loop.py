@@ -45,14 +45,15 @@ class ReviewLoopService(BaseModel):
 
     Attributes:
         project_root: Path to the project root directory.
-        skills_dir: Path to the skills directory.
+        skills_dir: Optional path to the skills directory. If None, uses
+            bundled package skills.
         verbose: Whether to show verbose output.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     project_root: Path
-    skills_dir: Path
+    skills_dir: Path | None = None
     verbose: bool = False
 
     def should_run_reviewer(
@@ -67,15 +68,12 @@ class ReviewLoopService(BaseModel):
         Returns:
             True if the reviewer should run, False if it should be skipped.
         """
-        # Reviewers without language filter always run
         if reviewer.languages is None:
             return True
 
-        # Empty language list is treated as "no filter" - always runs
         if not reviewer.languages:
             return True
 
-        # Check if any of the reviewer's languages match detected languages
         detected_language_values = {lang.value for lang in detected_languages}
         return any(lang in detected_language_values for lang in reviewer.languages)
 
@@ -115,7 +113,7 @@ class ReviewLoopService(BaseModel):
         skill_loader = SkillLoader(skills_dir=self.skills_dir)
 
         try:
-            skill_path = skill_loader.load(reviewer.skill)
+            skill_content = skill_loader.get_content(reviewer.skill)
         except SkillNotFoundError as e:
             logger.error(f"Skill not found for reviewer {reviewer.name}: {e}")
             return ReviewerResult(
@@ -126,9 +124,8 @@ class ReviewLoopService(BaseModel):
                 error=f"Skill not found: {reviewer.skill}",
             )
 
-        prompt = self._build_reviewer_prompt(reviewer, skill_path)
+        prompt = self._build_reviewer_prompt(reviewer, skill_content)
 
-        # Non-enforced reviewers only get one attempt
         attempts_allowed = max_retries if enforced else 1
 
         for attempt in range(1, attempts_allowed + 1):
@@ -170,7 +167,6 @@ class ReviewLoopService(BaseModel):
                         error=str(e),
                     )
 
-        # All retries exhausted
         return ReviewerResult(
             reviewer_name=reviewer.name,
             success=False,
@@ -201,7 +197,6 @@ class ReviewLoopService(BaseModel):
         results: list[ReviewerResult] = []
 
         for reviewer in reviewers:
-            # Check language filtering
             if not self.should_run_reviewer(reviewer, detected_languages):
                 logger.info(
                     f"Skipping reviewer {reviewer.name} (language filter: {reviewer.languages})"
@@ -219,18 +214,14 @@ class ReviewLoopService(BaseModel):
 
                 continue
 
-            # Determine if enforced
             enforced = self.is_enforced(reviewer, strict)
 
-            # Run the reviewer
             result = self.run_reviewer(reviewer, enforced=enforced)
             results.append(result)
 
-            # Append summary to progress file
             if progress_path:
                 self._append_review_summary(progress_path, reviewer, result)
 
-            # Log the result
             if result.success:
                 logger.info(f"Reviewer {reviewer.name} completed successfully")
             elif result.skipped:
@@ -240,18 +231,16 @@ class ReviewLoopService(BaseModel):
 
         return results
 
-    def _build_reviewer_prompt(self, reviewer: ReviewerConfig, skill_path: Path) -> str:
+    def _build_reviewer_prompt(self, reviewer: ReviewerConfig, skill_content: str) -> str:
         """Build the prompt for running a reviewer.
 
         Args:
             reviewer: The reviewer configuration.
-            skill_path: Path to the reviewer's SKILL.md file.
+            skill_content: The content of the reviewer's SKILL.md file.
 
         Returns:
             The formatted prompt string.
         """
-        skill_content = skill_path.read_text(encoding="utf-8")
-
         return f"""You are a code reviewer running the {reviewer.name} review.
 
 ## Review Instructions
@@ -320,7 +309,6 @@ def filter_reviewers_by_language(
     """
     service = ReviewLoopService(
         project_root=Path.cwd(),
-        skills_dir=Path.cwd() / "skills",
     )
 
     return [

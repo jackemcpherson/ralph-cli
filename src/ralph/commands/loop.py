@@ -103,7 +103,7 @@ def _execute_story(
         IterationOutcome indicating what happened during execution.
     """
     try:
-        prompt = _build_prompt_from_skill(project_root, story, max_fix_attempts)
+        prompt = _build_prompt_from_skill(story, max_fix_attempts)
     except SkillNotFoundError as e:
         print_error(f"Skill not found: {e}")
         return IterationOutcome.SKILL_ERROR
@@ -541,11 +541,8 @@ def _run_review_loop(
 
     console.print()
 
-    # Create review loop service
-    skills_dir = project_root / "skills"
     review_service = ReviewLoopService(
         project_root=project_root,
-        skills_dir=skills_dir,
         verbose=verbose,
     )
 

@@ -82,7 +82,7 @@ def once(
     console.print()
 
     try:
-        prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
+        prompt = _build_prompt_from_skill(next_story, max_fix_attempts)
     except SkillNotFoundError as e:
         print_error(f"Skill not found: {e}")
         raise typer.Exit(1) from e
@@ -169,11 +169,10 @@ def _find_next_story(tasks: TasksFile) -> UserStory | None:
     return incomplete[0]
 
 
-def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attempts: int) -> str:
-    """Build the prompt by referencing the ralph/iteration skill and adding context.
+def _build_prompt_from_skill(story: UserStory, max_fix_attempts: int) -> str:
+    """Build the prompt by loading the ralph/iteration skill and adding context.
 
     Args:
-        project_root: Path to the project root directory.
         story: UserStory to implement.
         max_fix_attempts: Maximum fix attempts.
 
@@ -210,7 +209,7 @@ def _build_prompt_from_skill(project_root: Path, story: UserStory, max_fix_attem
     ]
 
     context = "\n".join(context_lines)
-    return build_skill_prompt(project_root, "ralph/iteration", context)
+    return build_skill_prompt("ralph/iteration", context)
 
 
 def _append_cli_summary(
