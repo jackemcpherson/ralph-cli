@@ -59,6 +59,45 @@ git diff --name-only main...HEAD | grep -E '(test_|_test\.|\.spec\.|__tests__/)'
 | Uncommitted changes | `git diff --name-only HEAD` | Review work in progress before committing |
 | Full repository | Glob patterns (e.g., `**/test_*.py`) | Comprehensive test suite audit |
 
+## Project Context
+
+Before applying built-in standards, check for project-specific testing conventions that may override or extend them.
+
+### Configuration Files
+
+**CLAUDE.md** (project root)
+
+The primary project configuration file. Look for:
+- Testing requirements and conventions in the Codebase Patterns section
+- Test organization preferences (unit vs integration separation)
+- Coverage requirements or exemptions
+- Framework-specific testing patterns
+
+**AGENTS.md** (project root)
+
+Agent-specific instructions that may include:
+- Testing conventions for autonomous agents
+- Patterns that are intentionally tested despite appearing like framework tests
+- Project-specific test naming conventions
+
+**.ralph/test-quality-reviewer-standards.md** (optional override)
+
+Skill-specific overrides that completely customize the review:
+- Custom error/warning/suggestion classifications
+- Project-specific anti-patterns to flag
+- Test patterns to ignore or allow
+- Coverage requirements
+
+### Precedence Rules
+
+When project configuration exists, apply rules in this order:
+
+1. **Skill-specific override** (`.ralph/test-quality-reviewer-standards.md`) - highest priority
+2. **Project conventions** (`CLAUDE.md` and `AGENTS.md`) - override built-in defaults
+3. **Built-in standards** (this document) - baseline when no overrides exist
+
+Project rules always take precedence over built-in standards. If a project's CLAUDE.md says "enum value tests are required for public API stability," respect that convention.
+
 ## Standards
 
 ### Core Rules
@@ -249,14 +288,6 @@ def test_calculate_discount_by_customer_tier(tier, expected_discount):
     customer = Customer(tier=tier)
     assert calculate_discount(cart, customer) == expected_discount
 ```
-
-### Project Overrides
-
-Projects can customize standards:
-- `CLAUDE.md` - Project-wide testing requirements
-- `.ralph/test-quality-reviewer-standards.md` - Skill-specific overrides
-
-When overrides exist, merge them with core rules (project rules take precedence).
 
 ## Your Process
 
