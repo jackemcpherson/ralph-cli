@@ -45,6 +45,45 @@ git diff --name-only HEAD -- '*.py'
 | Uncommitted changes | `git diff --name-only HEAD -- '*.py'` | Review work in progress before committing |
 | Full repository | `**/*.py` glob pattern | Comprehensive Python codebase audit |
 
+## Project Context
+
+Before applying built-in standards, check for project-specific Python conventions that may override or extend them.
+
+### Configuration Files
+
+**CLAUDE.md** (project root)
+
+The primary project configuration file. Look for:
+- Codebase Patterns section with Python-specific conventions
+- Type annotation preferences and idioms
+- Docstring format requirements
+- Logging configuration patterns
+
+**AGENTS.md** (project root)
+
+Agent-specific instructions that may include:
+- Python coding standards for autonomous agents
+- Patterns that should be preserved despite appearing non-standard
+- Project-specific naming conventions
+
+**.ralph/python-code-reviewer-standards.md** (optional override)
+
+Skill-specific overrides that completely customize the review:
+- Custom error/warning/suggestion classifications
+- Modified type hint requirements
+- Alternative docstring formats
+- Project-specific exceptions to rules
+
+### Precedence Rules
+
+When project configuration exists, apply rules in this order:
+
+1. **Skill-specific override** (`.ralph/python-code-reviewer-standards.md`) - highest priority
+2. **Project conventions** (`CLAUDE.md` and `AGENTS.md`) - override built-in defaults
+3. **Built-in standards** (this document) - baseline when no overrides exist
+
+Project rules always take precedence over built-in standards. If a project's CLAUDE.md says "use `Optional[X]` for Python 3.9 compatibility," respect that convention.
+
 ## Standards
 
 ### Core Rules
@@ -132,14 +171,6 @@ These are non-blocking recommendations. Violations produce **warnings**.
 **Security**
 - No hardcoded secrets
 - Safe input handling
-
-### Project Overrides
-
-Projects can customize standards:
-- `CLAUDE.md` - Project-wide coding standards section
-- `.ralph/python-code-reviewer-standards.md` - Skill-specific overrides
-
-When overrides exist, merge them with core rules (project rules take precedence).
 
 ## Your Process
 
