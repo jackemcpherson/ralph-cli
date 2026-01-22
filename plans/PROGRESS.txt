@@ -71,3 +71,31 @@
 ### Learnings for future iterations
 - `importlib.resources.files()` returns Traversables that can be converted to filesystem Paths for normal package installs
 - Direct file references are simpler and more efficient than temp file copying
+
+---
+
+## 2026-01-22 - US-003
+
+**Story:** Add rich formatting to review loop display
+
+### What was implemented
+- Added `print_review_step()` function to `src/ralph/utils/console.py` that displays `[Review X/Y] reviewer-name` with bold blue styling, matching the iteration loop style
+- Refactored `_run_review_loop()` in `src/ralph/commands/loop.py` to iterate through reviewers directly and display progress before each one runs
+- The review loop now shows progress counters like `[Review 1/4]` before each reviewer executes
+
+### Tests written
+- `test_review_loop_displays_progress_counters` - Integration test verifying progress counters are displayed for each reviewer
+- `test_print_review_step_formats_correctly` - Unit test verifying the expected output format
+- `test_print_review_step_matches_print_step_style` - Unit test verifying consistent styling with print_step()
+
+### Files changed
+- `src/ralph/utils/console.py` - Added `print_review_step()` function
+- `src/ralph/utils/__init__.py` - Exported `print_review_step`
+- `src/ralph/commands/loop.py` - Refactored `_run_review_loop()` to display progress counters
+- `tests/test_commands_integration.py` - Added 3 new tests
+
+### Learnings for future iterations
+- Keep Rich console output in the command layer (loop.py) rather than the service layer for better separation of concerns
+- When testing Rich output, use `no_color=True` and `force_terminal=False` to get plain text for assertions
+
+---
