@@ -143,8 +143,9 @@ class SkillsService(BaseModel):
             return None
 
         # Calculate relative path from skills_dir (e.g., "ralph/prd")
+        # Always use forward slashes for cross-platform consistency in manifest
         try:
-            relative_path = str(skill_path.relative_to(self.skills_dir))
+            relative_path = skill_path.relative_to(self.skills_dir).as_posix()
         except ValueError:
             # skill_path is not under skills_dir, use the directory name
             relative_path = skill_path.name

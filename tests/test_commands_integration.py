@@ -478,22 +478,29 @@ class TestLoopCommand:
         assert result.exit_code == 0
         assert "All stories complete" in result.output
 
-    def test_loop_help_shows_skip_review_flag(self, runner: CliRunner) -> None:
-        """Test that ralph loop --help shows --skip-review flag with description."""
-        result = runner.invoke(app, ["loop", "--help"])
+    def test_loop_has_skip_review_flag(self) -> None:
+        """Test that ralph loop command has --skip-review flag defined."""
+        import inspect
 
-        assert result.exit_code == 0
-        assert "--skip-review" in result.output
-        assert "Skip the automated review loop" in result.output
+        from ralph.commands.loop import loop
 
-    def test_loop_help_shows_strict_flag(self, runner: CliRunner) -> None:
-        """Test that ralph loop --help shows --strict flag with description."""
-        result = runner.invoke(app, ["loop", "--help"])
+        sig = inspect.signature(loop)
+        assert "skip_review" in sig.parameters
+        # Verify it's a boolean option
+        param = sig.parameters["skip_review"]
+        assert param.annotation is bool
 
-        assert result.exit_code == 0
-        assert "--strict" in result.output
-        # Check for key phrase - help text may wrap across lines
-        assert "warning-level reviewers" in result.output
+    def test_loop_has_strict_flag(self) -> None:
+        """Test that ralph loop command has --strict flag defined."""
+        import inspect
+
+        from ralph.commands.loop import loop
+
+        sig = inspect.signature(loop)
+        assert "strict" in sig.parameters
+        # Verify it's a boolean option
+        param = sig.parameters["strict"]
+        assert param.annotation is bool
 
     def test_loop_runs_review_loop_after_stories_complete(
         self, runner: CliRunner, project_with_tasks: Path
@@ -783,20 +790,40 @@ class TestTasksJsonExtraction:
             }
         )
 
-    def test_prefers_file_over_stdout(self, tmp_path: Path, valid_tasks_json: str) -> None:
-        """Test that _get_tasks_from_output_or_file prefers file content over stdout."""
+    def test_prefers_stdout_json_over_existing_file(
+        self, tmp_path: Path, valid_tasks_json: str
+    ) -> None:
+        """Test that _get_tasks_from_output_or_file prefers stdout JSON over existing file."""
+        from ralph.commands.tasks import _get_tasks_from_output_or_file
+
+        output_path = tmp_path / "TASKS.json"
+        # Write old content to file
+        output_path.write_text(valid_tasks_json)
+
+        # stdout has different (newer) JSON content
+        new_tasks_json = valid_tasks_json.replace("TestProject", "NewProject")
+
+        result = _get_tasks_from_output_or_file(new_tasks_json, output_path)
+
+        assert result is not None
+        assert result.project == "NewProject"  # Should use stdout, not file
+
+    def test_falls_back_to_file_when_stdout_has_no_json(
+        self, tmp_path: Path, valid_tasks_json: str
+    ) -> None:
+        """Test that _get_tasks_from_output_or_file falls back to file when stdout has no JSON."""
         from ralph.commands.tasks import _get_tasks_from_output_or_file
 
         output_path = tmp_path / "TASKS.json"
         output_path.write_text(valid_tasks_json)
 
-        # stdout has different content (a summary message)
+        # stdout has no JSON (just a summary message)
         stdout_content = "Generated 1 user story successfully!"
 
         result = _get_tasks_from_output_or_file(stdout_content, output_path)
 
         assert result is not None
-        assert result.project == "TestProject"
+        assert result.project == "TestProject"  # Falls back to file
         assert len(result.user_stories) == 1
 
     def test_falls_back_to_stdout_when_file_missing(

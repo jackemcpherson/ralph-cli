@@ -1,400 +1,141 @@
-# Ralph CLI v2.1 Specification: Review Loop
+# Ralph CLI v2.0.3 - Product Requirements Document
 
-## Metadata
+## Overview
 
-- **Status:** Draft
-- **Version:** 2.1.0
-- **Last Updated:** 2026-01-22
-- **Owner:** To be assigned
+This patch release addresses three issues with the reviewer skills: fixing the code-simplifier's review scope to examine feature branch changes (not just uncommitted files), enhancing the test-quality-reviewer to assess test count appropriateness, and ensuring all reviewer skills consistently reference project context files (CLAUDE.md/AGENTS.md).
 
----
+## Goals
 
-## 1. Overview
+- Fix code-simplifier to review all code changed on the feature branch, not just uncommitted changes
+- Enhance test-quality-reviewer to flag over-testing patterns (framework testing, redundant tests)
+- Ensure all reviewer skills check and respect project-specific context from CLAUDE.md/AGENTS.md
 
-### 1.1 Problem Statement
+## Non-Goals
 
-The Ralph workflow currently completes user stories but lacks a quality assurance phase. After all stories pass, the code may still have:
+- Resume partial review runs (#26) - deferred to future release
+- Detect already-implemented stories in `ralph tasks` (#17) - deferred to future release
+- Adding new reviewer skills
+- Changes to the core `ralph loop` command logic
 
-1. **Code quality issues** - Overly complex code, missed simplification opportunities, inconsistent patterns
-2. **Test gaps** - Weak assertions, missing edge cases, low-value tests
-3. **Infrastructure problems** - Misconfigured CI/CD workflows, non-standard repository structure
-4. **Release readiness issues** - Missing changelog entries, version mismatches, stale progress logs
+## User Stories Overview
 
-Currently, users must manually invoke reviewer skills or skip quality review entirely.
+Developers using Ralph's review pipeline need reviewers that:
+1. Actually examine the code written during `ralph loop` (currently missed due to commits)
+2. Catch over-testing patterns that bloat test suites without adding value
+3. Respect project-specific conventions defined in CLAUDE.md/AGENTS.md
 
-### 1.2 Goals
+## Requirements
 
-1. **Automated review loop** - After `ralph loop` completes all stories, automatically spawn fresh Claude instances to run configured reviewers
-2. **Configurable reviewer pipeline** - Define which reviewers run, their order, and severity levels via CLAUDE.md (consistent with existing checks pattern)
-3. **Language-aware reviews** - Auto-detect project languages and run appropriate language-specific reviewers
-4. **Flexible strictness** - Support `--strict` mode for enforcing warnings, and `--skip-review` for bypassing reviews entirely
-5. **Organized skills directory** - Restructure skills into logical categories for better maintainability
+### Functional Requirements
 
-### 1.3 Non-Goals
+#### Standardize Review Scope Across Diff-Based Reviewers (#28)
 
-- Adding review capability to `ralph once` (single iteration)
-- Creating new reviewer skills from scratch (they exist or are separate work items)
-- Cross-language code review (each language has its own reviewer)
-- Interactive review mode (reviews are fully autonomous)
-- Caching or incremental reviews (each run reviews everything)
+Three reviewer skills use git diff to identify files to review: code-simplifier, test-quality-reviewer, and python-code-reviewer. All three currently only check uncommitted/staged changes, missing committed code from `ralph loop`.
 
----
+**Consistent Git Diff Logic**
+- FR-001: All diff-based reviewers MUST use `git diff main...HEAD` to find files changed on the feature branch
+- FR-002: All diff-based reviewers MUST also include uncommitted changes via `git diff HEAD`
+- FR-003: The git diff logic MUST be documented identically across all three skills
 
-## 2. Architecture
+**Affected Skills**
+- FR-004: code-simplifier MUST be updated with new review scope logic
+- FR-005: test-quality-reviewer MUST be updated with new review scope logic
+- FR-006: python-code-reviewer MUST be updated with new review scope logic
 
-### 2.1 Current State
+**Standard Review Scope Section**
+All three skills should use this consistent documentation:
 
-```
-ralph loop
-    ↓
-Execute stories until all pass
-    ↓
-Done (no quality review)
-```
+```markdown
+## Review Scope
 
-### 2.2 Target State
+Review files modified on the current feature branch compared to main.
 
-```
-ralph loop [--skip-review] [--strict]
-    ↓
-Execute stories until all pass
-    ↓
-(unless --skip-review)
-    ↓
-Load reviewer config from CLAUDE.md
-    ↓
-Auto-detect project languages
-    ↓
-For each reviewer (in order):
-    ├── Skip if language filter doesn't match
-    ├── Spawn fresh Claude instance with reviewer skill
-    ├── Implement suggested changes
-    ├── Append summary to PROGRESS.txt
-    └── Continue to next reviewer
-    ↓
-Done
+To identify changed files:
+1. Run `git diff --name-only main...HEAD` for all changes on this branch
+2. Run `git diff --name-only HEAD` for any uncommitted changes
+3. Combine and deduplicate the results
+4. Filter to relevant file types
+
+> **Note**: If not on a feature branch (e.g., on main), falls back to uncommitted changes only.
 ```
 
-### 2.3 Skills Directory Restructure
+**Reviewer Template**
+- FR-007: Update `skills/REVIEWER_TEMPLATE.md` with the new review scope pattern
+- FR-008: Template MUST include the standard review scope section above
+- FR-009: Template MUST document when to use diff-based vs full-repository review scope
 
-**Current structure (flat):**
-```
-skills/
-├── code-simplifier/
-├── github-actions-reviewer/
-├── python-code-reviewer/
-├── ralph-iteration/
-├── ralph-prd/
-├── ralph-tasks/
-├── repo-structure-reviewer/
-└── test-quality-reviewer/
-```
+#### Enhance test-quality-reviewer with Test Count Assessment (#29)
 
-**Target structure (nested):**
-```
-skills/
-├── ralph/                      # Core workflow skills
-│   ├── prd/
-│   │   └── SKILL.md
-│   ├── tasks/
-│   │   └── SKILL.md
-│   └── iteration/
-│       └── SKILL.md
-└── reviewers/                  # All reviewer skills
-    ├── code-simplifier/
-    │   └── SKILL.md
-    ├── test-quality/
-    │   └── SKILL.md
-    ├── repo-structure/
-    │   └── SKILL.md
-    ├── github-actions/
-    │   └── SKILL.md
-    ├── release/                # New skill
-    │   └── SKILL.md
-    └── language/               # Language-specific reviewers
-        └── python/
-            └── SKILL.md
-```
+- FR-010: test-quality-reviewer MUST assess test density relative to codebase complexity
+- FR-011: test-quality-reviewer MUST flag tests that verify framework/stdlib behavior (enum values, Pydantic validation, NamedTuple fields)
+- FR-012: test-quality-reviewer MUST identify redundant tests that verify the same behavior multiple ways
+- FR-013: test-quality-reviewer MUST suggest consolidation opportunities for similar tests
+- FR-014: Over-testing indicators MUST be classified as warnings (not errors)
 
-**Skill reference format:** `ralph/prd`, `reviewers/code-simplifier`, `reviewers/language/python`
+#### Add Consistent Project Context References (#22)
 
----
+- FR-015: All reviewer skills MUST check for CLAUDE.md at project root and read it if present
+- FR-016: All reviewer skills MUST check for AGENTS.md at project root and read it if present
+- FR-017: All reviewer skills MUST check for skill-specific override files in `.ralph/` directory
+- FR-018: Project rules from context files MUST take precedence over built-in standards
+- FR-019: Review feedback SHOULD reference relevant project patterns when applicable
 
-## 3. Requirements
+### Non-Functional Requirements
 
-### 3.1 Reviewer Configuration
+- NFR-001: Skill file changes must follow existing markdown structure and formatting conventions
+- NFR-002: Changes must be backward compatible (skills work with or without context files)
+- NFR-003: All reviewer skills must use consistent language for context file instructions
 
-| ID | Requirement |
-|----|-------------|
-| FR-REV-01 | Reviewers are configured in CLAUDE.md between `<!-- RALPH:REVIEWERS:START -->` and `<!-- RALPH:REVIEWERS:END -->` markers |
-| FR-REV-02 | Configuration uses YAML format consistent with existing checks |
-| FR-REV-03 | Each reviewer entry has: `name`, `skill`, `level` (blocking/warning/suggestion) |
-| FR-REV-04 | Reviewers can optionally specify `languages: [python, typescript, ...]` filter |
-| FR-REV-05 | Reviewers execute in the order defined in configuration |
-| FR-REV-06 | Default configuration is provided when markers are not present |
+## Technical Considerations
 
-**Configuration format:**
-```yaml
-<!-- RALPH:REVIEWERS:START -->
-reviewers:
-  - name: test-quality
-    skill: reviewers/test-quality
-    level: blocking
-  - name: code-simplifier
-    skill: reviewers/code-simplifier
-    level: blocking
-  - name: python-code
-    skill: reviewers/language/python
-    languages: [python]
-    level: blocking
-  - name: github-actions
-    skill: reviewers/github-actions
-    level: warning
-  - name: repo-structure
-    skill: reviewers/repo-structure
-    level: warning
-  - name: release
-    skill: reviewers/release
-    level: blocking
-<!-- RALPH:REVIEWERS:END -->
-```
+### Architecture
 
-### 3.2 Language Detection
+All changes are to skill definition files (markdown). No Python code changes required.
 
-| ID | Requirement |
-|----|-------------|
-| FR-LANG-01 | Auto-detect project languages from marker files |
-| FR-LANG-02 | `pyproject.toml` or `setup.py` → Python |
-| FR-LANG-03 | `package.json` → JavaScript/TypeScript |
-| FR-LANG-04 | `go.mod` → Go |
-| FR-LANG-05 | `Cargo.toml` → Rust |
-| FR-LANG-06 | Multiple languages can be detected simultaneously |
-| FR-LANG-07 | Language detection runs once at start of review loop |
+**Affected files (review scope standardization - #28):**
+- `skills/reviewers/code-simplifier/SKILL.md` - update Review Scope section
+- `skills/reviewers/test-quality/SKILL.md` - update Review Scope section
+- `skills/reviewers/language/python/SKILL.md` - update Review Scope section
+- `skills/REVIEWER_TEMPLATE.md` - update Review Scope section to new pattern
 
-### 3.3 Review Loop Execution
+**Affected files (test appropriateness - #29):**
+- `skills/reviewers/test-quality/SKILL.md` - add Test Appropriateness section
 
-| ID | Requirement |
-|----|-------------|
-| FR-EXEC-01 | Review loop runs only after all stories in `ralph loop` pass |
-| FR-EXEC-02 | Each reviewer spawns a fresh Claude instance (clean context) |
-| FR-EXEC-03 | Reviewer receives the skill content and implements changes |
-| FR-EXEC-04 | After each reviewer completes, append summary to PROGRESS.txt |
-| FR-EXEC-05 | If reviewer finds blocking issues and fix fails, retry up to 3 times |
-| FR-EXEC-06 | After 3 failed attempts, log the issue and continue to next reviewer |
-| FR-EXEC-07 | Reviewers without `languages` filter always run |
-| FR-EXEC-08 | Reviewers with `languages` filter only run if language is detected |
+**Affected files (project context - #22):**
+- `skills/reviewers/code-simplifier/SKILL.md`
+- `skills/reviewers/test-quality/SKILL.md`
+- `skills/reviewers/language/python/SKILL.md`
+- `skills/reviewers/repo-structure/SKILL.md`
+- `skills/reviewers/github-actions/SKILL.md`
+- `skills/reviewers/release/SKILL.md`
 
-### 3.4 CLI Flags
+### Dependencies
 
-| ID | Requirement |
-|----|-------------|
-| FR-FLAG-01 | `--skip-review` bypasses the entire review loop |
-| FR-FLAG-02 | `--strict` treats `warning` level reviewers as blocking |
-| FR-FLAG-03 | Default behavior (no flags): review enabled, only `blocking` level enforced |
-| FR-FLAG-04 | `suggestion` level reviewers are always informational (logged but not enforced) |
+None - these are standalone skill definition updates.
 
-**Behavior matrix:**
+### Integration Points
 
-| Flag | Blocking | Warning | Suggestion |
-|------|----------|---------|------------|
-| (default) | Enforced | Logged | Logged |
-| `--strict` | Enforced | Enforced | Logged |
-| `--skip-review` | Skipped | Skipped | Skipped |
+- Skills are invoked by Claude Code during `ralph loop` review phase
+- Skills read git state to determine files to review
+- Skills may read CLAUDE.md/AGENTS.md for project context
 
-### 3.5 Release Reviewer Skill
+## Success Criteria
 
-| ID | Requirement |
-|----|-------------|
-| FR-RELEASE-01 | Create new `reviewers/release` skill |
-| FR-RELEASE-02 | Check for changelog entries corresponding to changes |
-| FR-RELEASE-03 | Verify version consistency between pyproject.toml and __init__.py |
-| FR-RELEASE-04 | Verify nothing is missing from CHANGELOG.md, AGENTS.md, CLAUDE.md, and README.md |
-| FR-RELEASE-05 | Clean up PROGRESS.txt archives in plans/ after verification |
-| FR-RELEASE-06 | Verify git tag readiness (version not already tagged) |
-| FR-RELEASE-07 | Check for any TODOs or FIXMEs that should be addressed |
+- [ ] code-simplifier, test-quality-reviewer, and python-code-reviewer all use `git diff main...HEAD`
+- [ ] All three diff-based reviewers have identical Review Scope documentation
+- [ ] `skills/REVIEWER_TEMPLATE.md` updated with new review scope pattern
+- [ ] test-quality-reviewer includes "Test Appropriateness" section with over-testing indicators
+- [ ] All 6 reviewer skills include consistent "Project Context" section
+- [ ] Running `ralph loop` on a feature branch results in diff-based reviewers finding committed files
+- [ ] test-quality-reviewer flags tests that verify enum literal values as warnings
+- [ ] Reviewer skills respect patterns defined in CLAUDE.md when present
 
-### 3.6 Skills Directory Restructure
+## Open Questions
 
-| ID | Requirement |
-|----|-------------|
-| FR-STRUCT-01 | Move `ralph-prd/` to `ralph/prd/` |
-| FR-STRUCT-02 | Move `ralph-tasks/` to `ralph/tasks/` |
-| FR-STRUCT-03 | Move `ralph-iteration/` to `ralph/iteration/` |
-| FR-STRUCT-04 | Move `code-simplifier/` to `reviewers/code-simplifier/` |
-| FR-STRUCT-05 | Move `test-quality-reviewer/` to `reviewers/test-quality/` |
-| FR-STRUCT-06 | Move `repo-structure-reviewer/` to `reviewers/repo-structure/` |
-| FR-STRUCT-07 | Move `github-actions-reviewer/` to `reviewers/github-actions/` |
-| FR-STRUCT-08 | Move `python-code-reviewer/` to `reviewers/language/python/` |
-| FR-STRUCT-09 | Create `reviewers/release/` with new skill |
+None - requirements are well-defined in the GitHub issues.
 
-### 3.7 Sync Command Updates
+## References
 
-| ID | Requirement |
-|----|-------------|
-| FR-SYNC-01 | `ralph sync` mirrors nested structure to `~/.claude/skills/` |
-| FR-SYNC-02 | Manifest stores full paths: `["ralph/prd", "reviewers/code-simplifier", ...]` |
-| FR-SYNC-03 | `ralph sync --remove` removes nested directories correctly |
-| FR-SYNC-04 | Clean up any old flat-structure skills during sync |
-
-### 3.8 Skill Loader Updates
-
-| ID | Requirement |
-|----|-------------|
-| FR-LOADER-01 | SkillLoader accepts nested paths like `ralph/prd` |
-| FR-LOADER-02 | Update all command skill references to use new paths |
-| FR-LOADER-03 | Maintain backward compatibility during transition (optional) |
-
----
-
-## 4. Technical Considerations
-
-### 4.1 Reviewer Configuration Parsing
-
-Reuse the existing YAML parsing pattern from checks:
-
-```python
-def parse_reviewers(claude_md_content: str) -> list[ReviewerConfig]:
-    """Parse reviewers from CLAUDE.md YAML block."""
-    match = re.search(
-        r'<!-- RALPH:REVIEWERS:START -->\s*```yaml\s*(.*?)\s*```\s*<!-- RALPH:REVIEWERS:END -->',
-        claude_md_content,
-        re.DOTALL
-    )
-    if not match:
-        return get_default_reviewers()
-
-    data = yaml.safe_load(match.group(1))
-    return [ReviewerConfig(**r) for r in data.get('reviewers', [])]
-```
-
-### 4.2 Language Detection
-
-```python
-LANGUAGE_MARKERS = {
-    'python': ['pyproject.toml', 'setup.py', 'requirements.txt'],
-    'javascript': ['package.json'],
-    'typescript': ['package.json', 'tsconfig.json'],
-    'go': ['go.mod'],
-    'rust': ['Cargo.toml'],
-}
-
-def detect_languages(project_root: Path) -> set[str]:
-    """Detect project languages from marker files."""
-    detected = set()
-    for language, markers in LANGUAGE_MARKERS.items():
-        if any((project_root / marker).exists() for marker in markers):
-            detected.add(language)
-    return detected
-```
-
-### 4.3 Review Loop Flow
-
-```python
-async def run_review_loop(
-    reviewers: list[ReviewerConfig],
-    detected_languages: set[str],
-    strict: bool,
-    progress_file: Path,
-) -> None:
-    for reviewer in reviewers:
-        # Skip if language filter doesn't match
-        if reviewer.languages and not (set(reviewer.languages) & detected_languages):
-            console.print(f"Skipping {reviewer.name} (language not detected)")
-            continue
-
-        # Determine if enforced
-        enforced = reviewer.level == 'blocking' or (strict and reviewer.level == 'warning')
-
-        # Spawn fresh Claude instance
-        success = await run_reviewer_with_retries(
-            reviewer,
-            enforced=enforced,
-            max_retries=3,
-        )
-
-        # Log to progress
-        append_review_summary(progress_file, reviewer, success)
-```
-
-### 4.4 Manifest Format Update
-
-```json
-{
-  "version": 2,
-  "installed": [
-    "ralph/prd",
-    "ralph/tasks",
-    "ralph/iteration",
-    "reviewers/code-simplifier",
-    "reviewers/test-quality",
-    "reviewers/repo-structure",
-    "reviewers/github-actions",
-    "reviewers/release",
-    "reviewers/language/python"
-  ],
-  "synced_at": "2026-01-22T12:00:00Z"
-}
-```
-
-### 4.5 Migration Path
-
-1. Run `ralph sync --remove` to clean old skills
-2. Restructure skills directory
-3. Update skill references in code
-4. Run `ralph sync` to install new structure
-5. Update CLAUDE.md with reviewer configuration
-
----
-
-## 5. Success Criteria
-
-| # | Criterion |
-|---|-----------|
-| 1 | `ralph loop` runs review loop after stories complete (default behavior) |
-| 2 | `ralph loop --skip-review` bypasses review loop entirely |
-| 3 | `ralph loop --strict` enforces warning-level reviewers |
-| 4 | Reviewers execute in configured order |
-| 5 | Language-specific reviewers only run when language detected |
-| 6 | Each review iteration appends summary to PROGRESS.txt |
-| 7 | Skills directory uses nested structure |
-| 8 | `ralph sync` and `ralph sync --remove` work with new structure |
-| 9 | All existing commands work with restructured skills |
-| 10 | New release reviewer skill created and functional |
-| 11 | All quality checks pass (typecheck, lint, format, test) |
-
----
-
-## 6. Default Reviewer Configuration
-
-When no `<!-- RALPH:REVIEWERS:START -->` block exists, use these defaults:
-
-```yaml
-reviewers:
-  - name: test-quality
-    skill: reviewers/test-quality
-    level: blocking
-  - name: code-simplifier
-    skill: reviewers/code-simplifier
-    level: blocking
-  - name: python-code
-    skill: reviewers/language/python
-    languages: [python]
-    level: blocking
-  - name: github-actions
-    skill: reviewers/github-actions
-    level: warning
-  - name: repo-structure
-    skill: reviewers/repo-structure
-    level: warning
-  - name: release
-    skill: reviewers/release
-    level: blocking
-```
-
----
-
-## 7. Future Enhancements
-
-The following are out of scope for v2.1 but tracked for future consideration:
-
-1. **Partial review runs** - If `ralph loop` is interrupted mid-review, add capability to resume from where it left off. ([#26](https://github.com/jackemcpherson/ralph-cli/issues/26))
+- GitHub Issue #28: https://github.com/jackemcpherson/ralph-cli/issues/28
+- GitHub Issue #29: https://github.com/jackemcpherson/ralph-cli/issues/29
+- GitHub Issue #22: https://github.com/jackemcpherson/ralph-cli/issues/22

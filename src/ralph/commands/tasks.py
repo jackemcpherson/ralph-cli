@@ -245,8 +245,8 @@ def _is_valid_json(text: str) -> bool:
 def _get_tasks_from_output_or_file(output_text: str, output_path: Path) -> TasksFile | None:
     """Get TasksFile from Claude's output or from the file if Claude wrote it directly.
 
-    First checks if the output file exists and contains valid JSON (Claude may
-    have written it directly). Falls back to extracting JSON from stdout.
+    First tries to extract JSON from stdout (preferred since the skill instructs
+    Claude to output JSON). Falls back to checking if Claude wrote the file directly.
 
     Args:
         output_text: Claude's stdout output.
@@ -255,7 +255,15 @@ def _get_tasks_from_output_or_file(output_text: str, output_path: Path) -> Tasks
     Returns:
         TasksFile model if valid JSON found, None otherwise.
     """
-    # First, check if Claude wrote the file directly
+    # First, try extracting from stdout (preferred - skill instructs Claude to output JSON)
+    json_content = _extract_json(output_text)
+    if json_content:
+        try:
+            return TasksFile.model_validate_json(json_content)
+        except ValidationError as e:
+            logger.warning(f"JSON from stdout didn't validate: {e}")
+
+    # Fall back to checking if Claude wrote the file directly
     if output_path.exists():
         try:
             file_content = read_file(output_path)
@@ -264,15 +272,6 @@ def _get_tasks_from_output_or_file(output_text: str, output_path: Path) -> Tasks
             return tasks_model
         except (ValidationError, json.JSONDecodeError, OSError) as e:
             logger.debug(f"File exists but couldn't parse: {e}")
-            # File exists but invalid - continue to try stdout
-
-    # Fall back to extracting from stdout
-    json_content = _extract_json(output_text)
-    if json_content:
-        try:
-            return TasksFile.model_validate_json(json_content)
-        except ValidationError as e:
-            logger.warning(f"JSON from stdout didn't validate: {e}")
 
     return None
 
