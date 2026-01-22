@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
+from ralph.models.finding import ReviewOutput, parse_review_output
 from ralph.models.reviewer import ReviewerConfig, ReviewerLevel
 from ralph.services.claude import ClaudeService
 from ralph.services.language import Language
@@ -28,6 +29,7 @@ class ReviewerResult(NamedTuple):
         skipped: Whether the reviewer was skipped (e.g., language mismatch).
         attempts: Number of attempts made (1-3 for blocking reviewers).
         error: Error message if the reviewer failed.
+        review_output: Parsed ReviewOutput with verdict and findings when available.
     """
 
     reviewer_name: str
@@ -35,6 +37,7 @@ class ReviewerResult(NamedTuple):
     skipped: bool
     attempts: int
     error: str | None = None
+    review_output: ReviewOutput | None = None
 
 
 class ReviewLoopService(BaseModel):
@@ -127,6 +130,7 @@ class ReviewLoopService(BaseModel):
         prompt = self._build_reviewer_prompt(reviewer, skill_content)
 
         attempts_allowed = max_retries if enforced else 1
+        last_output: str = ""
 
         for attempt in range(1, attempts_allowed + 1):
             logger.info(f"Running reviewer {reviewer.name} (attempt {attempt}/{attempts_allowed})")
@@ -136,12 +140,16 @@ class ReviewLoopService(BaseModel):
                     working_dir=self.project_root,
                     verbose=self.verbose,
                 )
-                _, exit_code = claude.run_print_mode(
+                output_text, exit_code = claude.run_print_mode(
                     prompt,
                     stream=True,
                     skip_permissions=True,
                     append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
                 )
+                last_output = output_text
+
+                # Parse structured output to extract verdict and findings
+                review_output = parse_review_output(output_text)
 
                 if exit_code == 0:
                     return ReviewerResult(
@@ -149,6 +157,7 @@ class ReviewLoopService(BaseModel):
                         success=True,
                         skipped=False,
                         attempts=attempt,
+                        review_output=review_output,
                     )
 
                 logger.warning(
@@ -167,12 +176,16 @@ class ReviewLoopService(BaseModel):
                         error=str(e),
                     )
 
+        # Parse last output for final result (may contain findings even on failure)
+        review_output = parse_review_output(last_output) if last_output else None
+
         return ReviewerResult(
             reviewer_name=reviewer.name,
             success=False,
             skipped=False,
             attempts=attempts_allowed,
             error=f"Failed after {attempts_allowed} attempts",
+            review_output=review_output,
         )
 
     def run_review_loop(
@@ -266,6 +279,9 @@ Begin the review now."""
     ) -> None:
         """Append a review summary to PROGRESS.txt.
 
+        Logs the full structured format when findings are available,
+        otherwise logs a simple summary line.
+
         Args:
             progress_path: Path to PROGRESS.txt.
             reviewer: The reviewer configuration.
@@ -273,16 +289,55 @@ Begin the review now."""
         """
         timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
+        # For skipped reviewers, use simple format
         if result.skipped:
             status = "skipped (language filter)"
-        elif result.success:
-            status = "passed"
-        else:
-            status = f"failed after {result.attempts} attempts"
-            if result.error:
-                status += f" ({result.error})"
+            level_val = reviewer.level.value
+            note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({level_val}): {status}\n"
+            try:
+                with open(progress_path, "a", encoding="utf-8") as f:
+                    f.write(note)
+            except OSError as e:
+                logger.warning(f"Could not append review summary: {e}")
+            return
 
-        note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({reviewer.level.value}): {status}\n"
+        # Build structured format when review_output is available
+        if result.review_output:
+            verdict_str = result.review_output.verdict.value
+            lines = [
+                f"\n[Review] {timestamp} - {reviewer.name} ({reviewer.level.value})",
+                "",
+                f"### Verdict: {verdict_str}",
+            ]
+
+            if result.review_output.findings:
+                lines.append("")
+                lines.append("### Findings")
+                lines.append("")
+                for i, finding in enumerate(result.review_output.findings, 1):
+                    file_loc = finding.file_path
+                    if finding.line_number:
+                        file_loc += f":{finding.line_number}"
+                    brief = finding.issue[:50] + "..." if len(finding.issue) > 50 else finding.issue
+                    lines.append(f"{i}. **{finding.id}**: {finding.category} - {brief}")
+                    lines.append(f"   - File: {file_loc}")
+                    lines.append(f"   - Issue: {finding.issue}")
+                    lines.append(f"   - Suggestion: {finding.suggestion}")
+                    lines.append("")
+
+            lines.append("---")
+            lines.append("")
+            note = "\n".join(lines)
+        else:
+            # Fallback to simple format when no structured output
+            if result.success:
+                status = "passed"
+            else:
+                status = f"failed after {result.attempts} attempts"
+                if result.error:
+                    status += f" ({result.error})"
+            level_val = reviewer.level.value
+            note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({level_val}): {status}\n"
 
         try:
             with open(progress_path, "a", encoding="utf-8") as f:
