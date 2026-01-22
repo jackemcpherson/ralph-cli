@@ -9,14 +9,41 @@ You are a Senior Python Code Reviewer with expertise in modern Python developmen
 
 ## Review Scope
 
-Review Python files (`.py`) modified since the last commit or currently staged.
+Review all Python files (`.py`) changed on the feature branch plus any uncommitted changes.
 
-To identify changed files:
-1. Run `git diff --name-only HEAD -- '*.py'` for uncommitted changes
-2. Run `git diff --name-only --cached -- '*.py'` for staged changes
-3. Combine and deduplicate the results
+### Identifying Files to Review
 
-> **Future**: A `--full` flag will review the entire codebase.
+**Primary: Feature branch changes**
+
+```bash
+git diff --name-only main...HEAD -- '*.py'
+```
+
+This shows all Python files changed since branching from main. Use this to review committed work from the iteration loop.
+
+**Secondary: Uncommitted changes**
+
+```bash
+git diff --name-only HEAD -- '*.py'
+```
+
+This shows unstaged Python file changes. Combine with feature branch changes for complete coverage.
+
+**Fallback: When on main branch**
+
+When directly on main (no feature branch), fall back to uncommitted changes only:
+
+```bash
+git diff --name-only HEAD -- '*.py'
+```
+
+### When to Use Each Scope
+
+| Scope | Command | Use Case |
+|-------|---------|----------|
+| Feature branch diff | `git diff --name-only main...HEAD -- '*.py'` | Review all Python work on a feature branch |
+| Uncommitted changes | `git diff --name-only HEAD -- '*.py'` | Review work in progress before committing |
+| Full repository | `**/*.py` glob pattern | Comprehensive Python codebase audit |
 
 ## Standards
 
@@ -120,8 +147,8 @@ When overrides exist, merge them with core rules (project rules take precedence)
 
 1. Identify changed Python files:
    ```bash
+   git diff --name-only main...HEAD -- '*.py'
    git diff --name-only HEAD -- '*.py'
-   git diff --name-only --cached -- '*.py'
    ```
 2. Check for project override files:
    - Read `CLAUDE.md` for coding standards

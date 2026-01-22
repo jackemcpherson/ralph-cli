@@ -14,628 +14,119 @@
 
 ## 2026-01-22 - US-001
 
-**Story:** Create ReviewerConfig Pydantic model
+**Story:** Update REVIEWER_TEMPLATE.md with new review scope pattern
 
 ### What was implemented
-- Created `ReviewerLevel` enum with three values: `blocking`, `warning`, `suggestion`
-- Created `ReviewerConfig` Pydantic model with fields:
-  - `name`: Display name of the reviewer
-  - `skill`: Skill path to invoke for this reviewer
-  - `level`: Severity level (ReviewerLevel enum)
-  - `languages`: Optional list of strings for language filtering (defaults to None)
-- Exported both models from `ralph.models` module
+- Rewrote the Review Scope section in skills/REVIEWER_TEMPLATE.md
+- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
+- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
+- Added fallback behavior when on main branch (use uncommitted changes only)
+- Added "When to Use Each Scope" table documenting feature branch diff, uncommitted changes, and full repository scopes
+- Updated HTML comments to reflect new scope pattern
 
 ### Tests written
-- `TestReviewerLevel`: 5 tests verifying enum values and string comparison behavior
-- `TestReviewerConfig`: 11 tests covering:
-  - Model creation with all fields
-  - Default value for languages (None)
-  - Multiple languages support
-  - Empty languages list handling
-  - Level field accepting string values that map to enum
-  - Required field validation (name, skill, level)
-  - Invalid level value handling
-  - Model serialization (model_dump)
-  - Model creation from dict (model_validate)
+- No code tests needed (documentation-only change)
+- Template passes all quality checks (pyright, ruff lint, ruff format, pytest)
 
 ### Files changed
-- `src/ralph/models/reviewer.py` (new)
-- `src/ralph/models/__init__.py` (updated exports)
-- `tests/test_reviewer_config.py` (new)
+- skills/REVIEWER_TEMPLATE.md
 
 ### Learnings for future iterations
-- `str, Enum` pattern allows enum values to be compared directly with strings using `==`
-- When testing `str(EnumValue)`, it returns the full enum name (e.g., `ReviewerLevel.blocking`), not just the value
-- Follow existing model patterns: use `Field(...)` for required fields, `Field(default=...)` for optional
+- The three-dot syntax `main...HEAD` shows all commits reachable from HEAD but not from main (feature branch work)
+- The `git diff --name-only HEAD` shows uncommitted changes only
+- Reviewers need both patterns to cover committed work on the branch plus work in progress
+
+---
+
+[Ralph Loop] 2026-01-22 02:57 UTC - Iteration 1: US-001 (Update REVIEWER_TEMPLATE.md with new review scope pattern) completed
 
 ---
 
 ## 2026-01-22 - US-002
 
-**Story:** Implement reviewer configuration parsing from CLAUDE.md
+**Story:** Standardize code-simplifier review scope to feature branch diff
 
 ### What was implemented
-- Created `ReviewerConfigs` container model to hold list of `ReviewerConfig` objects
-- Created `_REVIEWERS_PATTERN` regex to match RALPH:REVIEWERS markers (consistent with checks pattern)
-- Implemented `get_default_reviewers()` function returning default reviewer configuration:
-  - test-quality, code-simplifier, python-code as blocking
-  - github-actions, repo-structure as warning
-  - release as blocking
-  - python-code filtered to python language
-- Implemented `parse_reviewer_configs(content: str)` function:
-  - Extracts YAML from between markers
-  - Returns list of ReviewerConfig objects
-  - Returns default reviewers when markers missing or content malformed
-- Implemented `load_reviewer_configs(path: Path)` function:
-  - Loads CLAUDE.md file and delegates to parse function
-  - Returns defaults if file doesn't exist
-- Exported all new functions and classes from `ralph.models` module
+- Replaced the Review Scope section in skills/reviewers/code-simplifier/SKILL.md
+- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
+- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
+- Added fallback behavior when on main branch (use uncommitted changes only)
+- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
+- Removed the old "Future --full flag" note
 
 ### Tests written
-- `TestReviewerConfigs`: 2 tests for container model
-- `TestGetDefaultReviewers`: 4 tests verifying default configuration
-- `TestParseReviewerConfigs`: 8 tests covering:
-  - Valid reviewers block parsing
-  - Missing markers returns defaults
-  - Languages filter parsing
-  - Malformed YAML returns defaults
-  - Invalid structure returns defaults
-  - Empty list returns defaults
-  - All severity levels parsed correctly
-- `TestLoadReviewerConfigs`: 3 tests for file loading
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
 
 ### Files changed
-- `src/ralph/models/reviewer.py` (extended with parsing functions)
-- `src/ralph/models/__init__.py` (updated exports)
-- `tests/test_reviewer_config.py` (added 17 new tests)
+- skills/reviewers/code-simplifier/SKILL.md
 
 ### Learnings for future iterations
-- Follow the exact pattern from config.py when adding new YAML-based parsing
-- Container models (like ReviewerConfigs) are useful for Pydantic validation of YAML structures
-- Return defaults for any error case (missing markers, malformed YAML, empty list) for robustness
+- Reviewer skills should follow the REVIEWER_TEMPLATE.md pattern for consistency
+- All reviewers in this release need the same Review Scope update (US-003, US-004)
 
 ---
 
-[Ralph Loop] 2026-01-21 22:10 UTC - Iteration 1: US-001 (Create ReviewerConfig Pydantic model) completed
-[Ralph Loop] 2026-01-22 - Iteration 2: US-002 (Implement reviewer configuration parsing from CLAUDE.md) completed
-
-[Ralph Loop] 2026-01-21 22:13 UTC - Iteration 2: US-002 (Implement reviewer configuration parsing from CLAUDE.md) completed
+[Ralph Loop] 2026-01-22 02:59 UTC - Iteration 2: US-002 (Standardize code-simplifier review scope to feature branch diff) completed
 
 ---
 
 ## 2026-01-22 - US-003
 
-**Story:** Implement language detection service
+**Story:** Standardize test-quality-reviewer review scope to feature branch diff
 
 ### What was implemented
-- Created `Language` enum with values: `python`, `javascript`, `typescript`, `go`, `rust`
-- Created `LanguageDetector` Pydantic model service with:
-  - `project_root`: Path to the project directory
-  - `detect()`: Returns set of detected languages
-  - `has_language()`: Checks if specific language is detected
-- Defined marker file mappings:
-  - Python: `pyproject.toml`, `setup.py`, `requirements.txt`
-  - JavaScript: `package.json`
-  - TypeScript: `tsconfig.json`
-  - Go: `go.mod`
-  - Rust: `Cargo.toml`
-- Created `detect_languages()` convenience function for quick detection
-- Exported `Language`, `LanguageDetector`, and `detect_languages` from `ralph.services` module
+- Replaced the Review Scope section in skills/reviewers/test-quality/SKILL.md
+- Added primary scope: `git diff --name-only main...HEAD` for feature branch changes
+- Added secondary scope: `git diff --name-only HEAD` for uncommitted changes
+- Added fallback behavior when on main branch (use uncommitted changes only)
+- Added "Filtering to Test Files" subsection with patterns: `test_*.py`, `*_test.py`, `*.spec.*`, `__tests__/`
+- Added grep example for filtering test files from diff output
+- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
+- Updated Phase 1: Gather section to use new git diff commands
+- Removed the old "Future --full flag" note
 
 ### Tests written
-- `TestLanguageEnum`: 7 tests verifying enum values and string comparison
-- `TestLanguageDetectorPython`: 4 tests for Python detection from all marker files
-- `TestLanguageDetectorJavaScript`: 3 tests for JS/TS detection
-- `TestLanguageDetectorGo`: 2 tests for Go detection
-- `TestLanguageDetectorRust`: 2 tests for Rust detection
-- `TestLanguageDetectorMultiple`: 2 tests for multiple language detection
-- `TestLanguageDetectorNoLanguages`: 2 tests for empty/unknown project scenarios
-- `TestDetectLanguagesFunction`: 3 tests for convenience function
-- `TestLanguageDetectorModel`: 3 tests for Pydantic model behavior
-
-Total: 28 new tests
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
 
 ### Files changed
-- `src/ralph/services/language.py` (new)
-- `src/ralph/services/__init__.py` (updated exports)
-- `tests/test_language_detection.py` (new)
+- skills/reviewers/test-quality/SKILL.md
 
 ### Learnings for future iterations
-- Services can be simple Pydantic models with methods, similar to GitService pattern
-- Use `ConfigDict(arbitrary_types_allowed=True)` for Path fields in Pydantic models
-- Language detection is file-existence based, not content-based - keeps it fast and simple
+- Test-quality-reviewer needed an additional "Filtering to Test Files" subsection specific to its scope
+- The grep pattern for test files should include `__tests__/` for Jest-style directory matching
 
 ---
 
-[Ralph Loop] 2026-01-22 - Iteration 3: US-003 (Implement language detection service) completed
+[Ralph Loop] 2026-01-22 03:02 UTC - Iteration 3: US-003 (Standardize test-quality-reviewer review scope to feature branch diff) completed
 
-[Ralph Loop] 2026-01-21 22:16 UTC - Iteration 3: US-003 (Implement language detection service) completed
+[Ralph Loop] 2026-01-22 03:01 UTC - Iteration 3: US-003 (Standardize test-quality-reviewer review scope to feature branch diff) completed
 
 ---
 
 ## 2026-01-22 - US-004
 
-**Story:** Add --skip-review and --strict flags to ralph loop
+**Story:** Standardize python-code-reviewer review scope to feature branch diff
 
 ### What was implemented
-- Added `--skip-review` flag to loop command (defaults to False)
-- Added `--strict` flag to loop command (defaults to False)
-- Updated command docstring to describe the new flags and their behavior
-- Added debug logging to show flag values when all stories complete
-- Prepared integration point for US-006 where review loop will be connected
+- Replaced the Review Scope section in skills/reviewers/language/python/SKILL.md
+- Added primary scope: `git diff --name-only main...HEAD -- '*.py'` for feature branch changes
+- Added secondary scope: `git diff --name-only HEAD -- '*.py'` for uncommitted changes
+- Added fallback behavior when on main branch (use uncommitted changes only)
+- Added "When to Use Each Scope" table matching the REVIEWER_TEMPLATE.md pattern
+- Updated Phase 1: Gather section to use new git diff commands
+- Removed the old "Future --full flag" note
 
 ### Tests written
-- `test_loop_accepts_skip_review_flag`: Verifies the flag is accepted and loop completes successfully
-- `test_loop_accepts_strict_flag`: Verifies the flag is accepted and loop completes successfully
-- `test_loop_accepts_both_skip_review_and_strict_flags`: Verifies both flags work together
-- `test_loop_help_shows_skip_review_flag`: Verifies help text shows flag and description
-- `test_loop_help_shows_strict_flag`: Verifies help text shows flag and description
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
 
 ### Files changed
-- `src/ralph/commands/loop.py` (added flags and documentation)
-- `tests/test_commands_integration.py` (added 5 new tests)
-- `plans/TASKS.json` (marked US-004 as passes: true)
+- skills/reviewers/language/python/SKILL.md
 
 ### Learnings for future iterations
-- Typer help text can wrap across multiple lines, so tests should check for key phrases rather than full sentences
-- Future stories (US-005, US-006) will implement the actual review loop; this story just adds the CLI interface
-
-[Ralph Loop] 2026-01-21 22:20 UTC - Iteration 4: US-004 (Add --skip-review and --strict flags to ralph loop) completed
+- Python-code-reviewer uses `-- '*.py'` filter in git diff commands to scope to Python files only
+- The pattern matches REVIEWER_TEMPLATE.md but with Python-specific file filtering
 
 ---
-
-## 2026-01-22 - US-005
-
-**Story:** Implement review loop execution service
-
-### What was implemented
-- Created `ReviewerResult` NamedTuple to represent execution outcomes with fields:
-  - `reviewer_name`: Name of the reviewer
-  - `success`: Whether execution succeeded
-  - `skipped`: Whether reviewer was skipped (language mismatch)
-  - `attempts`: Number of attempts made
-  - `error`: Optional error message
-- Created `ReviewLoopService` Pydantic model with methods:
-  - `should_run_reviewer()`: Determines if reviewer should run based on language filtering
-  - `is_enforced()`: Determines if failures should be enforced based on level and strict mode
-  - `run_reviewer()`: Executes a single reviewer with retry logic
-  - `run_review_loop()`: Orchestrates full review loop execution
-- Implemented language filtering:
-  - Reviewers without `languages` filter always run
-  - Reviewers with empty `languages` list always run
-  - Reviewers with `languages` filter only run if any language matches
-- Implemented retry logic:
-  - Enforced reviewers (blocking, or warning in strict mode) retry up to 3 times
-  - Non-enforced reviewers (suggestion, or warning in normal mode) run once
-  - Continues to next reviewer after all retries exhausted
-- Implemented progress logging:
-  - Appends `[Review Loop]` entries to PROGRESS.txt after each reviewer
-  - Shows status: passed, skipped (language filter), or failed with attempt count
-- Created `filter_reviewers_by_language()` convenience function
-- Exported `ReviewerResult`, `ReviewLoopService`, and `filter_reviewers_by_language` from `ralph.services`
-
-### Tests written
-- `TestReviewerResult`: 3 tests for success/failure/skipped cases
-- `TestReviewLoopServiceShouldRunReviewer`: 5 tests for language filtering logic
-- `TestReviewLoopServiceIsEnforced`: 3 tests for enforcement rules
-- `TestReviewLoopServiceRunReviewer`: 6 tests for retry behavior
-- `TestReviewLoopServiceRunReviewLoop`: 4 tests for orchestration
-- `TestFilterReviewersByLanguage`: 3 tests for convenience function
-- `TestReviewLoopServiceProgressSummary`: 3 tests for progress appending
-
-Total: 27 new tests
-
-### Files changed
-- `src/ralph/services/review_loop.py` (new)
-- `src/ralph/services/__init__.py` (updated exports)
-- `tests/test_review_loop.py` (new)
-- `plans/TASKS.json` (marked US-005 as passes: true)
-
-### Learnings for future iterations
-- Use `NamedTuple` for simple immutable result types (like ReviewerResult)
-- Services using Claude should mock `ClaudeService` in tests to avoid subprocess calls
-- Retry logic should use `enforced` parameter to determine retry count, not reviewer level directly
-- Progress summaries should include both the reviewer name and level for context
-
-[Ralph Loop] 2026-01-22 - Iteration 5: US-005 (Implement review loop execution service) completed
-
-[Ralph Loop] 2026-01-21 22:24 UTC - Iteration 5: US-005 (Implement review loop execution service) completed
-
----
-
-## 2026-01-22 - US-006
-
-**Story:** Integrate review loop into ralph loop command
-
-### What was implemented
-- Added `_run_review_loop()` function to loop.py that:
-  - Loads reviewer configurations from CLAUDE.md using `load_reviewer_configs()`
-  - Detects project languages using `detect_languages()`
-  - Creates and runs `ReviewLoopService` with configured reviewers
-  - Displays review progress and summary with pass/fail/skip counts
-- Integrated review loop into main `loop()` function:
-  - Runs after all stories complete (when `stop_reason == LoopStopReason.ALL_COMPLETE`)
-  - Respects `--skip-review` flag to bypass review loop
-  - Passes `--strict` flag to enforce warning-level reviewers
-- Added console output showing:
-  - Number of reviewers loaded
-  - Detected languages
-  - Strict mode indication
-  - Per-reviewer status (passed/failed/skipped)
-  - Summary counts
-
-### Tests written
-- `test_loop_runs_review_loop_after_stories_complete`: Verifies review loop is called after stories complete
-- `test_loop_skips_review_loop_with_skip_review_flag`: Verifies --skip-review bypasses review loop
-- `test_loop_passes_strict_flag_to_review_loop`: Verifies --strict flag is passed through
-- `test_loop_shows_review_summary`: Verifies warning message shown when review loop has failures
-
-### Files changed
-- `src/ralph/commands/loop.py` (added imports, integrated review loop, added _run_review_loop function)
-- `tests/test_commands_integration.py` (added 5 new tests)
-- `plans/TASKS.json` (marked US-006 as passes: true)
-
-### Learnings for future iterations
-- Mock `_run_review_loop` function directly in tests rather than mocking the service to simplify test setup
-- Review loop returns boolean success but command still exits 0 since stories passed - reviews are informational
-- Using keyword-only arguments (`*,`) in helper functions makes call sites more readable
-
-[Ralph Loop] 2026-01-22 - Iteration 6: US-006 (Integrate review loop into ralph loop command) completed
-
-[Ralph Loop] 2026-01-21 22:28 UTC - Iteration 6: US-006 (Integrate review loop into ralph loop command) completed
-
----
-
-## 2026-01-22 - US-007
-
-**Story:** Restructure skills directory - ralph core skills
-
-### What was implemented
-- Created new `skills/ralph/` directory with subdirectories: `prd/`, `tasks/`, `iteration/`
-- Moved `skills/ralph-prd/SKILL.md` to `skills/ralph/prd/SKILL.md`
-- Moved `skills/ralph-tasks/SKILL.md` to `skills/ralph/tasks/SKILL.md`
-- Moved `skills/ralph-iteration/SKILL.md` to `skills/ralph/iteration/SKILL.md`
-- Removed old empty directories: `ralph-prd/`, `ralph-tasks/`, `ralph-iteration/`
-
-### Tests written
-- No tests needed - this is a file restructuring task with no code changes
-- All existing tests (163) continue to pass
-
-### Files changed
-- `skills/ralph/prd/SKILL.md` (moved from ralph-prd/)
-- `skills/ralph/tasks/SKILL.md` (moved from ralph-tasks/)
-- `skills/ralph/iteration/SKILL.md` (moved from ralph-iteration/)
-
-### Learnings for future iterations
-- Git tracks file moves via rename detection, so content is preserved in history
-- Directory restructuring requires updating downstream references (handled in US-010, US-011)
-
-[Ralph Loop] 2026-01-22 - Iteration 7: US-007 (Restructure skills directory - ralph core skills) completed
-
-[Ralph Loop] 2026-01-21 22:30 UTC - Iteration 7: US-007 (Restructure skills directory - ralph core skills) completed
-
----
-
-## 2026-01-22 - US-008
-
-**Story:** Restructure skills directory - reviewer skills
-
-### What was implemented
-- Created new `skills/reviewers/` directory with subdirectories for each reviewer type
-- Moved `skills/code-simplifier/SKILL.md` to `skills/reviewers/code-simplifier/SKILL.md`
-- Moved `skills/test-quality-reviewer/SKILL.md` to `skills/reviewers/test-quality/SKILL.md`
-- Moved `skills/repo-structure-reviewer/SKILL.md` to `skills/reviewers/repo-structure/SKILL.md`
-- Moved `skills/github-actions-reviewer/SKILL.md` to `skills/reviewers/github-actions/SKILL.md`
-- Moved `skills/python-code-reviewer/SKILL.md` to `skills/reviewers/language/python/SKILL.md`
-- Removed old empty directories: `code-simplifier/`, `test-quality-reviewer/`, `repo-structure-reviewer/`, `github-actions-reviewer/`, `python-code-reviewer/`
-
-### Tests written
-- No tests needed - this is a file restructuring task with no code changes
-- All existing tests (163) continue to pass
-
-### Files changed
-- `skills/reviewers/code-simplifier/SKILL.md` (moved from code-simplifier/)
-- `skills/reviewers/test-quality/SKILL.md` (moved from test-quality-reviewer/)
-- `skills/reviewers/repo-structure/SKILL.md` (moved from repo-structure-reviewer/)
-- `skills/reviewers/github-actions/SKILL.md` (moved from github-actions-reviewer/)
-- `skills/reviewers/language/python/SKILL.md` (moved from python-code-reviewer/)
-
-### Learnings for future iterations
-- Language-specific reviewers go under `reviewers/language/<language>/` to support future language reviewers
-- Consistent with US-007 pattern for ralph core skills
-
-[Ralph Loop] 2026-01-22 - Iteration 8: US-008 (Restructure skills directory - reviewer skills) completed
-
-[Ralph Loop] 2026-01-21 22:32 UTC - Iteration 8: US-008 (Restructure skills directory - reviewer skills) completed
-
----
-
-## 2026-01-22 - US-009
-
-**Story:** Create release reviewer skill
-
-### What was implemented
-- Created `skills/reviewers/release/SKILL.md` with comprehensive release readiness checks
-- Skill checks for:
-  - Version consistency between pyproject.toml and __init__.py
-  - Changelog entries for current version being released
-  - Documentation completeness (README.md, CLAUDE.md, AGENTS.md)
-  - PROGRESS.txt archive cleanup in plans/ directory
-  - Git tag readiness (version not already tagged)
-  - TODO/FIXME audit in source files
-- Follows established reviewer skill patterns with:
-  - Core rules (errors) vs recommended practices (warnings)
-  - Three-phase process: Gather, Analyze, Report
-  - Structured output format with version check table
-  - PASS/NEEDS_WORK verdict system
-
-### Tests written
-- No code tests needed - this is a skill definition (markdown file)
-- Skill follows established patterns from other reviewers
-- All existing tests (163) continue to pass
-
-### Files changed
-- `skills/reviewers/release/SKILL.md` (new)
-
-### Learnings for future iterations
-- Release reviewer is unique among reviewers in that it checks multiple version sources
-- The skill includes commands for both Python (pyproject.toml/__init__.py) and JavaScript (package.json) projects
-- PROGRESS.txt archives should be cleaned up before releases to keep plans/ directory tidy
-
-[Ralph Loop] 2026-01-22 - Iteration 9: US-009 (Create release reviewer skill) completed
-
-[Ralph Loop] 2026-01-21 22:35 UTC - Iteration 9: US-009 (Create release reviewer skill) completed
-
----
-
-## 2026-01-22 - US-010
-
-**Story:** Update SkillLoader for nested paths
-
-### What was implemented
-- Updated `SkillLoader.load()` method docstring to document nested path support
-- Added `SkillLoader.get_content()` convenience method that loads a skill and returns its content
-- Both methods support:
-  - Flat paths (e.g., `my-skill`)
-  - Two-level nested paths (e.g., `ralph/prd`, `reviewers/code-simplifier`)
-  - Three-level nested paths (e.g., `reviewers/language/python`)
-
-### Tests written
-- `TestSkillLoaderNestedPaths`: 6 tests covering:
-  - Two-level nested path loading (`ralph/prd`)
-  - Three-level nested path loading (`reviewers/language/python`)
-  - Path structure preservation
-  - Error handling for missing nested skills
-  - Error handling for partial paths (parent exists, skill doesn't)
-  - Loading multiple nested skills
-- `TestSkillLoaderGetContent`: 4 tests covering:
-  - Basic content loading
-  - Nested path content loading
-  - Error handling for missing skills
-  - Deeply nested path content loading
-
-Total: 10 new tests (173 total)
-
-### Files changed
-- `src/ralph/services/skill_loader.py` (updated load() docstring, added get_content() method)
-- `tests/test_skill_loader.py` (added 10 new tests in 2 new test classes)
-
-### Learnings for future iterations
-- Python's `pathlib.Path` naturally handles forward slashes in path components
-- `base / "a/b/c" / "file.md"` produces the same result as `base / "a" / "b" / "c" / "file.md"`
-- The existing implementation already supported nested paths; this story just documents and tests it
-
-[Ralph Loop] 2026-01-22 - Iteration 10: US-010 (Update SkillLoader for nested paths) completed
-
----
-
-## 2026-01-22 - US-011
-
-**Story:** Update command skill references to new paths
-
-### What was implemented
-- Updated `prd.py` command to use `ralph/prd` skill path instead of `ralph-prd`
-- Updated `tasks.py` command to use `ralph/tasks` skill path instead of `ralph-tasks`
-- Updated `once.py` command to use `ralph/iteration` skill path instead of `ralph-iteration`
-- The `loop.py` command imports from `once.py`, so it automatically uses the new path
-- Updated docstrings to reflect new nested skill paths
-- Updated test fixtures to create skills in nested directory structure (`skills/ralph/prd/`, etc.)
-- Updated `TestOnceCommandPromptFormat` assertion to check for `@skills/ralph/iteration/SKILL.md`
-
-### Tests written
-- `TestCommandSkillPaths.test_prd_command_uses_nested_skill_path`: Verifies prd uses ralph/prd path
-- `TestCommandSkillPaths.test_tasks_command_uses_nested_skill_path`: Verifies tasks uses ralph/tasks path
-- `TestCommandSkillPaths.test_once_command_uses_nested_skill_path`: Verifies once uses ralph/iteration path
-- `TestCommandSkillPaths.test_loop_command_uses_nested_skill_path`: Verifies loop uses ralph/iteration path
-
-Total: 4 new tests (177 total)
-
-### Files changed
-- `src/ralph/commands/prd.py` (updated skill path and docstring)
-- `src/ralph/commands/tasks.py` (updated skill path and docstring)
-- `src/ralph/commands/once.py` (updated skill path and docstring)
-- `tests/test_commands_integration.py` (updated fixtures and added TestCommandSkillPaths class)
-
-### Learnings for future iterations
-- The `build_skill_prompt` utility automatically handles nested paths via `SkillLoader`
-- Test fixtures must mirror the actual skill directory structure
-- The loop command doesn't have its own `_build_prompt_from_skill` - it imports from once.py
-
-[Ralph Loop] 2026-01-22 - Iteration 11: US-011 (Update command skill references to new paths) completed
-
-[Ralph Loop] 2026-01-21 22:42 UTC - Iteration 1: US-011 (Update command skill references to new paths) completed
-
----
-
-## 2026-01-22 - US-012
-
-**Story:** Update ralph sync for nested structure
-
-### What was implemented
-- Updated `list_local_skills()` to use `rglob("SKILL.md")` for recursive skill discovery
-- Added `SkillInfo.relative_path` field to track path from skills root (e.g., "ralph/prd")
-- Updated `sync_skill()` to preserve nested directory structure in target
-- Updated `_write_manifest()` to use manifest version 2 with full nested paths
-- Added `_cleanup_old_flat_skills()` to remove v1 flat-structure skills during sync
-- Updated `remove_skills()` to handle nested paths and clean up empty parent directories
-- Added `_cleanup_empty_parents()` helper for directory cleanup after removal
-- Updated `Manifest` model with `version` field (default=1 for backwards compat, v2 for nested)
-- Added `MANIFEST_VERSION = 2` constant in manifest module
-
-### Tests written
-- `TestNestedSkillsListing`: 3 tests for recursive skill discovery (2-level, 3-level, mixed)
-- `TestNestedSkillSync`: 3 tests for nested structure mirroring
-- `TestManifestVersion2`: 2 tests for version 2 manifest format
-- `TestOldFlatSkillCleanup`: 2 tests for v1 skill cleanup during upgrade
-- `TestRemoveNestedSkills`: 3 tests for nested skill removal with parent cleanup
-- `TestSkillInfoRelativePath`: 3 tests for relative_path field
-
-Total: 16 new tests (193 total)
-
-### Files changed
-- `src/ralph/models/manifest.py` (added version field, MANIFEST_VERSION constant)
-- `src/ralph/services/skills.py` (updated sync logic for nested structure)
-- `tests/test_skills_service.py` (added 16 new tests)
-
-### Learnings for future iterations
-- Use `rglob()` for recursive file discovery - cleaner than manual recursion
-- `Path.is_relative_to()` is useful for checking if a path is under a parent directory
-- Manifest versioning allows graceful upgrades from v1 (flat) to v2 (nested) format
-- Empty parent directory cleanup should stop at the target_dir boundary
-
-[Ralph Loop] 2026-01-22 - Iteration 12: US-012 (Update ralph sync for nested structure) completed
-
-[Ralph Loop] 2026-01-21 22:47 UTC - Iteration 2: US-012 (Update ralph sync for nested structure) completed
-
----
-
-## 2026-01-22 - US-013
-
-**Story:** Update ralph sync --remove for nested structure
-
-### What was implemented
-- Verified that `remove_skills()` method already handles nested directories correctly (implemented in US-012)
-- The implementation reads manifest (v1 or v2), iterates through installed paths, removes directories, and cleans up empty parent directories
-- Added 2 additional tests to ensure full acceptance criteria coverage:
-  - Test for deeply nested skills (3+ levels like `reviewers/language/python`)
-  - Test for mixed flat and nested paths in the same manifest
-
-### Tests written
-- `TestRemoveNestedSkills.test_remove_deletes_deeply_nested_skills`: Verifies 3-level nested paths are removed and all empty parents cleaned up
-- `TestRemoveNestedSkills.test_remove_handles_mixed_flat_and_nested_skills`: Verifies mixed v1/v2 style paths in manifest are handled correctly
-
-Total: 2 new tests (195 total), 5 tests in TestRemoveNestedSkills class
-
-### Files changed
-- `tests/test_skills_service.py` (added 2 new tests)
-- `plans/TASKS.json` (marked US-013 as passes: true)
-
-### Learnings for future iterations
-- The `remove_skills()` implementation from US-012 was already complete for nested structures
-- Testing edge cases like deeply nested paths (3+ levels) and mixed formats validates implementation robustness
-- The `_cleanup_empty_parents()` helper correctly traverses up the directory tree to target_dir boundary
-
-[Ralph Loop] 2026-01-22 - Iteration 13: US-013 (Update ralph sync --remove for nested structure) completed
-
-[Ralph Loop] 2026-01-21 22:50 UTC - Iteration 3: US-013 (Update ralph sync --remove for nested structure) completed
-
----
-
-## 2026-01-22 - US-014
-
-**Story:** Add default reviewer configuration
-
-### What was implemented
-- Verified that `get_default_reviewers()` in `src/ralph/models/reviewer.py` already matches the spec (implemented in US-002)
-- Added 3 new tests to comprehensively verify the spec requirements:
-  - `test_get_default_reviewers_skill_paths_are_correct`: Verifies all skill paths match spec
-  - `test_get_default_reviewers_returns_exactly_six_reviewers`: Verifies exactly 6 reviewers
-  - `test_get_default_reviewers_non_python_reviewers_have_no_language_filter`: Verifies only python-code has language filter
-
-### Tests written
-- `TestGetDefaultReviewers.test_get_default_reviewers_skill_paths_are_correct`: Verifies skill paths
-- `TestGetDefaultReviewers.test_get_default_reviewers_returns_exactly_six_reviewers`: Verifies count
-- `TestGetDefaultReviewers.test_get_default_reviewers_non_python_reviewers_have_no_language_filter`: Verifies language filters
-
-Total: 3 new tests (198 total), 7 tests in TestGetDefaultReviewers class
-
-### Files changed
-- `tests/test_reviewer_config.py` (added 3 new tests)
-- `plans/TASKS.json` (marked US-014 as passes: true)
-
-### Learnings for future iterations
-- The `get_default_reviewers()` function was implemented correctly in US-002 with all spec requirements
-- When a story validates existing implementation, add comprehensive tests to document the spec requirements
-- The default reviewers are: test-quality, code-simplifier, python-code (blocking); github-actions, repo-structure (warning); release (blocking)
-
-[Ralph Loop] 2026-01-22 - Iteration 14: US-014 (Add default reviewer configuration) completed
-
-[Ralph Loop] 2026-01-21 22:52 UTC - Iteration 4: US-014 (Add default reviewer configuration) completed
-
----
-
-## 2026-01-22 - US-015
-
-**Story:** Update CLAUDE.md with reviewer configuration example
-
-### What was implemented
-- Added `## Reviewers` section to CLAUDE.md with RALPH:REVIEWERS markers
-- Included default reviewer configuration with all 6 reviewers matching the spec
-- Updated `## Project Structure` section to reflect new nested skills directory
-- Added reviewer configuration format documentation to `### File Formats` section
-- Documentation explains: name, skill, level fields, optional languages filter, level meanings
-
-### Tests written
-- No new tests needed - this is a documentation-only change
-- Existing reviewer parsing tests verify the YAML format is correct
-- All 198 existing tests continue to pass
-
-### Files changed
-- `CLAUDE.md` (added Reviewers section, updated Project Structure, documented format)
-
-### Learnings for future iterations
-- Keep CLAUDE.md structure consistent: Quality Checks → Reviewers → Technology Stack
-- Document all configuration formats in the File Formats section for discoverability
-- Update Project Structure when directory layout changes
-
-[Ralph Loop] 2026-01-22 - Iteration 15: US-015 (Update CLAUDE.md with reviewer configuration example) completed
-
-[Ralph Loop] 2026-01-21 22:54 UTC - Iteration 5: US-015 (Update CLAUDE.md with reviewer configuration example) completed
-
----
-
-## 2026-01-22 - US-016
-
-**Story:** Integration tests for review loop
-
-### What was implemented
-- Created `TestReviewLoopIntegration` test class with comprehensive integration tests
-- Added `project_with_pending_story` fixture that creates a complete test project with:
-  - TASKS.json with a pending story
-  - CLAUDE.md with reviewer configuration
-  - Skill directories for reviewers (test-quality, code-simplifier, python-code, github-actions)
-  - pyproject.toml for Python language detection
-- Implemented 8 integration tests covering all acceptance criteria
-
-### Tests written
-- `test_review_loop_executes_reviewers_after_all_complete`: Verifies review loop runs after stories complete with correct reviewer count
-- `test_review_loop_skipped_with_skip_review_flag_end_to_end`: Verifies --skip-review completely bypasses review loop
-- `test_review_loop_strict_mode_enforces_warning_reviewers`: Verifies --strict mode message displayed
-- `test_review_loop_language_filtering_skips_python_reviewer_for_non_python_project`: Verifies Python reviewer skipped for Go project
-- `test_review_loop_runs_python_reviewer_for_python_project`: Verifies Python reviewer runs for Python project
-- `test_review_loop_shows_warning_reviewer_without_enforcement`: Verifies warning reviewer failure doesn't block
-- `test_review_loop_retries_blocking_reviewer_on_failure`: Verifies blocking reviewer retry logic
-- `test_review_loop_appends_to_progress_file`: Verifies review summaries appended to PROGRESS.txt
-
-Total: 8 new tests (206 total)
-
-### Files changed
-- `tests/test_commands_integration.py` (added TestReviewLoopIntegration class with 8 tests)
-- `plans/TASKS.json` (marked US-016 as passes: true)
-
-### Learnings for future iterations
-- Review loop only runs when stories complete during the loop iteration, not when all stories are already complete at start
-- Integration tests for loop command need to mock both `_setup_branch` (git) and `subprocess.Popen` (story iteration) plus `ClaudeService` (reviewer execution)
-- Use mock `<ralph>COMPLETE</ralph>` output to simulate story completion triggering review loop
-
-[Ralph Loop] 2026-01-22 - Iteration 16: US-016 (Integration tests for review loop) completed
