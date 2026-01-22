@@ -5,14 +5,17 @@ in order as part of the Ralph post-story review loop.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
+from ralph.models.finding import ReviewOutput, Verdict, parse_review_output
 from ralph.models.reviewer import ReviewerConfig, ReviewerLevel
 from ralph.services.claude import ClaudeService
+from ralph.services.fix_loop import FixLoopService
 from ralph.services.language import Language
 from ralph.services.skill_loader import SkillLoader, SkillNotFoundError
 
@@ -28,6 +31,7 @@ class ReviewerResult(NamedTuple):
         skipped: Whether the reviewer was skipped (e.g., language mismatch).
         attempts: Number of attempts made (1-3 for blocking reviewers).
         error: Error message if the reviewer failed.
+        review_output: Parsed ReviewOutput with verdict and findings when available.
     """
 
     reviewer_name: str
@@ -35,6 +39,7 @@ class ReviewerResult(NamedTuple):
     skipped: bool
     attempts: int
     error: str | None = None
+    review_output: ReviewOutput | None = None
 
 
 class ReviewLoopService(BaseModel):
@@ -127,6 +132,7 @@ class ReviewLoopService(BaseModel):
         prompt = self._build_reviewer_prompt(reviewer, skill_content)
 
         attempts_allowed = max_retries if enforced else 1
+        last_output: str = ""
 
         for attempt in range(1, attempts_allowed + 1):
             logger.info(f"Running reviewer {reviewer.name} (attempt {attempt}/{attempts_allowed})")
@@ -136,12 +142,16 @@ class ReviewLoopService(BaseModel):
                     working_dir=self.project_root,
                     verbose=self.verbose,
                 )
-                _, exit_code = claude.run_print_mode(
+                output_text, exit_code = claude.run_print_mode(
                     prompt,
                     stream=True,
                     skip_permissions=True,
                     append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
                 )
+                last_output = output_text
+
+                # Parse structured output to extract verdict and findings
+                review_output = parse_review_output(output_text)
 
                 if exit_code == 0:
                     return ReviewerResult(
@@ -149,6 +159,7 @@ class ReviewLoopService(BaseModel):
                         success=True,
                         skipped=False,
                         attempts=attempt,
+                        review_output=review_output,
                     )
 
                 logger.warning(
@@ -167,13 +178,51 @@ class ReviewLoopService(BaseModel):
                         error=str(e),
                     )
 
+        # Parse last output for final result (may contain findings even on failure)
+        review_output = parse_review_output(last_output) if last_output else None
+
         return ReviewerResult(
             reviewer_name=reviewer.name,
             success=False,
             skipped=False,
             attempts=attempts_allowed,
             error=f"Failed after {attempts_allowed} attempts",
+            review_output=review_output,
         )
+
+    def should_run_fix_loop(
+        self, reviewer: ReviewerConfig, strict: bool, *, was_language_filtered: bool
+    ) -> bool:
+        """Determine if the fix loop should run for a reviewer.
+
+        Fix loop runs for:
+        - blocking reviewers (always)
+        - warning and suggestion reviewers when strict=True
+
+        Fix loop is skipped for:
+        - language-filtered reviewers (even if they have findings)
+
+        Args:
+            reviewer: The reviewer configuration.
+            strict: Whether strict mode is enabled.
+            was_language_filtered: Whether this reviewer was language-filtered.
+
+        Returns:
+            True if fix loop should run, False otherwise.
+        """
+        # Skip fix loop for language-filtered reviewers
+        if was_language_filtered:
+            return False
+
+        # Blocking reviewers always get fix loop
+        if reviewer.level == ReviewerLevel.blocking:
+            return True
+
+        # In strict mode, all levels get fix loop
+        if strict:
+            return True
+
+        return False
 
     def run_review_loop(
         self,
@@ -182,14 +231,21 @@ class ReviewLoopService(BaseModel):
         *,
         strict: bool = False,
         progress_path: Path | None = None,
+        on_fix_step: Callable[[int, int, str], None] | None = None,
     ) -> list[ReviewerResult]:
         """Execute the full review loop with all configured reviewers.
+
+        After each reviewer completes, if the verdict is NEEDS_WORK and the
+        reviewer is eligible for auto-fix, the fix loop will automatically
+        run to attempt to resolve findings.
 
         Args:
             reviewers: List of reviewer configurations to execute in order.
             detected_languages: Set of languages detected in the project.
             strict: Whether to enforce warning-level reviewers.
             progress_path: Optional path to PROGRESS.txt for logging.
+            on_fix_step: Optional callback for fix progress (step, total, finding_id).
+                Called before each fix attempt to enable console output.
 
         Returns:
             List of ReviewerResult objects for each reviewer.
@@ -197,7 +253,9 @@ class ReviewLoopService(BaseModel):
         results: list[ReviewerResult] = []
 
         for reviewer in reviewers:
-            if not self.should_run_reviewer(reviewer, detected_languages):
+            was_language_filtered = not self.should_run_reviewer(reviewer, detected_languages)
+
+            if was_language_filtered:
                 logger.info(
                     f"Skipping reviewer {reviewer.name} (language filter: {reviewer.languages})"
                 )
@@ -221,6 +279,30 @@ class ReviewLoopService(BaseModel):
 
             if progress_path:
                 self._append_review_summary(progress_path, reviewer, result)
+
+            # Run fix loop if reviewer returned NEEDS_WORK and is eligible
+            if (
+                result.review_output
+                and result.review_output.verdict == Verdict.NEEDS_WORK
+                and result.review_output.findings
+                and self.should_run_fix_loop(reviewer, strict, was_language_filtered=False)
+            ):
+                logger.info(
+                    f"Running fix loop for {reviewer.name} "
+                    f"({len(result.review_output.findings)} findings)"
+                )
+
+                fix_service = FixLoopService(
+                    project_root=self.project_root,
+                    reviewer_name=reviewer.name,
+                    verbose=self.verbose,
+                )
+
+                fix_service.run_fix_loop(
+                    result.review_output.findings,
+                    progress_path=progress_path,
+                    on_fix_step=on_fix_step,
+                )
 
             if result.success:
                 logger.info(f"Reviewer {reviewer.name} completed successfully")
@@ -266,6 +348,9 @@ Begin the review now."""
     ) -> None:
         """Append a review summary to PROGRESS.txt.
 
+        Logs the full structured format when findings are available,
+        otherwise logs a simple summary line.
+
         Args:
             progress_path: Path to PROGRESS.txt.
             reviewer: The reviewer configuration.
@@ -273,16 +358,55 @@ Begin the review now."""
         """
         timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
+        # For skipped reviewers, use simple format
         if result.skipped:
             status = "skipped (language filter)"
-        elif result.success:
-            status = "passed"
-        else:
-            status = f"failed after {result.attempts} attempts"
-            if result.error:
-                status += f" ({result.error})"
+            level_val = reviewer.level.value
+            note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({level_val}): {status}\n"
+            try:
+                with open(progress_path, "a", encoding="utf-8") as f:
+                    f.write(note)
+            except OSError as e:
+                logger.warning(f"Could not append review summary: {e}")
+            return
 
-        note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({reviewer.level.value}): {status}\n"
+        # Build structured format when review_output is available
+        if result.review_output:
+            verdict_str = result.review_output.verdict.value
+            lines = [
+                f"\n[Review] {timestamp} - {reviewer.name} ({reviewer.level.value})",
+                "",
+                f"### Verdict: {verdict_str}",
+            ]
+
+            if result.review_output.findings:
+                lines.append("")
+                lines.append("### Findings")
+                lines.append("")
+                for i, finding in enumerate(result.review_output.findings, 1):
+                    file_loc = finding.file_path
+                    if finding.line_number:
+                        file_loc += f":{finding.line_number}"
+                    brief = finding.issue[:50] + "..." if len(finding.issue) > 50 else finding.issue
+                    lines.append(f"{i}. **{finding.id}**: {finding.category} - {brief}")
+                    lines.append(f"   - File: {file_loc}")
+                    lines.append(f"   - Issue: {finding.issue}")
+                    lines.append(f"   - Suggestion: {finding.suggestion}")
+                    lines.append("")
+
+            lines.append("---")
+            lines.append("")
+            note = "\n".join(lines)
+        else:
+            # Fallback to simple format when no structured output
+            if result.success:
+                status = "passed"
+            else:
+                status = f"failed after {result.attempts} attempts"
+                if result.error:
+                    status += f" ({result.error})"
+            level_val = reviewer.level.value
+            note = f"\n[Review Loop] {timestamp} - {reviewer.name} ({level_val}): {status}\n"
 
         try:
             with open(progress_path, "a", encoding="utf-8") as f:

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.6] - 2026-01-22
+
+### Added
+
+- Structured output format for all reviewer skills with `<ralph-review>` verdict tags (US-008 through US-012)
+- GitHub issue created for `--no-fix` flag enhancement to skip auto-fix attempts
+
+### Changed
+
+- All reviewer skills now output consistent structured format with verdicts (PASS/NEEDS_WORK), issues table, and fix instructions
+
 ## [2.0.5] - 2026-01-22
 
 ### Fixed

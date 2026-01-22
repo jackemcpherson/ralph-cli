@@ -1669,9 +1669,10 @@ reviewers:
                 runner.invoke(app, ["loop", "1"])
 
         progress_content = (project_with_pending_story / "plans" / "PROGRESS.txt").read_text()
-        assert "[Review Loop]" in progress_content
+        # With structured output parsing, format is now [Review] with Verdict section
+        assert "[Review]" in progress_content
         assert "test-quality" in progress_content
-        assert "passed" in progress_content
+        assert "### Verdict: PASSED" in progress_content
 
     def test_review_loop_displays_progress_counters(
         self, runner: CliRunner, project_with_pending_story: Path

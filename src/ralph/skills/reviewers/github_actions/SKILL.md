@@ -155,8 +155,12 @@ Classify each issue:
 
 ## Output Format
 
+**IMPORTANT**: You MUST append your review output to `plans/PROGRESS.txt` using this exact format. This enables the fix loop to parse and automatically resolve findings.
+
 ```markdown
-## Review: github-actions-reviewer - [X workflow files]
+[Review] YYYY-MM-DD HH:MM UTC - github-actions ({level})
+
+### Verdict: {PASSED|NEEDS_WORK}
 
 ### Workflow Coverage
 
@@ -169,26 +173,116 @@ Classify each issue:
 | Dependabot | ✅/❌ | [filename or "missing"] |
 | Security Scan | ✅/❌ | [filename or "N/A"] |
 
-### Issues Found
+### Findings
 
-| Severity | Location | Issue | Suggestion |
-|----------|----------|-------|------------|
-| error | ci.yml:15 | Action not pinned | Pin `actions/setup-python` to specific version |
-| error | ci.yml | No timeout set | Add `timeout-minutes: 30` to jobs |
-| warning | / | No Dependabot config | Create `.github/dependabot.yml` |
-| suggestion | ci.yml:25 | No caching | Add `actions/cache` for pip dependencies |
+1. **GA-001**: {Category} - {Brief description}
+   - File: {.github/workflows/file.yml}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-### Summary
-- X errors (must fix)
-- Y warnings (should fix)
-- Z suggestions (consider)
+2. **GA-002**: {Category} - {Brief description}
+   - File: {.github/workflows/file.yml}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-<ralph-review>VERDICT</ralph-review>
+---
+```
+
+### Format Details
+
+- **Header**: `[Review]` with timestamp, reviewer name (`github-actions`), and level (from CLAUDE.md config)
+- **Verdict**: Must be exactly `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- **Workflow Coverage**: Summary table of workflow types (kept for context)
+- **Findings**: Numbered list with unique IDs prefixed `GA-` (GitHub Actions)
+- **Finding fields**:
+  - `File:` path with line number (use `:0` if line unknown)
+  - `Issue:` detailed problem description
+  - `Suggestion:` actionable fix recommendation
+- **Separator**: Must end with `---` on its own line
+
+### Finding ID Categories
+
+Use these category prefixes in finding IDs:
+
+| Category | Description |
+|----------|-------------|
+| Missing Workflow | Required workflow (lint/test/build) not found |
+| Unpinned Action | Third-party action not pinned to version/SHA |
+| No Timeout | Job missing timeout-minutes setting |
+| Broad Permissions | Workflow uses overly permissive permissions |
+| Hardcoded Secret | Secret value hardcoded instead of using secrets context |
+| No Dependabot | Missing Dependabot configuration |
+| Missing Cache | No dependency caching configured |
+| Unclear Job Name | Job name doesn't describe its purpose |
+
+### Example Output
+
+For a passing review:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - github-actions (warning)
+
+### Verdict: PASSED
+
+### Workflow Coverage
+
+| Workflow Type | Present | File |
+|---------------|---------|------|
+| Lint/Format | ✅ | ci.yml |
+| Unit Tests | ✅ | ci.yml |
+| Build Check | ✅ | ci.yml |
+| Integration Tests | ✅ | ci.yml |
+| Dependabot | ✅ | dependabot.yml |
+| Security Scan | N/A | - |
+
+### Findings
+
+(No issues found)
+
+---
+```
+
+For a review with findings:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - github-actions (warning)
+
+### Verdict: NEEDS_WORK
+
+### Workflow Coverage
+
+| Workflow Type | Present | File |
+|---------------|---------|------|
+| Lint/Format | ✅ | ci.yml |
+| Unit Tests | ✅ | ci.yml |
+| Build Check | ❌ | missing |
+| Integration Tests | N/A | - |
+| Dependabot | ❌ | missing |
+| Security Scan | N/A | - |
+
+### Findings
+
+1. **GA-001**: Missing Workflow - No build verification workflow
+   - File: .github/workflows/:0
+   - Issue: No workflow runs build/compile verification on pull requests. This means breaking changes could be merged without detection.
+   - Suggestion: Add a job that runs the project's build command (e.g., `npm run build`, `cargo build`, `go build`) on PR events.
+
+2. **GA-002**: Unpinned Action - setup-python not pinned to version
+   - File: .github/workflows/ci.yml:15
+   - Issue: The action `actions/setup-python@main` uses a branch reference instead of a version tag or SHA.
+   - Suggestion: Pin to a specific version like `actions/setup-python@v5` or a full SHA for maximum security.
+
+3. **GA-003**: No Dependabot - Missing dependency update configuration
+   - File: .github/dependabot.yml:0
+   - Issue: No Dependabot configuration found. Dependencies won't be automatically updated for security patches.
+   - Suggestion: Create `.github/dependabot.yml` with package ecosystem and update schedule configured.
+
+---
 ```
 
 ### Verdict Values
 
-- **PASS**: No errors found. All required workflows present, secure, and reliable.
+- **PASSED**: No errors found. All required workflows present, secure, and reliable.
 - **NEEDS_WORK**: Has errors that must be fixed.
 
 ## Quality Checklist

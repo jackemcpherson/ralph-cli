@@ -1,6 +1,7 @@
 """Ralph services."""
 
 from ralph.services.claude import ClaudeError, ClaudeService
+from ralph.services.fix_loop import FixLoopService, FixResult
 from ralph.services.git import GitError, GitService
 from ralph.services.language import Language, LanguageDetector, detect_languages
 from ralph.services.review_loop import (
@@ -20,6 +21,8 @@ from ralph.services.skills import (
 __all__ = [
     "ClaudeError",
     "ClaudeService",
+    "FixLoopService",
+    "FixResult",
     "GitError",
     "GitService",
     "Language",

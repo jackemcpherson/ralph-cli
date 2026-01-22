@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ralph.models import ReviewerConfig, ReviewerLevel
+from ralph.models.finding import Verdict
 from ralph.services import Language, ReviewLoopService, filter_reviewers_by_language
 
 
@@ -109,6 +110,91 @@ class TestReviewLoopServiceRunReviewer:
         assert not result.success
         assert result.attempts == 1
 
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_parses_structured_output_on_success(
+        self, mock_claude_class: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test run_reviewer parses structured output when reviewer succeeds."""
+        structured_output = """
+### Verdict: PASSED
+
+No issues found.
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer()
+
+        result = service.run_reviewer(reviewer)
+
+        assert result.success
+        assert result.review_output is not None
+        assert result.review_output.verdict == Verdict.PASSED
+        assert result.review_output.findings == []
+
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_parses_findings_from_output(
+        self, mock_claude_class: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test run_reviewer parses findings from structured output."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing return type annotation
+   - File: src/service.py:42
+   - Issue: Function lacks return type annotation
+   - Suggestion: Add -> None return type
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer()
+
+        result = service.run_reviewer(reviewer)
+
+        assert result.success
+        assert result.review_output is not None
+        assert result.review_output.verdict == Verdict.NEEDS_WORK
+        assert len(result.review_output.findings) == 1
+        assert result.review_output.findings[0].id == "FINDING-001"
+        assert result.review_output.findings[0].file_path == "src/service.py"
+        assert result.review_output.findings[0].line_number == 42
+
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_includes_review_output_on_failure(
+        self, mock_claude_class: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test run_reviewer includes review_output even when reviewer fails."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Code Style - Formatting issue
+   - File: src/module.py:10
+   - Issue: Line too long
+   - Suggestion: Break into multiple lines
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 1)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer()
+
+        result = service.run_reviewer(reviewer, enforced=False)
+
+        assert not result.success
+        assert result.review_output is not None
+        assert result.review_output.verdict == Verdict.NEEDS_WORK
+        assert len(result.review_output.findings) == 1
+
 
 class TestReviewLoopServiceRunReviewLoop:
     """Tests for running the full review loop."""
@@ -157,6 +243,332 @@ class TestReviewLoopServiceRunReviewLoop:
         assert results[0].skipped is False
         assert results[1].skipped is True
         assert mock_claude.run_print_mode.call_count == 1
+
+
+class TestAppendReviewSummary:
+    """Tests for _append_review_summary logging."""
+
+    def test_logs_structured_format_with_findings(self, tmp_path: Path) -> None:
+        """Test _append_review_summary logs structured format when findings exist."""
+        from ralph.models.finding import Finding, ReviewOutput, Verdict
+        from ralph.services.review_loop import ReviewerResult
+
+        progress_file = tmp_path / "PROGRESS.txt"
+        progress_file.write_text("# Progress\n")
+
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(name="test-reviewer", level=ReviewerLevel.blocking)
+
+        review_output = ReviewOutput(
+            verdict=Verdict.NEEDS_WORK,
+            findings=[
+                Finding(
+                    id="FINDING-001",
+                    category="Type Safety",
+                    file_path="src/test.py",
+                    line_number=42,
+                    issue="Missing type annotation",
+                    suggestion="Add type hint",
+                )
+            ],
+        )
+        result = ReviewerResult(
+            reviewer_name="test-reviewer",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=review_output,
+        )
+
+        service._append_review_summary(progress_file, reviewer, result)
+
+        content = progress_file.read_text()
+        assert "[Review]" in content
+        assert "test-reviewer (blocking)" in content
+        assert "### Verdict: NEEDS_WORK" in content
+        assert "### Findings" in content
+        assert "**FINDING-001**" in content
+        assert "Type Safety" in content
+        assert "src/test.py:42" in content
+        assert "---" in content
+
+    def test_logs_structured_format_passed(self, tmp_path: Path) -> None:
+        """Test _append_review_summary logs structured format for PASSED verdict."""
+        from ralph.models.finding import ReviewOutput, Verdict
+        from ralph.services.review_loop import ReviewerResult
+
+        progress_file = tmp_path / "PROGRESS.txt"
+        progress_file.write_text("# Progress\n")
+
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(name="test-reviewer", level=ReviewerLevel.blocking)
+
+        review_output = ReviewOutput(verdict=Verdict.PASSED, findings=[])
+        result = ReviewerResult(
+            reviewer_name="test-reviewer",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=review_output,
+        )
+
+        service._append_review_summary(progress_file, reviewer, result)
+
+        content = progress_file.read_text()
+        assert "[Review]" in content
+        assert "### Verdict: PASSED" in content
+        assert "### Findings" not in content
+
+    def test_logs_simple_format_when_no_review_output(self, tmp_path: Path) -> None:
+        """Test _append_review_summary uses simple format when review_output is None."""
+        from ralph.services.review_loop import ReviewerResult
+
+        progress_file = tmp_path / "PROGRESS.txt"
+        progress_file.write_text("# Progress\n")
+
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(name="test-reviewer", level=ReviewerLevel.warning)
+
+        result = ReviewerResult(
+            reviewer_name="test-reviewer",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=None,
+        )
+
+        service._append_review_summary(progress_file, reviewer, result)
+
+        content = progress_file.read_text()
+        assert "[Review Loop]" in content
+        assert "passed" in content
+
+    def test_logs_skipped_format(self, tmp_path: Path) -> None:
+        """Test _append_review_summary logs skipped format correctly."""
+        from ralph.services.review_loop import ReviewerResult
+
+        progress_file = tmp_path / "PROGRESS.txt"
+        progress_file.write_text("# Progress\n")
+
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(name="python-code", level=ReviewerLevel.blocking)
+
+        result = ReviewerResult(
+            reviewer_name="python-code",
+            success=True,
+            skipped=True,
+            attempts=0,
+            review_output=None,
+        )
+
+        service._append_review_summary(progress_file, reviewer, result)
+
+        content = progress_file.read_text()
+        assert "[Review Loop]" in content
+        assert "skipped (language filter)" in content
+
+
+class TestShouldRunFixLoop:
+    """Tests for should_run_fix_loop method."""
+
+    def test_blocking_reviewer_always_gets_fix_loop(self, tmp_path: Path) -> None:
+        """Test blocking reviewers always get fix loop."""
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        assert service.should_run_fix_loop(reviewer, strict=False, was_language_filtered=False)
+        assert service.should_run_fix_loop(reviewer, strict=True, was_language_filtered=False)
+
+    def test_warning_reviewer_gets_fix_loop_only_in_strict_mode(self, tmp_path: Path) -> None:
+        """Test warning reviewers only get fix loop in strict mode."""
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.warning)
+
+        assert not service.should_run_fix_loop(reviewer, strict=False, was_language_filtered=False)
+        assert service.should_run_fix_loop(reviewer, strict=True, was_language_filtered=False)
+
+    def test_suggestion_reviewer_gets_fix_loop_only_in_strict_mode(self, tmp_path: Path) -> None:
+        """Test suggestion reviewers only get fix loop in strict mode."""
+        service = _create_service(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.suggestion)
+
+        assert not service.should_run_fix_loop(reviewer, strict=False, was_language_filtered=False)
+        assert service.should_run_fix_loop(reviewer, strict=True, was_language_filtered=False)
+
+    def test_language_filtered_reviewer_skips_fix_loop(self, tmp_path: Path) -> None:
+        """Test language-filtered reviewers skip fix loop."""
+        service = _create_service(tmp_path)
+
+        # Even blocking reviewers skip fix loop if language-filtered
+        blocking = _create_reviewer(level=ReviewerLevel.blocking)
+        assert not service.should_run_fix_loop(blocking, strict=True, was_language_filtered=True)
+
+
+class TestRunReviewLoopWithFixLoop:
+    """Tests for fix loop integration in run_review_loop."""
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_runs_fix_loop_on_needs_work_blocking(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test fix loop runs when blocking reviewer returns NEEDS_WORK."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing type
+   - File: src/test.py:10
+   - Issue: Missing type annotation
+   - Suggestion: Add type hint
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        mock_fix_service = MagicMock()
+        mock_fix_service.run_fix_loop.return_value = []
+        mock_fix_service_class.return_value = mock_fix_service
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        service.run_review_loop([reviewer], {Language.python})
+
+        mock_fix_service_class.assert_called_once()
+        mock_fix_service.run_fix_loop.assert_called_once()
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_skips_fix_loop_on_needs_work_warning_not_strict(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test fix loop skipped for warning reviewer when not strict."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Style - Naming issue
+   - File: src/test.py:10
+   - Issue: Bad name
+   - Suggestion: Better name
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.warning)
+
+        service.run_review_loop([reviewer], {Language.python}, strict=False)
+
+        mock_fix_service_class.assert_not_called()
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_runs_fix_loop_on_needs_work_warning_strict(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test fix loop runs for warning reviewer when strict=True."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Style - Naming issue
+   - File: src/test.py:10
+   - Issue: Bad name
+   - Suggestion: Better name
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        mock_fix_service = MagicMock()
+        mock_fix_service.run_fix_loop.return_value = []
+        mock_fix_service_class.return_value = mock_fix_service
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.warning)
+
+        service.run_review_loop([reviewer], {Language.python}, strict=True)
+
+        mock_fix_service_class.assert_called_once()
+        mock_fix_service.run_fix_loop.assert_called_once()
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_skips_fix_loop_on_passed_verdict(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test fix loop skipped when reviewer returns PASSED."""
+        structured_output = """
+### Verdict: PASSED
+
+No issues found.
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        service.run_review_loop([reviewer], {Language.python})
+
+        mock_fix_service_class.assert_not_called()
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_calls_on_fix_step_callback(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test on_fix_step callback is passed to fix loop."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing type
+   - File: src/test.py:10
+   - Issue: Missing type annotation
+   - Suggestion: Add type hint
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        mock_fix_service = MagicMock()
+        mock_fix_service.run_fix_loop.return_value = []
+        mock_fix_service_class.return_value = mock_fix_service
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        callback = MagicMock()
+        service.run_review_loop([reviewer], {Language.python}, on_fix_step=callback)
+
+        # Verify callback was passed to run_fix_loop
+        mock_fix_service.run_fix_loop.assert_called_once()
+        call_kwargs = mock_fix_service.run_fix_loop.call_args.kwargs
+        assert call_kwargs.get("on_fix_step") == callback
 
 
 class TestFilterReviewersByLanguage:

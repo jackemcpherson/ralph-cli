@@ -224,29 +224,96 @@ Classify each issue:
 
 ## Output Format
 
+**IMPORTANT**: You MUST append your review output to `plans/PROGRESS.txt` using this exact format. This enables the fix loop to parse and automatically resolve findings.
+
 ```markdown
-## Review: python-code-reviewer - [X files changed]
+[Review] YYYY-MM-DD HH:MM UTC - python-code ({level})
 
-### Issues Found
+### Verdict: {PASSED|NEEDS_WORK}
 
-| Severity | Location | Issue | Suggestion |
-|----------|----------|-------|------------|
-| error | src/utils.py:42 | Missing return type annotation | Add `-> str` return type |
-| error | src/utils.py:55 | Inline comment found | Remove comment, use descriptive naming |
-| warning | src/utils.py:70 | Bare except clause | Catch specific exceptions like `ValueError` |
-| suggestion | src/utils.py:85 | Function has 45 lines | Consider extracting helper functions |
+### Findings
 
-### Summary
-- X errors (must fix)
-- Y warnings (should fix)
-- Z suggestions (consider)
+1. **PY-001**: {Category} - {Brief description}
+   - File: {path/to/file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-<ralph-review>VERDICT</ralph-review>
+2. **PY-002**: {Category} - {Brief description}
+   - File: {path/to/file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
+
+---
+```
+
+### Format Details
+
+- **Header**: `[Review]` with timestamp, reviewer name (`python-code`), and level (from CLAUDE.md config)
+- **Verdict**: Must be exactly `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- **Findings**: Numbered list with unique IDs prefixed `PY-` (Python)
+- **Finding fields**:
+  - `File:` path with line number (use `:0` if line unknown)
+  - `Issue:` detailed problem description
+  - `Suggestion:` actionable fix recommendation
+- **Separator**: Must end with `---` on its own line
+
+### Finding ID Categories
+
+Use these category prefixes in finding IDs:
+
+| Category | Description |
+|----------|-------------|
+| Missing Type Hint | Function/method lacks type annotations |
+| Missing Docstring | Public API lacks docstring |
+| Inline Comment | Non-exception inline comment found |
+| Print Statement | Uses print() instead of logging |
+| Wrong Logger | Uses root logger instead of module logger |
+| Old Type Syntax | Uses Optional[X] instead of X \| None |
+| Bare Except | Catches all exceptions without specificity |
+| Long Function | Function exceeds ~50 lines |
+| Deep Nesting | More than 3-4 indentation levels |
+
+### Example Output
+
+For a passing review:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - python-code (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+```
+
+For a review with findings:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - python-code (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **PY-001**: Missing Type Hint - Function lacks return type annotation
+   - File: src/utils.py:42
+   - Issue: The `process_data` function has no return type annotation, making it unclear what the function returns.
+   - Suggestion: Add `-> str` return type annotation based on the function's return statement.
+
+2. **PY-002**: Inline Comment - Non-exception inline comment found
+   - File: src/utils.py:55
+   - Issue: The inline comment `# calculate total` violates the zero inline comments policy.
+   - Suggestion: Remove the comment and use a descriptive variable name like `calculated_total` instead.
+
+---
 ```
 
 ### Verdict Values
 
-- **PASS**: No errors found. Warnings are acceptable.
+- **PASSED**: No errors found. Warnings are acceptable.
 - **NEEDS_WORK**: Has errors that must be fixed.
 
 ## Quality Checklist
