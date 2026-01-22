@@ -99,3 +99,27 @@
 - When testing Rich output, use `no_color=True` and `force_terminal=False` to get plain text for assertions
 
 ---
+
+[Ralph Loop] 2026-01-22 05:25 UTC - Iteration 1: US-003 (Add rich formatting to review loop display) completed
+
+---
+
+## 2026-01-22 - US-004
+
+**Story:** Bump version to 2.0.4
+
+### What was implemented
+- Verified version already set to 2.0.4 in both `pyproject.toml` and `src/ralph/__init__.py`
+- Updated CHANGELOG.md to document the three fixes from this release (US-001, US-002, US-003)
+- Replaced previous 2.0.4 changelog entry with accurate release notes
+
+### Tests written
+- No new tests required for version bump
+
+### Files changed
+- `CHANGELOG.md` - Updated v2.0.4 entry with the three fixes
+
+### Learnings for future iterations
+- Version files may already be updated by previous development work; always verify current state before making changes
+
+---

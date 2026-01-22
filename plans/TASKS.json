@@ -59,8 +59,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Version already at 2.0.4. Updated CHANGELOG.md with the three fixes from US-001, US-002, US-003."
     }
   ]
 }
