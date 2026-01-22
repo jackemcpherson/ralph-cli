@@ -1,170 +1,64 @@
 {
-  "project": "RalphCLI",
-  "branchName": "ralph/v2.0.3-reviewer-fixes",
-  "description": "Patch release fixing reviewer scope, test appropriateness checks, and project context references",
+  "project": "ralph-cli",
+  "branchName": "ralph/release-v2.0.4",
+  "description": "Minor release fixing non-interactive init, optimizing prompts with file references, and adding rich formatting to review loop",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Update REVIEWER_TEMPLATE.md with new review scope pattern",
-      "description": "As a skill author, I need the reviewer template to document the correct review scope pattern so that new reviewers use git diff main...HEAD consistently.",
+      "title": "Skip PRD prompt in non-interactive init mode",
+      "description": "As a developer using Ralph CLI in automation, I want `ralph init --skip-claude` to complete without interactive prompts so that I can script the initialization process.",
       "acceptanceCriteria": [
-        "Update skills/REVIEWER_TEMPLATE.md Review Scope section to use git diff main...HEAD",
-        "Include git diff HEAD for uncommitted changes as secondary check",
-        "Add note about falling back to uncommitted changes when on main branch",
-        "Document when to use diff-based vs full-repository review scope",
-        "Template passes markdown lint validation"
+        "Pass skip_claude flag to _handle_missing_prd function",
+        "_handle_missing_prd skips the Confirm.ask prompt when skip_claude is True",
+        "All files are still created correctly when --skip-claude is passed",
+        "Running `ralph init --skip-claude` completes without waiting for user input",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Added feature branch diff pattern (main...HEAD), uncommitted changes (HEAD), main branch fallback, and use case table."
+      "notes": "Added skip_claude parameter to _handle_missing_prd function. When True, skips Confirm.ask prompt and continues without PRD."
     },
     {
       "id": "US-002",
-      "title": "Standardize code-simplifier review scope to feature branch diff",
-      "description": "As a developer, I need code-simplifier to review all files changed on the feature branch so that committed code from ralph loop gets reviewed.",
+      "title": "Use file references in skill prompt construction",
+      "description": "As a developer using Ralph CLI, I want prompts to use @ file references instead of inline text to reduce token usage when invoking Claude.",
       "acceptanceCriteria": [
-        "Update skills/reviewers/code-simplifier/SKILL.md Review Scope section",
-        "Use git diff --name-only main...HEAD for feature branch changes",
-        "Include git diff --name-only HEAD for uncommitted changes",
-        "Add note about fallback behavior when on main branch",
-        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
+        "Modify build_skill_prompt to write skill content to a temporary file",
+        "Use @filepath notation in the prompt string instead of inline content",
+        "Ensure temporary files are placed in an appropriate location",
+        "Document the preferred pattern for prompt construction in CLAUDE.md or AGENTS.md",
+        "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, and main branch fallback."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Standardize test-quality-reviewer review scope to feature branch diff",
-      "description": "As a developer, I need test-quality-reviewer to review all test files changed on the feature branch so that committed tests from ralph loop get reviewed.",
+      "title": "Add rich formatting to review loop display",
+      "description": "As a developer running ralph loop, I want the review loop to display progress counters and reviewer names with consistent Rich formatting so I can track review progress.",
       "acceptanceCriteria": [
-        "Update skills/reviewers/test-quality/SKILL.md Review Scope section",
-        "Use git diff --name-only main...HEAD for feature branch changes",
-        "Include git diff --name-only HEAD for uncommitted changes",
-        "Filter to test file patterns (test_*.py, *_test.py, *.spec.*, __tests__/)",
-        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
+        "Display 'Review X/Y' counter before each reviewer runs, matching ralph loop style",
+        "Display current reviewer name being executed",
+        "Use print_step or similar Rich formatting consistent with the loop command",
+        "Review loop output visually matches the iteration loop style",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, main branch fallback, and test file filtering."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Standardize python-code-reviewer review scope to feature branch diff",
-      "description": "As a developer, I need python-code-reviewer to review all Python files changed on the feature branch so that committed code from ralph loop gets reviewed.",
+      "title": "Bump version to 2.0.4",
+      "description": "As a maintainer, I need the version bumped to 2.0.4 in preparation for release.",
       "acceptanceCriteria": [
-        "Update skills/reviewers/language/python/SKILL.md Review Scope section",
-        "Use git diff --name-only main...HEAD -- '*.py' for feature branch changes",
-        "Include git diff --name-only HEAD -- '*.py' for uncommitted changes",
-        "Review Scope documentation matches the standard pattern from REVIEWER_TEMPLATE.md"
+        "Update version in pyproject.toml to 2.0.4",
+        "Update __version__ in src/ralph/__init__.py to 2.0.4",
+        "Add CHANGELOG.md entry for v2.0.4 with the three fixes",
+        "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Updated Review Scope section to match REVIEWER_TEMPLATE.md pattern with feature branch diff, uncommitted changes, main branch fallback, and Python file filtering."
-    },
-    {
-      "id": "US-005",
-      "title": "Add Test Appropriateness section to test-quality-reviewer",
-      "description": "As a developer, I need test-quality-reviewer to identify over-testing patterns so that test suites stay lean and focused on meaningful coverage.",
-      "acceptanceCriteria": [
-        "Add Test Appropriateness subsection under Standards in skills/reviewers/test-quality/SKILL.md",
-        "Document framework/stdlib testing anti-pattern (testing enum values, Pydantic validation, NamedTuple fields)",
-        "Document redundant test anti-pattern (same behavior verified multiple ways)",
-        "Document test consolidation opportunities",
-        "Classify over-testing indicators as warnings (not errors)",
-        "Add examples of framework testing anti-patterns"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Added Test Appropriateness subsection with framework/stdlib anti-pattern, redundant test anti-pattern, and test consolidation guidance. All classified as warnings."
-    },
-    {
-      "id": "US-006",
-      "title": "Add Project Context section to code-simplifier",
-      "description": "As a developer, I need code-simplifier to respect project-specific conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/code-simplifier/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/code-simplifier-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/code-simplifier-standards.md documentation. Includes precedence rules."
-    },
-    {
-      "id": "US-007",
-      "title": "Add Project Context section to test-quality-reviewer",
-      "description": "As a developer, I need test-quality-reviewer to respect project-specific testing conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/test-quality/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/test-quality-reviewer-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/test-quality-reviewer-standards.md documentation. Includes precedence rules. Removed redundant Project Overrides subsection."
-    },
-    {
-      "id": "US-008",
-      "title": "Add Project Context section to python-code-reviewer",
-      "description": "As a developer, I need python-code-reviewer to respect project-specific Python conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/language/python/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/python-code-reviewer-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Added Project Context section with CLAUDE.md, AGENTS.md, and .ralph/python-code-reviewer-standards.md documentation. Includes precedence rules. Removed redundant Project Overrides subsection."
-    },
-    {
-      "id": "US-009",
-      "title": "Add Project Context section to repo-structure-reviewer",
-      "description": "As a developer, I need repo-structure-reviewer to respect project-specific structure conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/repo-structure/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/repo-structure-reviewer-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 9,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "Add Project Context section to github-actions-reviewer",
-      "description": "As a developer, I need github-actions-reviewer to respect project-specific CI/CD conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/github-actions/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/github-actions-reviewer-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Add Project Context section to release-reviewer",
-      "description": "As a developer, I need release-reviewer to respect project-specific release conventions from CLAUDE.md and AGENTS.md.",
-      "acceptanceCriteria": [
-        "Add Project Context section to skills/reviewers/release/SKILL.md",
-        "Document checking for CLAUDE.md at project root",
-        "Document checking for AGENTS.md at project root",
-        "Document checking for .ralph/release-reviewer-standards.md override file",
-        "State that project rules take precedence over built-in standards"
-      ],
-      "priority": 11,
       "passes": false,
       "notes": ""
     }

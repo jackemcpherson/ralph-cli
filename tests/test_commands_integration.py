@@ -183,6 +183,75 @@ class TestInitCommand:
         mock_claude.assert_not_called()
         assert (python_project / "CLAUDE.md").is_file()
 
+    def test_init_skip_claude_skips_prd_prompt(
+        self, runner: CliRunner, python_project: Path
+    ) -> None:
+        """Test that --skip-claude skips the PRD prompt without blocking."""
+        with working_directory(python_project):
+            with (
+                patch("ralph.commands.init_cmd.ClaudeService") as mock_claude,
+                patch("ralph.commands.init_cmd.Confirm.ask") as mock_confirm,
+            ):
+                result = runner.invoke(app, ["init", "--skip-claude"])
+
+        assert result.exit_code == 0
+        # Confirm.ask should NOT be called when --skip-claude is passed
+        mock_confirm.assert_not_called()
+        mock_claude.assert_not_called()
+        # Verify all files are still created correctly
+        assert (python_project / "plans").is_dir()
+        assert (python_project / "plans" / "SPEC.md").is_file()
+        assert (python_project / "plans" / "TASKS.json").is_file()
+        assert (python_project / "plans" / "PROGRESS.txt").is_file()
+        assert (python_project / "CLAUDE.md").is_file()
+        assert (python_project / "AGENTS.md").is_file()
+        assert (python_project / "CHANGELOG.md").is_file()
+        # Verify the skip message is shown
+        assert "Skipping PRD creation" in result.output
+
+
+class TestHandleMissingPrd:
+    """Unit tests for _handle_missing_prd function."""
+
+    def test_handle_missing_prd_skips_prompt_when_skip_claude_true(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd skips prompt when skip_claude=True."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask") as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path, skip_claude=True)
+
+        # Confirm.ask should NOT be called
+        mock_confirm.assert_not_called()
+
+    def test_handle_missing_prd_prompts_when_skip_claude_false(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd prompts user when skip_claude=False."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path, skip_claude=False)
+
+        # Confirm.ask SHOULD be called
+        mock_confirm.assert_called_once()
+
+    def test_handle_missing_prd_prompts_by_default(self, tmp_path: Path) -> None:
+        """Test that _handle_missing_prd prompts by default (backwards compatibility)."""
+        from ralph.commands.init_cmd import _handle_missing_prd
+
+        prd_path = tmp_path / "plans" / "SPEC.md"
+        prd_path.parent.mkdir(parents=True)
+
+        with patch("ralph.commands.init_cmd.Confirm.ask", return_value=False) as mock_confirm:
+            _handle_missing_prd(prd_path, tmp_path)
+
+        # Confirm.ask SHOULD be called when skip_claude not specified
+        mock_confirm.assert_called_once()
+
 
 class TestPrdCommand:
     """Integration tests for ralph prd command."""
