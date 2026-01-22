@@ -16,7 +16,7 @@ from ralph.commands.once import (
     _build_prompt_from_skill,
     _find_next_story,
 )
-from ralph.models import load_reviewer_configs, load_tasks
+from ralph.models import TasksFile, UserStory, load_reviewer_configs, load_tasks
 from ralph.services import (
     ClaudeError,
     ClaudeService,
@@ -37,6 +37,24 @@ from ralph.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class IterationOutcome(StrEnum):
+    """Outcome of a single story iteration.
+
+    Attributes:
+        PASSED: Story completed successfully.
+        FAILED: Story did not pass checks.
+        ALL_COMPLETE: All stories are now complete (COMPLETE tag detected).
+        SKILL_ERROR: Could not load the required skill.
+        CLAUDE_ERROR: Error running Claude.
+    """
+
+    PASSED = "passed"
+    FAILED = "failed"
+    ALL_COMPLETE = "all_complete"
+    SKILL_ERROR = "skill_error"
+    CLAUDE_ERROR = "claude_error"
 
 
 class LoopStopReason(StrEnum):
@@ -60,6 +78,174 @@ class LoopStopReason(StrEnum):
     TRANSIENT_FAILURE = "transient_failure"
     NO_TASKS = "no_tasks"
     BRANCH_MISMATCH = "branch_mismatch"
+
+
+def _execute_story(
+    *,
+    project_root: Path,
+    tasks_path: Path,
+    story: UserStory,
+    max_fix_attempts: int,
+    verbose: bool,
+) -> IterationOutcome:
+    """Execute a single story iteration with Claude.
+
+    Builds the prompt, runs Claude, and checks whether the story passed.
+
+    Args:
+        project_root: Path to the project root directory.
+        tasks_path: Path to TASKS.json for status verification.
+        story: The UserStory to implement.
+        max_fix_attempts: Maximum attempts to fix failing checks.
+        verbose: Whether to show verbose output.
+
+    Returns:
+        IterationOutcome indicating what happened during execution.
+    """
+    try:
+        prompt = _build_prompt_from_skill(project_root, story, max_fix_attempts)
+    except SkillNotFoundError as e:
+        print_error(f"Skill not found: {e}")
+        return IterationOutcome.SKILL_ERROR
+
+    try:
+        claude = ClaudeService(working_dir=project_root, verbose=verbose)
+        output_text, _ = claude.run_print_mode(
+            prompt,
+            stream=True,
+            skip_permissions=True,
+            append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
+        )
+    except ClaudeError as e:
+        print_error(f"Claude error: {e}")
+        return IterationOutcome.CLAUDE_ERROR
+
+    console.print()
+
+    if "<ralph>COMPLETE</ralph>" in output_text:
+        return IterationOutcome.ALL_COMPLETE
+
+    story_passed = _check_story_status(tasks_path, story.id)
+
+    if story_passed:
+        print_success(f"Story {story.id} completed!")
+        return IterationOutcome.PASSED
+
+    print_warning(f"Story {story.id} did not pass")
+    return IterationOutcome.FAILED
+
+
+def _check_story_status(tasks_path: Path, story_id: str) -> bool:
+    """Check if a story has passed by reloading TASKS.json.
+
+    Args:
+        tasks_path: Path to TASKS.json.
+        story_id: ID of the story to check.
+
+    Returns:
+        True if the story passes, False otherwise.
+    """
+    try:
+        updated_tasks = load_tasks(tasks_path)
+        updated_story = next((s for s in updated_tasks.user_stories if s.id == story_id), None)
+        return updated_story is not None and updated_story.passes
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not verify story status: {e}")
+        return False
+
+
+def _display_loop_summary(
+    *,
+    stop_reason: LoopStopReason,
+    completed_in_loop: int,
+    total_stories: int,
+    completed_before: int,
+    tasks_path: Path,
+    iterations: int,
+) -> tuple[int, int]:
+    """Display the loop summary statistics.
+
+    Args:
+        stop_reason: Reason the loop stopped.
+        completed_in_loop: Number of stories completed in this run.
+        total_stories: Total number of stories.
+        completed_before: Stories completed before this run.
+        tasks_path: Path to TASKS.json for final status check.
+        iterations: Maximum iteration count.
+
+    Returns:
+        Tuple of (final_completed, final_remaining) counts.
+    """
+    console.print("[bold]Loop Summary[/bold]")
+    console.print()
+
+    try:
+        final_tasks = load_tasks(tasks_path)
+        final_completed = sum(1 for s in final_tasks.user_stories if s.passes)
+        final_remaining = total_stories - final_completed
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.warning(f"Could not load final task status: {e}")
+        final_completed = completed_before + completed_in_loop
+        final_remaining = total_stories - final_completed
+
+    console.print(f"[dim]Stories completed this run:[/dim] {completed_in_loop}")
+    console.print(f"[dim]Total completed:[/dim] {final_completed}/{total_stories}")
+    console.print(f"[dim]Remaining:[/dim] {final_remaining}")
+    console.print()
+
+    if stop_reason == LoopStopReason.MAX_ITERATIONS:
+        console.print(f"[dim]Reached maximum of {iterations} iterations.[/dim]")
+    elif stop_reason == LoopStopReason.PERSISTENT_FAILURE:
+        print_error("Stopped due to persistent failure on the same story.")
+        console.print("[dim]Manual intervention may be required.[/dim]")
+    elif stop_reason == LoopStopReason.TRANSIENT_FAILURE:
+        print_error("Stopped due to transient failure.")
+
+    return final_completed, final_remaining
+
+
+def _reload_tasks(tasks_path: Path) -> TasksFile | None:
+    """Reload TASKS.json from disk.
+
+    Args:
+        tasks_path: Path to TASKS.json.
+
+    Returns:
+        TasksFile if loaded successfully, None on error.
+    """
+    try:
+        return load_tasks(tasks_path)
+    except (FileNotFoundError, ValidationError, OSError) as e:
+        logger.error(f"Failed to reload TASKS.json: {e}")
+        print_error("Failed to reload TASKS.json")
+        return None
+
+
+def _check_consecutive_failures(
+    current_story_id: str,
+    failed_story_id: str | None,
+    consecutive_failures: int,
+) -> tuple[LoopStopReason, bool]:
+    """Check if we should stop due to consecutive failures on the same story.
+
+    Args:
+        current_story_id: ID of the story about to be executed.
+        failed_story_id: ID of the last story that failed, or None.
+        consecutive_failures: Number of consecutive failures on the same story.
+
+    Returns:
+        Tuple of (stop_reason, should_break). If should_break is True,
+        the loop should terminate with the given stop_reason.
+    """
+    if failed_story_id == current_story_id:
+        consecutive_failures += 1
+        if consecutive_failures >= 2:
+            print_error(
+                f"Story {current_story_id} failed {consecutive_failures} times. Stopping loop."
+            )
+            return LoopStopReason.PERSISTENT_FAILURE, True
+
+    return LoopStopReason.MAX_ITERATIONS, False
 
 
 def loop(
@@ -144,103 +330,65 @@ def loop(
     for i in range(iterations):
         iteration_num = i + 1
 
-        try:
-            tasks = load_tasks(tasks_path)
-        except (FileNotFoundError, ValidationError, OSError) as e:
-            logger.error(f"Failed to reload TASKS.json: {e}")
+        tasks = _reload_tasks(tasks_path)
+        if tasks is None:
             stop_reason = LoopStopReason.TRANSIENT_FAILURE
-            print_error("Failed to reload TASKS.json")
             break
 
         next_story = _find_next_story(tasks)
-
         if next_story is None:
             stop_reason = LoopStopReason.ALL_COMPLETE
             break
 
-        if failed_story_id == next_story.id:
-            consecutive_failures += 1
-            if consecutive_failures >= 2:
-                stop_reason = LoopStopReason.PERSISTENT_FAILURE
-                print_error(
-                    f"Story {next_story.id} failed {consecutive_failures} times. Stopping loop."
-                )
-                break
-        else:
+        stop_reason, should_break = _check_consecutive_failures(
+            next_story.id, failed_story_id, consecutive_failures
+        )
+        if should_break:
+            break
+
+        if failed_story_id != next_story.id:
             failed_story_id = None
             consecutive_failures = 0
 
         print_step(iteration_num, iterations, f"[cyan]{next_story.id}[/cyan]: {next_story.title}")
         console.print()
 
-        try:
-            prompt = _build_prompt_from_skill(project_root, next_story, max_fix_attempts)
-        except SkillNotFoundError as e:
-            print_error(f"Skill not found: {e}")
-            stop_reason = LoopStopReason.TRANSIENT_FAILURE
-            break
+        outcome = _execute_story(
+            project_root=project_root,
+            tasks_path=tasks_path,
+            story=next_story,
+            max_fix_attempts=max_fix_attempts,
+            verbose=verbose,
+        )
 
-        try:
-            claude = ClaudeService(working_dir=project_root, verbose=verbose)
-            output_text, exit_code = claude.run_print_mode(
-                prompt,
-                stream=True,
-                skip_permissions=True,
-                append_system_prompt=ClaudeService.AUTONOMOUS_MODE_PROMPT,
-            )
-        except ClaudeError as e:
-            print_error(f"Claude error: {e}")
-            stop_reason = LoopStopReason.TRANSIENT_FAILURE
-            break
-
-        console.print()
-
-        if "<ralph>COMPLETE</ralph>" in output_text:
+        if outcome == IterationOutcome.ALL_COMPLETE:
             completed_in_loop += 1
             stop_reason = LoopStopReason.ALL_COMPLETE
             break
 
-        story_passed = False
-        try:
-            updated_tasks = load_tasks(tasks_path)
-            updated_story = next(
-                (s for s in updated_tasks.user_stories if s.id == next_story.id), None
-            )
-            story_passed = updated_story is not None and updated_story.passes
-        except (FileNotFoundError, ValidationError, OSError) as e:
-            logger.warning(f"Could not verify story status: {e}")
-            story_passed = False
+        if outcome in (IterationOutcome.SKILL_ERROR, IterationOutcome.CLAUDE_ERROR):
+            stop_reason = LoopStopReason.TRANSIENT_FAILURE
+            break
 
-        if story_passed:
+        if outcome == IterationOutcome.PASSED:
             completed_in_loop += 1
-            print_success(f"Story {next_story.id} completed!")
             failed_story_id = None
             consecutive_failures = 0
-
             _append_loop_progress(progress_path, iteration_num, next_story.id, next_story.title)
         else:
-            print_warning(f"Story {next_story.id} did not pass")
             failed_story_id = next_story.id
             consecutive_failures = 1
 
         console.print()
 
-    console.print("[bold]Loop Summary[/bold]")
-    console.print()
-
-    try:
-        final_tasks = load_tasks(tasks_path)
-        final_completed = sum(1 for s in final_tasks.user_stories if s.passes)
-        final_remaining = total_stories - final_completed
-    except (FileNotFoundError, ValidationError, OSError) as e:
-        logger.warning(f"Could not load final task status: {e}")
-        final_completed = completed_before + completed_in_loop
-        final_remaining = total_stories - final_completed
-
-    console.print(f"[dim]Stories completed this run:[/dim] {completed_in_loop}")
-    console.print(f"[dim]Total completed:[/dim] {final_completed}/{total_stories}")
-    console.print(f"[dim]Remaining:[/dim] {final_remaining}")
-    console.print()
+    _display_loop_summary(
+        stop_reason=stop_reason,
+        completed_in_loop=completed_in_loop,
+        total_stories=total_stories,
+        completed_before=completed_before,
+        tasks_path=tasks_path,
+        iterations=iterations,
+    )
 
     if stop_reason == LoopStopReason.ALL_COMPLETE:
         print_success("All stories complete!")

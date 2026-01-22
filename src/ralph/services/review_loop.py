@@ -72,7 +72,7 @@ class ReviewLoopService(BaseModel):
             return True
 
         # Empty language list is treated as "no filter" - always runs
-        if len(reviewer.languages) == 0:
+        if not reviewer.languages:
             return True
 
         # Check if any of the reviewer's languages match detected languages
