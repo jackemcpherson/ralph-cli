@@ -30,8 +30,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated build_skill_prompt to use direct file references to bundled SKILL.md files instead of temp files. Added get_path() method to SkillLoader. Documented pattern in both CLAUDE.md and AGENTS.md."
     },
     {
       "id": "US-003",

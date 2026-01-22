@@ -36,3 +36,38 @@
 - The existing test already mocked `Confirm.ask` which masked the blocking behavior; new test verifies the fix
 
 ---
+
+[Ralph Loop] 2026-01-22 05:09 UTC - Iteration 1: US-001 (Skip PRD prompt in non-interactive init mode) completed
+
+---
+
+## 2026-01-22 - US-002
+
+**Story:** Use file references in skill prompt construction
+
+### What was implemented
+- Added `get_path()` method to `SkillLoader` in `src/ralph/services/skill_loader.py` to return filesystem paths to bundled skill files
+- Updated `build_skill_prompt()` in `src/ralph/utils/prompt.py` to use direct file references instead of copying to temp files
+- Prompts now use `@{actual_skill_path}` notation pointing to the bundled SKILL.md files
+- Removed temp file creation logic - no longer needed since bundled files have stable filesystem paths
+
+### Tests updated
+- `test_prompt_uses_file_reference` - Updated to check for SKILL.md in path
+- `test_prompt_handles_nested_skill_names` - Updated to check for actual path format
+- `test_once_prompt_uses_file_reference` - Updated to check for SKILL.md
+- `TestCommandSkillPaths` tests - Updated to check for direct file references
+
+### Documentation
+- Added prompt construction pattern to CLAUDE.md Codebase Patterns section
+- Added prompt construction pattern to AGENTS.md Codebase Patterns section
+
+### Files changed
+- `src/ralph/services/skill_loader.py` - Added `get_path()` and `_get_package_skill_path()` methods
+- `src/ralph/utils/prompt.py` - Simplified to use direct file references
+- `tests/test_commands_integration.py` - Updated tests for new path format
+- `CLAUDE.md` - Documented prompt construction pattern
+- `AGENTS.md` - Documented prompt construction pattern
+
+### Learnings for future iterations
+- `importlib.resources.files()` returns Traversables that can be converted to filesystem Paths for normal package installs
+- Direct file references are simpler and more efficient than temp file copying

@@ -769,8 +769,8 @@ class TestSyncCommand:
 class TestBuildSkillPrompt:
     """Tests for build_skill_prompt utility."""
 
-    def test_prompt_inlines_skill_content(self, tmp_path: Path) -> None:
-        """Test that build_skill_prompt inlines skill content."""
+    def test_prompt_uses_file_reference(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt uses @filepath for skill content."""
         from ralph.utils import build_skill_prompt
 
         skill_dir = tmp_path / "skills" / "test_skill"
@@ -780,11 +780,35 @@ class TestBuildSkillPrompt:
         result = build_skill_prompt("test_skill", "Some context", skills_dir=tmp_path / "skills")
 
         assert "Follow these instructions:" in result
-        assert "# Test Skill" in result
-        assert "Skill instructions here." in result
+        # Should contain @filepath reference pointing to actual SKILL.md
+        assert "@" in result
+        assert "SKILL.md" in result
+        # Skill content should NOT be inline in the prompt
+        assert "# Test Skill" not in result
+        assert "Skill instructions here." not in result
 
-    def test_prompt_includes_context(self, tmp_path: Path) -> None:
-        """Test that build_skill_prompt appends context."""
+    def test_prompt_file_contains_skill_content(self, tmp_path: Path) -> None:
+        """Test that the referenced file contains the skill content."""
+        import re
+
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "test_skill"
+        skill_dir.mkdir(parents=True)
+        skill_content = "# Test Skill\n\nSkill instructions here."
+        (skill_dir / "SKILL.md").write_text(skill_content)
+
+        result = build_skill_prompt("test_skill", "Some context", skills_dir=tmp_path / "skills")
+
+        # Extract the file path from the @filepath reference
+        match = re.search(r"@(/[^\s]+)", result)
+        assert match is not None
+        file_path = Path(match.group(1))
+        assert file_path.exists()
+        assert file_path.read_text() == skill_content
+
+    def test_prompt_includes_context_inline(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt keeps context inline."""
         from ralph.utils import build_skill_prompt
 
         skill_dir = tmp_path / "skills" / "test_skill"
@@ -794,8 +818,8 @@ class TestBuildSkillPrompt:
         context = "## Context\n\nThis is test context."
         result = build_skill_prompt("test_skill", context, skills_dir=tmp_path / "skills")
 
+        # Context should be inline in the prompt
         assert context in result
-        assert "# Test Skill" in result
 
     def test_prompt_raises_for_missing_skill(self, tmp_path: Path) -> None:
         """Test that build_skill_prompt raises SkillNotFoundError for missing skill."""
@@ -807,12 +831,25 @@ class TestBuildSkillPrompt:
         with pytest.raises(SkillNotFoundError):
             build_skill_prompt("nonexistent_skill", "context", skills_dir=tmp_path / "skills")
 
+    def test_prompt_handles_nested_skill_names(self, tmp_path: Path) -> None:
+        """Test that build_skill_prompt handles nested skill names (e.g., ralph/prd)."""
+        from ralph.utils import build_skill_prompt
+
+        skill_dir = tmp_path / "skills" / "ralph" / "prd"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Ralph PRD Skill")
+
+        result = build_skill_prompt("ralph/prd", "Context", skills_dir=tmp_path / "skills")
+
+        # Should reference the actual skill file path
+        assert "ralph/prd/SKILL.md" in result
+
 
 class TestOnceCommandPromptFormat:
     """Tests for ralph once command prompt format."""
 
-    def test_once_prompt_inlines_skill_content(self, project_with_tasks: Path) -> None:
-        """Test that ralph once inlines skill content in prompt."""
+    def test_once_prompt_uses_file_reference(self, project_with_tasks: Path) -> None:
+        """Test that ralph once uses @filepath reference for skill content."""
         captured_prompt: list[str] = []
 
         def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
@@ -836,7 +873,45 @@ class TestOnceCommandPromptFormat:
 
         assert len(captured_prompt) > 0
         assert "Follow these instructions:" in captured_prompt[0]
-        assert "Ralph Iteration Skill" in captured_prompt[0]
+        # Should use file reference, not inline content
+        assert "@" in captured_prompt[0]
+        # Should reference bundled skill file directly
+        assert "SKILL.md" in captured_prompt[0]
+
+    def test_once_prompt_skill_file_contains_content(self, project_with_tasks: Path) -> None:
+        """Test that the skill file referenced by ralph once contains iteration skill."""
+        import re
+
+        captured_prompt: list[str] = []
+
+        def mock_popen(args: list[str], **kwargs: Any) -> MagicMock:
+            if "--print" in args:
+                idx = args.index("--print")
+                if idx + 1 < len(args):
+                    captured_prompt.append(args[idx + 1])
+            mock_process = MagicMock()
+            mock_process.stdout = StringIO("Done")
+            mock_process.stderr = StringIO("")
+            mock_process.wait.return_value = 0
+            return mock_process
+
+        with working_directory(project_with_tasks):
+            with (
+                patch("shutil.which", return_value="/usr/bin/claude"),
+                patch("subprocess.Popen", side_effect=mock_popen),
+            ):
+                runner = CliRunner()
+                runner.invoke(app, ["once"])
+
+        assert len(captured_prompt) > 0
+        # Extract the file path from the @filepath reference
+        match = re.search(r"@(/[^\s]+)", captured_prompt[0])
+        assert match is not None
+        file_path = Path(match.group(1))
+        assert file_path.exists()
+        # Verify the file contains iteration skill content
+        content = file_path.read_text()
+        assert "Ralph Iteration Skill" in content
 
 
 class TestTasksJsonExtraction:
@@ -1053,26 +1128,28 @@ class TestCommandSkillPaths:
     """Tests verifying that commands use bundled skills correctly."""
 
     def test_prd_command_loads_bundled_skill(self) -> None:
-        """Test that prd command loads the bundled ralph/prd skill."""
+        """Test that prd command references the bundled ralph/prd skill."""
         from ralph.commands.prd import _build_prompt_from_skill
 
         output_path = Path("/tmp/SPEC.md")
         prompt = _build_prompt_from_skill(output_path)
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph PRD" in prompt
+        # Should reference bundled skill file directly
+        assert "ralph/prd/SKILL.md" in prompt
 
     def test_tasks_command_loads_bundled_skill(self) -> None:
-        """Test that tasks command loads the bundled ralph/tasks skill."""
+        """Test that tasks command references the bundled ralph/tasks skill."""
         from ralph.commands.tasks import _build_prompt_from_skill
 
         prompt = _build_prompt_from_skill("Test spec content")
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph Tasks" in prompt
+        # Should reference bundled skill file directly
+        assert "ralph/tasks/SKILL.md" in prompt
 
     def test_once_command_loads_bundled_skill(self) -> None:
-        """Test that once command loads the bundled ralph/iteration skill."""
+        """Test that once command references the bundled ralph/iteration skill."""
         from ralph.commands.once import _build_prompt_from_skill
         from ralph.models import UserStory
 
@@ -1089,7 +1166,8 @@ class TestCommandSkillPaths:
         prompt = _build_prompt_from_skill(story, max_fix_attempts=3)
 
         assert "Follow these instructions:" in prompt
-        assert "Ralph Iteration" in prompt
+        # Should reference bundled skill file directly
+        assert "ralph/iteration/SKILL.md" in prompt
 
     def test_loop_command_loads_bundled_skill(self) -> None:
         """Test that loop command (via once) loads the bundled ralph/iteration skill."""

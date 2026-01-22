@@ -1,6 +1,7 @@
 """Prompt building utilities for Ralph CLI.
 
 This module provides utilities for building prompts with skill content.
+Uses @filepath notation for skill content to reduce token usage.
 """
 
 from pathlib import Path
@@ -13,11 +14,11 @@ def build_skill_prompt(
     context: str,
     skills_dir: Path | None = None,
 ) -> str:
-    """Build a prompt with inlined skill content.
+    """Build a prompt using @filepath reference for skill content.
 
-    Creates a prompt that includes the skill instructions inline,
-    followed by context for the session. When skills_dir is None,
-    loads skills from bundled package resources.
+    Uses @filepath notation to reference the bundled skill file directly,
+    reducing token usage when invoking Claude. The context is kept inline
+    since it's usually smaller and session-specific.
 
     Args:
         skill_name: Skill name (e.g., 'ralph/prd', 'reviewers/test-quality').
@@ -25,17 +26,17 @@ def build_skill_prompt(
         skills_dir: Optional custom skills directory. If None, uses bundled skills.
 
     Returns:
-        Prompt string with skill content inlined.
+        Prompt string with @filepath reference for skill content.
 
     Raises:
         SkillNotFoundError: If skill doesn't exist.
     """
     loader = SkillLoader(skills_dir=skills_dir)
-    skill_content = loader.get_content(skill_name)
+    skill_path = loader.get_path(skill_name)
 
     return f"""Follow these instructions:
 
-{skill_content}
+@{skill_path}
 
 {context}"""
 
