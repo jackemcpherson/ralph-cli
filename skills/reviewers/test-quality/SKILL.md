@@ -149,6 +149,107 @@ These are non-blocking recommendations. Violations produce **warnings**.
 - Magic numbers/strings are named constants or fixtures
 - Test data is realistic and representative
 
+### Test Appropriateness
+
+These are non-blocking recommendations. Violations produce **warnings** to help keep test suites lean and focused.
+
+**Framework/Standard Library Testing Anti-Pattern**
+
+Don't test behavior that's guaranteed by frameworks or the standard library. These tests add maintenance burden without catching real bugs.
+
+Examples of framework behavior that shouldn't be tested:
+- Enum values match their definitions
+- Pydantic models validate fields correctly
+- NamedTuple fields are accessible by name
+- dataclass fields have correct defaults
+- typing constructs work as documented
+- SQLAlchemy models have declared columns
+
+```python
+# BAD: Testing that Python enums work
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+def test_status_enum_values():
+    assert Status.ACTIVE.value == "active"  # Tests Python, not your code
+    assert Status.INACTIVE.value == "inactive"
+
+# BAD: Testing that Pydantic validation works
+class User(BaseModel):
+    name: str
+    age: int
+
+def test_user_requires_name():
+    with pytest.raises(ValidationError):
+        User(age=25)  # Tests Pydantic, not your code
+
+# BAD: Testing NamedTuple field access
+Point = NamedTuple("Point", [("x", int), ("y", int)])
+
+def test_point_has_x_and_y():
+    p = Point(1, 2)
+    assert p.x == 1  # Tests Python NamedTuple, not your code
+    assert p.y == 2
+```
+
+Instead, test your business logic that *uses* these constructs.
+
+**Redundant Test Anti-Pattern**
+
+Don't verify the same behavior multiple ways. Each test should add unique value.
+
+```python
+# BAD: Same behavior tested multiple times
+def test_user_creation():
+    user = User(name="Alice", age=30)
+    assert user.name == "Alice"
+
+def test_user_name_is_set():
+    user = User(name="Alice", age=30)
+    assert user.name == "Alice"  # Duplicate of above
+
+def test_user_has_correct_name():
+    user = User(name="Alice", age=30)
+    assert "Alice" == user.name  # Same test, different assertion order
+```
+
+**Test Consolidation Opportunities**
+
+Look for tests that could be combined without losing clarity:
+- Multiple tests that share identical setup
+- Tests that verify closely related aspects of the same behavior
+- Parameterized scenarios written as separate test functions
+
+```python
+# BEFORE: Separate tests with repeated setup
+def test_calculate_discount_regular_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="regular")
+    assert calculate_discount(cart, customer) == 0
+
+def test_calculate_discount_silver_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="silver")
+    assert calculate_discount(cart, customer) == 10
+
+def test_calculate_discount_gold_customer():
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier="gold")
+    assert calculate_discount(cart, customer) == 20
+
+# AFTER: Consolidated with parameterization
+@pytest.mark.parametrize("tier,expected_discount", [
+    ("regular", 0),
+    ("silver", 10),
+    ("gold", 20),
+])
+def test_calculate_discount_by_customer_tier(tier, expected_discount):
+    cart = Cart(items=[Item(price=100)])
+    customer = Customer(tier=tier)
+    assert calculate_discount(cart, customer) == expected_discount
+```
+
 ### Project Overrides
 
 Projects can customize standards:
