@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.3] - 2026-01-22
+
+### Changed
+
+- Standardized review scope in all reviewer skills to focus on feature branch diff (files changed since branching from main)
+- Added **Project Context** section to python-code-reviewer, test-quality-reviewer, and code-simplifier skills
+- Added **Test Appropriateness** section to test-quality-reviewer for evaluating whether tests match implementation changes
+- Updated REVIEWER_TEMPLATE.md with new review scope pattern for consistency
+
 ## [2.0.2] - 2026-01-22
 
 ### Fixed

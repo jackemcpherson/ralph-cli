@@ -171,3 +171,111 @@
 ---
 
 [Ralph Loop] 2026-01-22 03:10 UTC - Iteration 5: US-005 (Add Test Appropriateness section to test-quality-reviewer) completed
+
+[Ralph Loop] 2026-01-22 03:05 UTC - Iteration 5: US-005 (Add Test Appropriateness section to test-quality-reviewer) completed
+
+---
+
+## 2026-01-22 - US-006
+
+**Story:** Add Project Context section to code-simplifier
+
+### What was implemented
+- Added new Project Context section to skills/reviewers/code-simplifier/SKILL.md
+- Documented CLAUDE.md at project root as primary configuration file
+- Documented AGENTS.md at project root for agent-specific instructions
+- Documented .ralph/code-simplifier-standards.md as optional skill-specific override
+- Added Precedence Rules subsection stating project rules take precedence over built-in standards
+- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
+
+### Tests written
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+
+### Files changed
+- skills/reviewers/code-simplifier/SKILL.md
+
+### Learnings for future iterations
+- Project Context section provides a standard pattern for all reviewer skills to follow
+- The precedence order (skill override > project conventions > built-in) is consistent across reviewers
+- US-007 through US-011 will follow the same pattern for other reviewers
+
+---
+
+[Ralph Loop] 2026-01-22 03:07 UTC - Iteration 6: US-006 (Add Project Context section to code-simplifier) completed
+
+---
+
+## 2026-01-22 - US-007
+
+**Story:** Add Project Context section to test-quality-reviewer
+
+### What was implemented
+- Added new Project Context section to skills/reviewers/test-quality/SKILL.md
+- Documented CLAUDE.md at project root as primary configuration file for testing requirements
+- Documented AGENTS.md at project root for agent-specific testing conventions
+- Documented .ralph/test-quality-reviewer-standards.md as optional skill-specific override
+- Added Precedence Rules subsection stating project rules take precedence over built-in standards
+- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
+
+### Tests written
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+
+### Files changed
+- skills/reviewers/test-quality/SKILL.md
+
+### Learnings for future iterations
+- Project Context section follows the same pattern established in US-006 for code-simplifier
+- The precedence order (skill override > project conventions > built-in) is consistent across reviewers
+- US-008 through US-011 will follow the same pattern for remaining reviewers
+
+---
+
+[Ralph Loop] 2026-01-22 03:15 UTC - Iteration 7: US-007 (Add Project Context section to test-quality-reviewer) completed
+
+[Ralph Loop] 2026-01-22 03:09 UTC - Iteration 7: US-007 (Add Project Context section to test-quality-reviewer) completed
+
+---
+
+## 2026-01-22 - US-008
+
+**Story:** Add Project Context section to python-code-reviewer
+
+### What was implemented
+- Added new Project Context section to skills/reviewers/language/python/SKILL.md
+- Documented CLAUDE.md at project root as primary configuration file with Python-specific items:
+  - Codebase Patterns section with Python-specific conventions
+  - Type annotation preferences and idioms
+  - Docstring format requirements
+  - Logging configuration patterns
+- Documented AGENTS.md at project root for agent-specific Python coding standards
+- Documented .ralph/python-code-reviewer-standards.md as optional skill-specific override
+- Added Precedence Rules subsection stating project rules take precedence over built-in standards
+- Removed redundant Project Overrides subsection from Standards (consolidated into Project Context)
+
+### Tests written
+- No code tests needed (documentation-only change)
+- All quality checks pass (pyright, ruff lint, ruff format, pytest - 106 tests)
+
+### Files changed
+- skills/reviewers/language/python/SKILL.md
+
+### Learnings for future iterations
+- Project Context section follows the same pattern established in US-006 and US-007
+- Python-code-reviewer includes language-specific items like type annotation preferences and docstring formats
+- US-009 through US-011 will follow the same pattern for remaining reviewers
+
+---
+
+[Review Loop] 2026-01-22 03:11 UTC - test-quality (blocking): passed
+
+[Review Loop] 2026-01-22 03:11 UTC - code-simplifier (blocking): passed
+
+[Review Loop] 2026-01-22 03:12 UTC - python-code (blocking): passed
+
+[Review Loop] 2026-01-22 03:12 UTC - github-actions (warning): passed
+
+[Review Loop] 2026-01-22 03:13 UTC - repo-structure (warning): passed
+
+[Review Loop] 2026-01-22 03:14 UTC - release (blocking): passed
