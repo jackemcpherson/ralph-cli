@@ -98,6 +98,20 @@ def print_review_step(step: int, total: int, reviewer_name: str) -> None:
     console.print(f"[bold blue][Review {step}/{total}][/bold blue] {reviewer_name}")
 
 
+def print_fix_step(step: int, total: int, finding_id: str) -> None:
+    """Print a fix progress step.
+
+    Displays the fix counter and finding ID in a format consistent
+    with the review loop, using 'Fix X/Y' prefix.
+
+    Args:
+        step: Current fix attempt number (1-indexed).
+        total: Total number of findings to fix.
+        finding_id: ID of the finding being fixed.
+    """
+    console.print(f"[bold blue][Fix {step}/{total}][/bold blue] {finding_id}")
+
+
 @contextmanager
 def create_spinner(message: str) -> Iterator[None]:
     """Create a spinner context manager for long operations.
