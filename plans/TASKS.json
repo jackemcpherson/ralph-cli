@@ -130,8 +130,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Findings with PY-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
     },
     {
       "id": "US-009",
@@ -147,8 +147,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Workflow Coverage table, Findings with GA-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
     },
     {
       "id": "US-010",
@@ -164,8 +164,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Findings with RS-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
     },
     {
       "id": "US-011",
@@ -181,8 +181,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated Output Format section with structured format including [Review] header, Verdict, Findings with RL-prefixed IDs, and examples for PASSED and NEEDS_WORK cases."
     },
     {
       "id": "US-012",
@@ -196,8 +196,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created GitHub issue #37 with enhancement and low priority labels."
     }
   ]
 }

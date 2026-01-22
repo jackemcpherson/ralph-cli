@@ -392,3 +392,171 @@
 ### Learnings for future iterations
 - The CS- prefix (Code Simplifier) distinguishes these findings from TQ- (Test Quality) findings
 - All reviewer SKILL.md files should follow the same structured format for the fix loop parser to work consistently
+
+[Ralph Loop] 2026-01-22 07:25 UTC - Iteration 7: US-007 (Update code-simplifier reviewer with structured output) completed
+
+---
+
+## 2026-01-22 - US-008
+
+**Story:** Update python-code reviewer with structured output
+
+### What was implemented
+- Updated `src/ralph/skills/reviewers/language/python/SKILL.md` Output Format section
+- Added `[Review]` header format with timestamp, reviewer name (`python-code`), and level
+- Changed verdict format to `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- Added structured Findings section with numbered items using `PY-` prefixed IDs
+- Each finding includes: File path with line number, Issue description, and Suggestion
+- Added format details explaining all required fields
+- Added finding ID category reference table (Missing Type Hint, Missing Docstring, Inline Comment, etc.)
+- Added examples for both PASSED and NEEDS_WORK verdicts
+- Output ends with `---` separator
+- Instructions clearly state to append to `plans/PROGRESS.txt`
+
+### Tests written
+- No new tests required (this is a documentation-only change to SKILL.md)
+
+### Files changed
+- `src/ralph/skills/reviewers/language/python/SKILL.md` - Updated Output Format section
+
+### Learnings for future iterations
+- The PY- prefix (Python) distinguishes these findings from TQ- (Test Quality) and CS- (Code Simplifier) findings
+- All reviewer SKILL.md files should follow the same structured format for the fix loop parser to work consistently
+
+[Ralph Loop] 2026-01-22 - Iteration 8: US-008 (Update python-code reviewer with structured output) completed
+
+[Ralph Loop] 2026-01-22 07:27 UTC - Iteration 8: US-008 (Update python-code reviewer with structured output) completed
+
+---
+
+## 2026-01-22 - US-009
+
+**Story:** Update github-actions reviewer with structured output
+
+### What was implemented
+- Updated `src/ralph/skills/reviewers/github_actions/SKILL.md` Output Format section
+- Added `[Review]` header format with timestamp, reviewer name (`github-actions`), and level
+- Changed verdict format to `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- Added structured Findings section with numbered items using `GA-` prefixed IDs
+- Each finding includes: File path with line number, Issue description, and Suggestion
+- Added format details explaining all required fields
+- Added finding ID category reference table (Missing Workflow, Unpinned Action, No Timeout, etc.)
+- Added examples for both PASSED and NEEDS_WORK verdicts
+- Output ends with `---` separator
+- Instructions clearly state to append to `plans/PROGRESS.txt`
+- Kept Workflow Coverage table for additional context
+
+### Tests written
+- No new tests required (this is a documentation-only change to SKILL.md)
+
+### Files changed
+- `src/ralph/skills/reviewers/github_actions/SKILL.md` - Updated Output Format section
+
+### Learnings for future iterations
+- The GA- prefix (GitHub Actions) distinguishes these findings from TQ- (Test Quality), CS- (Code Simplifier), and PY- (Python) findings
+- All reviewer SKILL.md files should follow the same structured format for the fix loop parser to work consistently
+
+[Ralph Loop] 2026-01-22 - Iteration 9: US-009 (Update github-actions reviewer with structured output) completed
+
+[Ralph Loop] 2026-01-22 07:29 UTC - Iteration 9: US-009 (Update github-actions reviewer with structured output) completed
+
+---
+
+## 2026-01-22 - US-010
+
+**Story:** Update repo-structure reviewer with structured output
+
+### What was implemented
+- Updated `src/ralph/skills/reviewers/repo_structure/SKILL.md` Output Format section
+- Added `[Review]` header format with timestamp, reviewer name (`repo-structure`), and level
+- Changed verdict format to `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- Added structured Findings section with numbered items using `RS-` prefixed IDs
+- Each finding includes: File path with line number, Issue description, and Suggestion
+- Added format details explaining all required fields
+- Added finding ID category reference table (Missing README, Incomplete Gitignore, Secrets Committed, etc.)
+- Added examples for both PASSED and NEEDS_WORK verdicts
+- Output ends with `---` separator
+- Instructions clearly state to append to `plans/PROGRESS.txt`
+
+### Tests written
+- No new tests required (this is a documentation-only change to SKILL.md)
+
+### Files changed
+- `src/ralph/skills/reviewers/repo_structure/SKILL.md` - Updated Output Format section
+
+### Learnings for future iterations
+- The RS- prefix (Repo Structure) distinguishes these findings from TQ- (Test Quality), CS- (Code Simplifier), PY- (Python), and GA- (GitHub Actions) findings
+- All reviewer SKILL.md files should follow the same structured format for the fix loop parser to work consistently
+
+[Ralph Loop] 2026-01-22 - Iteration 10: US-010 (Update repo-structure reviewer with structured output) completed
+
+[Ralph Loop] 2026-01-22 07:31 UTC - Iteration 10: US-010 (Update repo-structure reviewer with structured output) completed
+
+---
+
+## 2026-01-22 - US-011
+
+**Story:** Update release reviewer with structured output
+
+### What was implemented
+- Updated `src/ralph/skills/reviewers/release/SKILL.md` Output Format section
+- Added `[Review]` header format with timestamp, reviewer name (`release`), and level
+- Changed verdict format to `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- Added structured Findings section with numbered items using `RL-` prefixed IDs
+- Each finding includes: File path with line number, Issue description, and Suggestion
+- Added format details explaining all required fields
+- Added finding ID category reference table (Version Mismatch, Missing Changelog, Missing Documentation, etc.)
+- Added examples for both PASSED and NEEDS_WORK verdicts
+- Output ends with `---` separator
+- Instructions clearly state to append to `plans/PROGRESS.txt`
+
+### Tests written
+- No new tests required (this is a documentation-only change to SKILL.md)
+
+### Files changed
+- `src/ralph/skills/reviewers/release/SKILL.md` - Updated Output Format section
+
+### Learnings for future iterations
+- The RL- prefix (Release) distinguishes these findings from TQ- (Test Quality), CS- (Code Simplifier), PY- (Python), GA- (GitHub Actions), and RS- (Repo Structure) findings
+- All reviewer SKILL.md files now follow the same structured format for the fix loop parser to work consistently
+
+[Ralph Loop] 2026-01-22 - Iteration 11: US-011 (Update release reviewer with structured output) completed
+
+[Review Loop] 2026-01-22 07:34 UTC - test-quality (blocking): passed
+
+[Review Loop] 2026-01-22 07:35 UTC - code-simplifier (blocking): passed
+
+[Review Loop] 2026-01-22 07:35 UTC - python-code (blocking): passed
+
+[Review Loop] 2026-01-22 07:36 UTC - github-actions (warning): passed
+
+[Review Loop] 2026-01-22 07:36 UTC - repo-structure (warning): passed
+
+[Review Loop] 2026-01-22 07:37 UTC - release (blocking): passed
+
+---
+
+## 2026-01-22 - US-012
+
+**Story:** Create GitHub issue for --no-fix flag enhancement
+
+### What was implemented
+- Created GitHub issue #37 titled "Add --no-fix flag to disable auto-fix in review loop"
+- Issue describes the use case for review-only mode without automatic fixes
+- Issue includes proposed behavior and acceptance criteria for future implementation
+- Created "low priority" label (green color) as it did not exist
+- Applied both "enhancement" and "low priority" labels
+
+### Tests written
+- No tests required (this story creates a GitHub issue, not code)
+
+### Files changed
+- No source files changed
+- `plans/TASKS.json` - Marked story as complete
+- `plans/PROGRESS.txt` - This entry
+
+### Learnings for future iterations
+- Use `gh label create` to create new labels before applying them
+- GitHub issues can be created with multiple labels using repeated `--label` flags
+
+[Ralph Loop] 2026-01-22 - Iteration 12: US-012 (Create GitHub issue for --no-fix flag enhancement) completed
