@@ -289,7 +289,7 @@ def loop(
     except FileNotFoundError:
         print_error("Could not load plans/TASKS.json")
         raise typer.Exit(1)
-    except Exception as e:
+    except (ValidationError, OSError) as e:
         print_error(f"Error parsing TASKS.json: {e}")
         raise typer.Exit(1)
 

@@ -5,7 +5,8 @@ to track which skills have been installed by ralph sync.
 
 Manifest versions:
 - Version 1 (legacy): installed contains flat directory names like "ralph-prd"
-- Version 2 (current): installed contains nested paths like "ralph/prd"
+- Version 2 (legacy): installed contains nested paths like "ralph/prd"
+- Version 3 (current): installed contains flat directory names like "ralph-iteration"
 """
 
 from pathlib import Path
@@ -13,8 +14,8 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Current manifest version for nested skill structure
-MANIFEST_VERSION = 2
+# Current manifest version for flat skill files
+MANIFEST_VERSION = 3
 
 
 class Manifest(BaseModel):
