@@ -5,6 +5,7 @@ to automatically resolve review findings.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -222,19 +223,27 @@ Begin fixing now."""
         findings: list[Finding],
         *,
         progress_path: Path | None = None,
+        on_fix_step: Callable[[int, int, str], None] | None = None,
     ) -> list[FixResult]:
         """Iterate through findings and attempt to fix each one.
 
         Args:
             findings: List of findings to fix.
             progress_path: Optional path to PROGRESS.txt for logging.
+            on_fix_step: Optional callback for fix progress (step, total, finding_id).
+                Called before each finding is processed to enable console output.
 
         Returns:
             List of FixResult objects for each finding.
         """
         results: list[FixResult] = []
+        total_findings = len(findings)
 
-        for finding in findings:
+        for i, finding in enumerate(findings, 1):
+            # Call progress callback before attempting fix
+            if on_fix_step:
+                on_fix_step(i, total_findings, finding.id)
+
             last_error: str | None = None
 
             for attempt in range(1, self.max_retries + 1):

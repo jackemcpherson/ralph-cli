@@ -5,15 +5,17 @@ in order as part of the Ralph post-story review loop.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
-from ralph.models.finding import ReviewOutput, parse_review_output
+from ralph.models.finding import ReviewOutput, Verdict, parse_review_output
 from ralph.models.reviewer import ReviewerConfig, ReviewerLevel
 from ralph.services.claude import ClaudeService
+from ralph.services.fix_loop import FixLoopService
 from ralph.services.language import Language
 from ralph.services.skill_loader import SkillLoader, SkillNotFoundError
 
@@ -188,6 +190,40 @@ class ReviewLoopService(BaseModel):
             review_output=review_output,
         )
 
+    def should_run_fix_loop(
+        self, reviewer: ReviewerConfig, strict: bool, *, was_language_filtered: bool
+    ) -> bool:
+        """Determine if the fix loop should run for a reviewer.
+
+        Fix loop runs for:
+        - blocking reviewers (always)
+        - warning and suggestion reviewers when strict=True
+
+        Fix loop is skipped for:
+        - language-filtered reviewers (even if they have findings)
+
+        Args:
+            reviewer: The reviewer configuration.
+            strict: Whether strict mode is enabled.
+            was_language_filtered: Whether this reviewer was language-filtered.
+
+        Returns:
+            True if fix loop should run, False otherwise.
+        """
+        # Skip fix loop for language-filtered reviewers
+        if was_language_filtered:
+            return False
+
+        # Blocking reviewers always get fix loop
+        if reviewer.level == ReviewerLevel.blocking:
+            return True
+
+        # In strict mode, all levels get fix loop
+        if strict:
+            return True
+
+        return False
+
     def run_review_loop(
         self,
         reviewers: list[ReviewerConfig],
@@ -195,14 +231,21 @@ class ReviewLoopService(BaseModel):
         *,
         strict: bool = False,
         progress_path: Path | None = None,
+        on_fix_step: Callable[[int, int, str], None] | None = None,
     ) -> list[ReviewerResult]:
         """Execute the full review loop with all configured reviewers.
+
+        After each reviewer completes, if the verdict is NEEDS_WORK and the
+        reviewer is eligible for auto-fix, the fix loop will automatically
+        run to attempt to resolve findings.
 
         Args:
             reviewers: List of reviewer configurations to execute in order.
             detected_languages: Set of languages detected in the project.
             strict: Whether to enforce warning-level reviewers.
             progress_path: Optional path to PROGRESS.txt for logging.
+            on_fix_step: Optional callback for fix progress (step, total, finding_id).
+                Called before each fix attempt to enable console output.
 
         Returns:
             List of ReviewerResult objects for each reviewer.
@@ -210,7 +253,9 @@ class ReviewLoopService(BaseModel):
         results: list[ReviewerResult] = []
 
         for reviewer in reviewers:
-            if not self.should_run_reviewer(reviewer, detected_languages):
+            was_language_filtered = not self.should_run_reviewer(reviewer, detected_languages)
+
+            if was_language_filtered:
                 logger.info(
                     f"Skipping reviewer {reviewer.name} (language filter: {reviewer.languages})"
                 )
@@ -234,6 +279,30 @@ class ReviewLoopService(BaseModel):
 
             if progress_path:
                 self._append_review_summary(progress_path, reviewer, result)
+
+            # Run fix loop if reviewer returned NEEDS_WORK and is eligible
+            if (
+                result.review_output
+                and result.review_output.verdict == Verdict.NEEDS_WORK
+                and result.review_output.findings
+                and self.should_run_fix_loop(reviewer, strict, was_language_filtered=False)
+            ):
+                logger.info(
+                    f"Running fix loop for {reviewer.name} "
+                    f"({len(result.review_output.findings)} findings)"
+                )
+
+                fix_service = FixLoopService(
+                    project_root=self.project_root,
+                    reviewer_name=reviewer.name,
+                    verbose=self.verbose,
+                )
+
+                fix_service.run_fix_loop(
+                    result.review_output.findings,
+                    progress_path=progress_path,
+                    on_fix_step=on_fix_step,
+                )
 
             if result.success:
                 logger.info(f"Reviewer {reviewer.name} completed successfully")

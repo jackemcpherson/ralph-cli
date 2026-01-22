@@ -222,6 +222,37 @@ class TestFixLoopServiceRunFixLoop:
         assert "test-reviewer/FINDING-001" in content
         assert "exhausted" in content
 
+    @patch("ralph.services.fix_loop.GitService")
+    @patch("ralph.services.fix_loop.ClaudeService")
+    def test_calls_on_fix_step_callback(
+        self,
+        mock_claude_class: MagicMock,
+        mock_git_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test fix loop calls on_fix_step callback for each finding."""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = ("Fix applied", 0)
+        mock_claude_class.return_value = mock_claude
+
+        mock_git = MagicMock()
+        mock_git.has_changes.return_value = True
+        mock_git.commit.return_value = "abc1234"
+        mock_git_class.return_value = mock_git
+
+        service = _create_service(tmp_path)
+        findings = [
+            _create_finding(finding_id="FINDING-001"),
+            _create_finding(finding_id="FINDING-002"),
+        ]
+
+        callback = MagicMock()
+        service.run_fix_loop(findings, on_fix_step=callback)
+
+        assert callback.call_count == 2
+        callback.assert_any_call(1, 2, "FINDING-001")
+        callback.assert_any_call(2, 2, "FINDING-002")
+
 
 class TestFixLoopServiceCommitFix:
     """Tests for fix commit creation."""
