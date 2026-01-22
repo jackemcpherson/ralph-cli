@@ -1,141 +1,81 @@
-# Ralph CLI v2.0.3 - Product Requirements Document
+# Release v2.0.4 - Product Requirements Document
 
 ## Overview
 
-This patch release addresses three issues with the reviewer skills: fixing the code-simplifier's review scope to examine feature branch changes (not just uncommitted files), enhancing the test-quality-reviewer to assess test count appropriateness, and ensuring all reviewer skills consistently reference project context files (CLAUDE.md/AGENTS.md).
+Minor release addressing three issues: fixing non-interactive initialization (#31), optimizing prompt construction to use file references (#34), and adding rich formatting to the review loop (#35).
 
 ## Goals
 
-- Fix code-simplifier to review all code changed on the feature branch, not just uncommitted changes
-- Enhance test-quality-reviewer to flag over-testing patterns (framework testing, redundant tests)
-- Ensure all reviewer skills check and respect project-specific context from CLAUDE.md/AGENTS.md
+- Enable fully non-interactive `ralph init` workflow for scripted/automated usage
+- Reduce token usage by using `@` file references instead of loading full prompt text
+- Provide consistent, informative terminal output across all loop commands
 
 ## Non-Goals
 
-- Resume partial review runs (#26) - deferred to future release
-- Detect already-implemented stories in `ralph tasks` (#17) - deferred to future release
-- Adding new reviewer skills
-- Changes to the core `ralph loop` command logic
+- New features or commands
+- Breaking changes to existing APIs
+- Changes to the review pipeline logic itself (only formatting)
 
 ## User Stories Overview
 
-Developers using Ralph's review pipeline need reviewers that:
-1. Actually examine the code written during `ralph loop` (currently missed due to commits)
-2. Catch over-testing patterns that bloat test suites without adding value
-3. Respect project-specific conventions defined in CLAUDE.md/AGENTS.md
+Developers using Ralph CLI need reliable non-interactive modes for CI/automation, efficient token usage when invoking Claude, and clear visual feedback during review loops.
 
 ## Requirements
 
 ### Functional Requirements
 
-#### Standardize Review Scope Across Diff-Based Reviewers (#28)
+#### Issue #31: Non-Interactive Init
+- FR-001: `ralph init --skip-claude` must skip the PRD creation prompt
+- FR-002: The command must complete without waiting for user input when `--skip-claude` is passed
+- FR-003: All files should still be created successfully (current behavior preserved)
 
-Three reviewer skills use git diff to identify files to review: code-simplifier, test-quality-reviewer, and python-code-reviewer. All three currently only check uncommitted/staged changes, missing committed code from `ralph loop`.
+#### Issue #34: Prompt File References
+- FR-004: Audit all commands that construct prompts for Claude
+- FR-005: Replace inline text loading with `@` symbol file references where applicable
+- FR-006: Document the preferred pattern for prompt construction in CLAUDE.md or AGENTS.md
 
-**Consistent Git Diff Logic**
-- FR-001: All diff-based reviewers MUST use `git diff main...HEAD` to find files changed on the feature branch
-- FR-002: All diff-based reviewers MUST also include uncommitted changes via `git diff HEAD`
-- FR-003: The git diff logic MUST be documented identically across all three skills
-
-**Affected Skills**
-- FR-004: code-simplifier MUST be updated with new review scope logic
-- FR-005: test-quality-reviewer MUST be updated with new review scope logic
-- FR-006: python-code-reviewer MUST be updated with new review scope logic
-
-**Standard Review Scope Section**
-All three skills should use this consistent documentation:
-
-```markdown
-## Review Scope
-
-Review files modified on the current feature branch compared to main.
-
-To identify changed files:
-1. Run `git diff --name-only main...HEAD` for all changes on this branch
-2. Run `git diff --name-only HEAD` for any uncommitted changes
-3. Combine and deduplicate the results
-4. Filter to relevant file types
-
-> **Note**: If not on a feature branch (e.g., on main), falls back to uncommitted changes only.
-```
-
-**Reviewer Template**
-- FR-007: Update `skills/REVIEWER_TEMPLATE.md` with the new review scope pattern
-- FR-008: Template MUST include the standard review scope section above
-- FR-009: Template MUST document when to use diff-based vs full-repository review scope
-
-#### Enhance test-quality-reviewer with Test Count Assessment (#29)
-
-- FR-010: test-quality-reviewer MUST assess test density relative to codebase complexity
-- FR-011: test-quality-reviewer MUST flag tests that verify framework/stdlib behavior (enum values, Pydantic validation, NamedTuple fields)
-- FR-012: test-quality-reviewer MUST identify redundant tests that verify the same behavior multiple ways
-- FR-013: test-quality-reviewer MUST suggest consolidation opportunities for similar tests
-- FR-014: Over-testing indicators MUST be classified as warnings (not errors)
-
-#### Add Consistent Project Context References (#22)
-
-- FR-015: All reviewer skills MUST check for CLAUDE.md at project root and read it if present
-- FR-016: All reviewer skills MUST check for AGENTS.md at project root and read it if present
-- FR-017: All reviewer skills MUST check for skill-specific override files in `.ralph/` directory
-- FR-018: Project rules from context files MUST take precedence over built-in standards
-- FR-019: Review feedback SHOULD reference relevant project patterns when applicable
+#### Issue #35: Review Loop Formatting
+- FR-007: Display review counter (e.g., "Review 1/5") matching ralph loop style
+- FR-008: Display current reviewer name being executed
+- FR-009: Use Rich formatting consistent with ralph loop implementation
 
 ### Non-Functional Requirements
 
-- NFR-001: Skill file changes must follow existing markdown structure and formatting conventions
-- NFR-002: Changes must be backward compatible (skills work with or without context files)
-- NFR-003: All reviewer skills must use consistent language for context file instructions
+- NFR-001: No increase in token usage from these changes
+- NFR-002: Maintain backward compatibility with existing CLI flags
+- NFR-003: All existing tests must continue to pass
 
 ## Technical Considerations
 
 ### Architecture
 
-All changes are to skill definition files (markdown). No Python code changes required.
-
-**Affected files (review scope standardization - #28):**
-- `skills/reviewers/code-simplifier/SKILL.md` - update Review Scope section
-- `skills/reviewers/test-quality/SKILL.md` - update Review Scope section
-- `skills/reviewers/language/python/SKILL.md` - update Review Scope section
-- `skills/REVIEWER_TEMPLATE.md` - update Review Scope section to new pattern
-
-**Affected files (test appropriateness - #29):**
-- `skills/reviewers/test-quality/SKILL.md` - add Test Appropriateness section
-
-**Affected files (project context - #22):**
-- `skills/reviewers/code-simplifier/SKILL.md`
-- `skills/reviewers/test-quality/SKILL.md`
-- `skills/reviewers/language/python/SKILL.md`
-- `skills/reviewers/repo-structure/SKILL.md`
-- `skills/reviewers/github-actions/SKILL.md`
-- `skills/reviewers/release/SKILL.md`
+- **#31**: Modify the init command to check `skip_claude` flag before prompting for PRD creation
+- **#34**: Update prompt construction in services/commands to use `@file` notation in the prompt string passed to Claude CLI
+- **#35**: Reference existing `ralph loop` formatting patterns in the loop command and apply to review execution
 
 ### Dependencies
 
-None - these are standalone skill definition updates.
+No new dependencies required.
 
 ### Integration Points
 
-- Skills are invoked by Claude Code during `ralph loop` review phase
-- Skills read git state to determine files to review
-- Skills may read CLAUDE.md/AGENTS.md for project context
+- Claude CLI subprocess invocation (prompt construction changes)
+- Rich console output (review loop formatting)
 
 ## Success Criteria
 
-- [ ] code-simplifier, test-quality-reviewer, and python-code-reviewer all use `git diff main...HEAD`
-- [ ] All three diff-based reviewers have identical Review Scope documentation
-- [ ] `skills/REVIEWER_TEMPLATE.md` updated with new review scope pattern
-- [ ] test-quality-reviewer includes "Test Appropriateness" section with over-testing indicators
-- [ ] All 6 reviewer skills include consistent "Project Context" section
-- [ ] Running `ralph loop` on a feature branch results in diff-based reviewers finding committed files
-- [ ] test-quality-reviewer flags tests that verify enum literal values as warnings
-- [ ] Reviewer skills respect patterns defined in CLAUDE.md when present
+- [ ] `ralph init --skip-claude` completes without any interactive prompts
+- [ ] Prompts sent to Claude use `@` notation for file references
+- [ ] Review loop displays "Review X/Y" counter and reviewer name
+- [ ] All quality checks pass (typecheck, lint, format, test)
+- [ ] Version bumped to 2.0.4
 
 ## Open Questions
 
-None - requirements are well-defined in the GitHub issues.
+None - requirements are well-defined by the issues.
 
 ## References
 
-- GitHub Issue #28: https://github.com/jackemcpherson/ralph-cli/issues/28
-- GitHub Issue #29: https://github.com/jackemcpherson/ralph-cli/issues/29
-- GitHub Issue #22: https://github.com/jackemcpherson/ralph-cli/issues/22
+- Issue #31: https://github.com/jackmcpherson/ralph-cli/issues/31
+- Issue #34: https://github.com/jackmcpherson/ralph-cli/issues/34
+- Issue #35: https://github.com/jackmcpherson/ralph-cli/issues/35
