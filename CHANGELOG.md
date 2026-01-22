@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.1] - 2026-01-22
+
+### Changed
+
+- Refactored `loop.py` with `IterationOutcome` enum and `_execute_story()` helper for clarity
+- Simplified language list check in `review_loop.py`
+- Leaned test suite further with behavior-focused tests
+
+### Fixed
+
+- Updated SPEC.md to v2.1 for review loop documentation
+
 ## [2.0.0] - 2026-01-21
 
 ### Added
