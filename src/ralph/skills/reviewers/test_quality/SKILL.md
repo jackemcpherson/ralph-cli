@@ -360,44 +360,94 @@ Classify each issue:
 
 ## Output Format
 
+**IMPORTANT**: You MUST append your review output to `plans/PROGRESS.txt` using this exact format. This enables the fix loop to parse and automatically resolve findings.
+
 ```markdown
-## Review: test-quality-reviewer - [X test files]
+[Review] YYYY-MM-DD HH:MM UTC - test-quality ({level})
 
-### Coverage Assessment
+### Verdict: {PASSED|NEEDS_WORK}
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Core Business Logic | ✅/⚠️/❌ | [Details] |
-| Public API | ✅/⚠️/❌ | [Details] |
-| Error Handling | ✅/⚠️/❌ | [Details] |
-| Edge Cases | ✅/⚠️/❌ | [Details] |
+### Findings
 
-### Issues Found
+1. **TQ-001**: {Category} - {Brief description}
+   - File: {path/to/test_file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-| Severity | Location | Issue | Suggestion |
-|----------|----------|-------|------------|
-| error | test_user.py:42 | Test has no assertions | Add assertion to verify expected outcome |
-| error | test_user.py:55 | Tautological assertion | Assert against expected value, not self |
-| warning | test_api.py:30 | Only happy path tested | Add test for error cases |
-| suggestion | test_utils.py:15 | Duplicated setup | Extract to shared fixture |
+2. **TQ-002**: {Category} - {Brief description}
+   - File: {path/to/test_file.py}:{line_number}
+   - Issue: {Detailed description of the problem}
+   - Suggestion: {How to fix it}
 
-### Test Quality Summary
-- Total test files reviewed: N
-- Tests with meaningful assertions: N/N
-- Anti-patterns detected: [List or "None"]
-- Coverage appropriate for complexity: Yes/No
+---
+```
 
-### Summary
-- X errors (must fix)
-- Y warnings (should fix)
-- Z suggestions (consider)
+### Format Details
 
-<ralph-review>VERDICT</ralph-review>
+- **Header**: `[Review]` with timestamp, reviewer name (`test-quality`), and level (from CLAUDE.md config)
+- **Verdict**: Must be exactly `### Verdict: PASSED` or `### Verdict: NEEDS_WORK`
+- **Findings**: Numbered list with unique IDs prefixed `TQ-` (Test Quality)
+- **Finding fields**:
+  - `File:` path with line number (use `:0` if line unknown)
+  - `Issue:` detailed problem description
+  - `Suggestion:` actionable fix recommendation
+- **Separator**: Must end with `---` on its own line
+
+### Finding ID Categories
+
+Use these category prefixes in finding IDs:
+
+| Category | Description |
+|----------|-------------|
+| Missing Assertion | Test has no meaningful assertions |
+| Tautological | Self-comparing or always-true assertion |
+| Framework Test | Testing framework/stdlib behavior |
+| Implementation Coupling | Testing internals instead of behavior |
+| Missing Coverage | Critical path not tested |
+| Flaky Test | Time-dependent or non-deterministic |
+| Test Pollution | State leakage between tests |
+
+### Example Output
+
+For a passing review:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+```
+
+For a review with findings:
+
+```markdown
+[Review] 2026-01-22 08:30 UTC - test-quality (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **TQ-001**: Missing Assertion - Test calls function without verifying result
+   - File: tests/test_user.py:42
+   - Issue: The test_create_user function calls create_user() but does not assert anything about the returned user object or side effects.
+   - Suggestion: Add assertions to verify the user was created with expected attributes, e.g., `assert user.name == "Alice"`.
+
+2. **TQ-002**: Tautological - Self-comparing assertion always passes
+   - File: tests/test_user.py:55
+   - Issue: The assertion `assert result == result` compares a value to itself, which always passes regardless of actual behavior.
+   - Suggestion: Assert against an expected value, e.g., `assert result == expected_value`.
+
+---
 ```
 
 ### Verdict Values
 
-- **PASS**: No errors found. Tests are meaningful and reliable.
+- **PASSED**: No errors found. Tests are meaningful and reliable.
 - **NEEDS_WORK**: Has errors that must be fixed.
 
 ## Quality Checklist
