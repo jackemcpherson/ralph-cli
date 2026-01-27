@@ -1,201 +1,137 @@
-# Review Auto-Fix Loop - Product Requirements Document
+# Ralph Review Command - Product Requirements Document
 
 ## Overview
 
-Extend the Ralph review loop to automatically fix issues identified by reviewers. When a reviewer returns a `NEEDS_WORK` verdict, the system will parse the structured findings, attempt to fix each one (with retries), commit successful fixes, and log progress to PROGRESS.txt before continuing to the next reviewer.
+Implement a standalone `ralph review` command that automatically configures project-appropriate reviewers and executes the review loop independently of `ralph loop`. This makes reviewers discoverable, simplifies configuration, and allows reviews to run at any point in the development workflow.
 
 ## Goals
 
-- Automate resolution of review findings without human intervention
-- Reduce iteration cycles by fixing issues as they're discovered
-- Maintain clear audit trail of fixes in PROGRESS.txt
-- Preserve granular git history with one commit per fix
+- Make reviewer configuration automatic and discoverable
+- Allow reviews to run independently of the iteration loop
+- Detect project characteristics and configure appropriate reviewers
+- Keep reviewer configuration in sync with project evolution
 
 ## Non-Goals
 
-- Interactive approval mode (defeats the purpose of automation)
-- Rollback/undo capability for fixes
-- `--no-fix` flag (deferred to future enhancement - log as GitHub issue)
+- Changing the existing `ralph loop` auto-review behavior
+- Adding reviewer skills for languages not yet supported
+- Interactive/TUI reviewer selection (defer to future)
+- Removing or deprecating manual CLAUDE.md configuration
 
 ## User Stories Overview
 
-**Primary user**: Developer running `ralph loop` who wants the review pipeline to automatically fix issues rather than just report them.
+**Primary persona**: A developer using Ralph CLI who wants code quality reviews without manually configuring reviewers or running the full iteration loop.
 
-**Workflow**: After all user stories complete, the review loop runs. When a reviewer identifies issues, instead of just logging "failed", the system attempts to fix each finding, commits successful fixes, and continues.
+**Secondary persona**: A developer whose project has evolved (added Bicep files, GitHub workflows) and needs to update their reviewer configuration.
 
 ## Requirements
 
 ### Functional Requirements
 
-#### Reviewer Output Format
+#### Command Structure
+- FR-001: Add `ralph review` command to the CLI
+- FR-002: Support `--force` flag to re-run detection and overwrite existing reviewer configuration
+- FR-003: Support `--verbose` flag consistent with other commands
+- FR-004: Support `--strict` flag to treat warning-level reviewers as blocking (pass through to review loop)
 
-- FR-001: Reviewers MUST output findings in a structured markdown format to PROGRESS.txt
-- FR-002: Each finding MUST include: ID, category, file path with line number, issue description, and fix suggestion
-- FR-003: Reviewers MUST log a summary to PROGRESS.txt regardless of verdict (PASSED or NEEDS_WORK)
-- FR-004: The verdict and findings format MUST be parseable by the fix loop
+#### First-Run Behavior (No Existing Config)
+- FR-005: Detect project characteristics to determine applicable reviewers
+- FR-006: Write `<!-- RALPH:REVIEWERS:START -->` section to CLAUDE.md with detected reviewers
+- FR-007: Display which reviewers were configured and why (e.g., "Added python-code reviewer (found .py files)")
+- FR-008: Execute the review loop after configuration
 
-#### Fix Loop Behavior
+#### Subsequent-Run Behavior (Config Exists)
+- FR-009: Execute the review loop using existing CLAUDE.md configuration
+- FR-010: Detect if there are suggested reviewers not in current config
+- FR-011: Display warning listing suggested reviewers that could be added
+- FR-012: Suggest running `ralph review --force` to update configuration
 
-- FR-005: When a reviewer returns NEEDS_WORK, the fix loop MUST attempt to resolve each finding
-- FR-006: Similar findings MAY be batched into a single fix attempt (at Claude's discretion)
-- FR-007: Each fix attempt MUST be retried up to 3 times before moving on
-- FR-008: After exhausting retries, the fix loop MUST log the failure and continue to the next finding
-- FR-009: The fix loop MUST read findings from PROGRESS.txt to determine what needs fixing
+#### Force Flag Behavior
+- FR-013: Re-run full project detection when `--force` is provided
+- FR-014: Overwrite existing `RALPH:REVIEWERS` section with newly detected config
+- FR-015: Display what changed (added/removed reviewers) before executing review loop
 
-#### Commit Behavior
+#### Project Detection
+- FR-016: Detect Python projects (presence of `.py` files) → python-code reviewer
+- FR-017: Detect Bicep projects (presence of `.bicep` files) → bicep reviewer
+- FR-018: Detect GitHub Actions (presence of `.github/workflows/*.yml`) → github-actions reviewer
+- FR-019: Detect test files (presence of `test_*.py`, `*_test.go`, etc.) → test-quality reviewer
+- FR-020: Always include universal reviewers: code-simplifier, repo-structure
+- FR-021: Include release reviewer if CHANGELOG.md exists
 
-- FR-010: Each successful fix MUST be committed individually
-- FR-011: Fix commits MUST use format: `fix(review): [reviewer-name] - [finding-id] - [brief description]`
-
-#### Reviewer Level Handling
-
-- FR-012: By default, auto-fix MUST only run for `blocking` level reviewers
-- FR-013: When `--strict` is passed, auto-fix MUST run for all levels (blocking, warning, suggestion)
-- FR-014: Skipped reviewers (language filter) MUST NOT trigger the fix loop
-
-#### Progress Logging
-
-- FR-015: Fix attempts MUST be logged to PROGRESS.txt following the iteration entry format
-- FR-016: Fix entries MUST include: what was fixed, files changed, and attempt count if retried
-- FR-017: Failed fixes MUST be logged with the error/reason for failure
+#### Language Detection Enhancement
+- FR-022: Add Bicep to `detect_languages()` service function
+- FR-023: Detect Bicep by presence of `.bicep` files in project
 
 ### Non-Functional Requirements
 
-- NFR-001: Fix attempts should complete within the same timeout as regular Claude operations
-- NFR-002: The fix loop should not significantly increase total review time for passing reviews
-- NFR-003: Progress output should clearly indicate fix attempts vs reviewer execution
+- NFR-001: Detection should complete in under 2 seconds for typical projects
+- NFR-002: Command should work without network access (all detection is local)
+- NFR-003: CLAUDE.md modifications should preserve existing content outside the RALPH:REVIEWERS markers
+- NFR-004: Output should follow existing CLI formatting conventions (Rich, [OK]/[FAIL] markers)
 
 ## Technical Considerations
 
 ### Architecture
 
+The command should follow the existing pattern:
+- `src/ralph/commands/review.py` - Command implementation
+- Reuse `ReviewLoopService` from `src/ralph/services/review_loop.py`
+- Add `ReviewerConfigService` for detection and CLAUDE.md manipulation
+- Extend `detect_languages()` in `src/ralph/services/language.py`
+
+### Detection Strategy
+
 ```
-Review Loop Flow (Updated):
-
-For each reviewer:
-  ├─ Run reviewer → Claude returns structured output
-  ├─ Parse output for verdict and findings
-  ├─ Log summary to PROGRESS.txt (always)
-  │
-  ├─ If PASSED → continue to next reviewer
-  │
-  ├─ If NEEDS_WORK and should_fix(level, strict):
-  │   ├─ For each finding (or batch of similar findings):
-  │   │   ├─ Attempt fix (up to 3 retries)
-  │   │   ├─ If success:
-  │   │   │   ├─ Commit with fix message
-  │   │   │   └─ Log fix to PROGRESS.txt
-  │   │   └─ If failure after retries:
-  │   │       └─ Log failure and continue
-  │   └─ Continue to next reviewer
-  │
-  └─ Next reviewer
-```
-
-### Structured Output Format
-
-Reviewers will output findings in this format:
-
-```markdown
-[Review] YYYY-MM-DD HH:MM UTC - {reviewer-name} ({level})
-
-### Verdict: {PASSED|NEEDS_WORK}
-
-### Findings
-
-1. **{FINDING-ID}**: {Category} - {Brief description}
-   - File: {path/to/file.py}:{line_number}
-   - Issue: {Detailed description of the problem}
-   - Suggestion: {How to fix it}
-
-2. **{FINDING-ID}**: {Category} - {Brief description}
-   - File: {path/to/file.py}:{line_number}
-   - Issue: {Detailed description of the problem}
-   - Suggestion: {How to fix it}
-
----
+Project Detection Matrix:
++------------------+------------------------+------------------+
+| Detector         | File Pattern           | Reviewer         |
++------------------+------------------------+------------------+
+| Python           | **/*.py                | python-code      |
+| Bicep            | **/*.bicep             | bicep            |
+| GitHub Actions   | .github/workflows/*.yml| github-actions   |
+| Tests            | test_*.py, *_test.py   | test-quality     |
+| Changelog        | CHANGELOG.md           | release          |
+| Universal        | (always)               | code-simplifier  |
+| Universal        | (always)               | repo-structure   |
++------------------+------------------------+------------------+
 ```
 
-Fix entries will follow this format:
+### CLAUDE.md Manipulation
 
-```markdown
-[Review Fix] YYYY-MM-DD HH:MM UTC - {reviewer-name}/{finding-id}
-
-### What was fixed
-- {Description of the fix applied}
-
-### Files changed
-- {path/to/file.py}
-
-### Attempts
-{N} of 3
-
----
-```
-
-Failed fix entries:
-
-```markdown
-[Review Fix Failed] YYYY-MM-DD HH:MM UTC - {reviewer-name}/{finding-id}
-
-### Issue
-- {Description of what couldn't be fixed}
-
-### Attempts
-3 of 3 (exhausted)
-
-### Reason
-{Error message or explanation of why fix failed}
-
----
-```
+- Parse existing content to find `<!-- RALPH:REVIEWERS:START -->` markers
+- If markers exist: replace content between markers
+- If markers don't exist: append section before `## Project-Specific Instructions` or at end
+- Preserve all content outside the markers
 
 ### Dependencies
 
-- Existing `ReviewLoopService` in `src/ralph/services/review_loop.py`
-- Existing reviewer skills in `src/ralph/skills/reviewers/`
-- `ClaudeService.run_print_mode()` for fix attempts
-- PROGRESS.txt append utilities
+- No new external dependencies required
+- Reuses existing: `rich`, `pydantic`, `pyyaml`
 
 ### Integration Points
 
-- All 6 reviewer skills must be updated to output structured findings format
-- `ReviewLoopService.run_reviewer()` must parse structured output
-- New `FixLoopService` (or extension to ReviewLoopService) for fix logic
-- Git service for fix commits
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/ralph/services/review_loop.py` | Add fix loop logic, parse structured output |
-| `src/ralph/skills/reviewers/*/SKILL.md` | Update all 6 skills with structured output format |
-| `src/ralph/commands/loop.py` | Pass strict flag through to fix logic |
-| `src/ralph/utils/console.py` | Add `print_fix_step()` for fix progress display |
-
-### New Files
-
-| File | Purpose |
-|------|---------|
-| `src/ralph/services/fix_loop.py` | Fix attempt logic, retry handling, commit creation |
-| `src/ralph/models/finding.py` | Pydantic models for parsing structured findings |
+- Integrates with existing `ReviewLoopService`
+- Integrates with existing `load_reviewer_configs()`
+- Extends existing `detect_languages()` function
 
 ## Success Criteria
 
-- [ ] All 6 reviewer skills output structured findings format
-- [ ] Fix loop attempts to resolve NEEDS_WORK findings automatically
-- [ ] Each successful fix is committed individually with proper message format
-- [ ] Failed fixes are logged and don't block subsequent fixes or reviewers
-- [ ] `--strict` flag enables fix loop for warning/suggestion level reviewers
-- [ ] PROGRESS.txt contains clear audit trail of all fix attempts
-- [ ] Existing tests pass; new tests cover fix loop behavior
+- [ ] `ralph review` auto-configures reviewers on first run in a Python project
+- [ ] `ralph review` auto-configures reviewers on first run in a project with Bicep files
+- [ ] Subsequent runs show warning when new file types are detected
+- [ ] `ralph review --force` updates configuration when project evolves
+- [ ] Reviews execute successfully after configuration
+- [ ] Existing manual CLAUDE.md configurations continue to work
+- [ ] `ralph loop` auto-review behavior is unchanged
 
 ## Open Questions
 
-- None - all requirements clarified during discovery
+None - all requirements have been clarified.
 
 ## References
 
-- Current review loop: `src/ralph/services/review_loop.py`
-- Iteration skill format: `src/ralph/skills/ralph/iteration/SKILL.md`
-- Existing PROGRESS.txt examples: `plans/PROGRESS.txt`
+- Existing reviewer configuration: `src/ralph/models/reviewer.py`
+- Review loop implementation: `src/ralph/services/review_loop.py`
+- Language detection: `src/ralph/services/language.py`
+- GitHub Issue #41: Bicep reviewer skill (completed)
