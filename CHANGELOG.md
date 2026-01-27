@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.9] - 2026-01-27
+
+### Fixed
+
+- Bicep reviewer skill not included in `ralph sync` output
+  - Added `reviewers/language/bicep` to `BUNDLED_SKILLS` list in skills service
+
 ## [2.0.8] - 2026-01-27
 
 ### Added

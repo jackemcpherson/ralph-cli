@@ -26,6 +26,7 @@ BUNDLED_SKILLS = [
     "ralph/tasks",
     "reviewers/code-simplifier",
     "reviewers/github-actions",
+    "reviewers/language/bicep",
     "reviewers/language/python",
     "reviewers/release",
     "reviewers/repo-structure",
