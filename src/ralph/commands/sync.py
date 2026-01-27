@@ -80,10 +80,10 @@ def sync(
 
     for result in results:
         if result.status == SyncStatus.CREATED:
-            console.print(f"  [green]\u2713[/green] {result.skill_name} [dim](created)[/dim]")
+            console.print(f"  [green][OK][/green] {result.skill_name} [dim](created)[/dim]")
             created_count += 1
         elif result.status == SyncStatus.UPDATED:
-            console.print(f"  [green]\u2713[/green] {result.skill_name} [dim](updated)[/dim]")
+            console.print(f"  [green][OK][/green] {result.skill_name} [dim](updated)[/dim]")
             updated_count += 1
         elif result.status == SyncStatus.INVALID:
             console.print(f"  [yellow]![/yellow] {result.skill_name} [dim](invalid)[/dim]")
@@ -91,7 +91,7 @@ def sync(
                 console.print(f"      [dim]{result.error}[/dim]")
             invalid_count += 1
         elif result.status == SyncStatus.SKIPPED:
-            console.print(f"  [red]\u2717[/red] {result.skill_name} [dim](error)[/dim]")
+            console.print(f"  [red][FAIL][/red] {result.skill_name} [dim](error)[/dim]")
             if result.error:
                 console.print(f"      [dim]{result.error}[/dim]")
             error_count += 1
@@ -131,7 +131,7 @@ def _handle_remove(service: SkillsService) -> None:
         return
 
     for skill_name in removed:
-        console.print(f"  [green]\u2713[/green] {skill_name} [dim](removed)[/dim]")
+        console.print(f"  [green][OK][/green] {skill_name} [dim](removed)[/dim]")
 
     console.print()
     print_success(f"Removed {len(removed)} skill(s)")

@@ -74,7 +74,7 @@ def once(
 
     console.print("[bold]Acceptance Criteria:[/bold]")
     for criterion in next_story.acceptance_criteria:
-        console.print(f"  • {criterion}")
+        console.print(f"  - {criterion}")
     console.print()
 
     incomplete_count = sum(1 for s in tasks.user_stories if not s.passes)
