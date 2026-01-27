@@ -1,3 +1,3 @@
 """Ralph CLI - Autonomous iteration pattern for Claude Code."""
 
-__version__ = "2.0.8"
+__version__ = "2.0.9"
