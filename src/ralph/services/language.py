@@ -18,6 +18,7 @@ class Language(str, Enum):
     typescript = "typescript"
     go = "go"
     rust = "rust"
+    bicep = "bicep"
 
 
 # Mapping of marker files to the languages they indicate
@@ -29,6 +30,12 @@ _LANGUAGE_MARKERS: dict[str, set[Language]] = {
     "tsconfig.json": {Language.typescript},
     "go.mod": {Language.go},
     "Cargo.toml": {Language.rust},
+}
+
+# Mapping of glob patterns to languages they indicate
+# Used for languages that don't have specific marker files
+_LANGUAGE_PATTERNS: dict[str, set[Language]] = {
+    "**/*.bicep": {Language.bicep},
 }
 
 
@@ -45,17 +52,24 @@ class LanguageDetector(BaseModel):
     def detect(self) -> set[Language]:
         """Detect all programming languages used in the project.
 
-        Scans the project root for language marker files and returns
-        a set of all detected languages.
+        Scans the project root for language marker files and glob patterns,
+        returning a set of all detected languages.
 
         Returns:
             Set of detected Language values. May be empty if no markers found.
         """
         detected: set[Language] = set()
 
+        # Check marker files
         for marker_file, languages in _LANGUAGE_MARKERS.items():
             marker_path = self.project_root / marker_file
             if marker_path.exists():
+                detected.update(languages)
+
+        # Check glob patterns
+        for pattern, languages in _LANGUAGE_PATTERNS.items():
+            matches = list(self.project_root.glob(pattern))
+            if matches:
                 detected.update(languages)
 
         return detected
