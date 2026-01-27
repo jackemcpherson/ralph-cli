@@ -602,15 +602,17 @@ def _run_review_loop(
     for result in results:
         if result.skipped:
             skipped += 1
-            console.print(f"  [dim]◦ {result.reviewer_name}: skipped (language filter)[/dim]")
+            console.print(f"  [dim]- {result.reviewer_name}: skipped (language filter)[/dim]")
         elif result.success:
             passed += 1
-            console.print(f"  [green]✓[/green] {result.reviewer_name}: passed")
+            console.print(f"  [green][OK][/green] {result.reviewer_name}: passed")
         else:
             failed += 1
             error_info = f" ({result.error})" if result.error else ""
             attempts_text = f"failed after {result.attempts} attempt(s)"
-            console.print(f"  [red]✗[/red] {result.reviewer_name}: {attempts_text}{error_info}")
+            console.print(
+                f"  [red][FAIL][/red] {result.reviewer_name}: {attempts_text}{error_info}"
+            )
 
     console.print()
     console.print(f"[dim]Passed: {passed}, Failed: {failed}, Skipped: {skipped}[/dim]")

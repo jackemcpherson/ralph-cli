@@ -47,30 +47,30 @@ console = create_console()
 
 
 def print_success(message: str) -> None:
-    """Print a success message with a green checkmark.
+    """Print a success message with a green [OK] indicator.
 
     Args:
         message: The success message to display.
     """
-    console.print(f"[bold green]✓[/bold green] {message}")
+    console.print(f"[bold green][OK][/bold green] {message}")
 
 
 def print_error(message: str) -> None:
-    """Print an error message with a red X.
+    """Print an error message with a red [FAIL] indicator.
 
     Args:
         message: The error message to display.
     """
-    console.print(f"[bold red]✗[/bold red] {message}")
+    console.print(f"[bold red][FAIL][/bold red] {message}")
 
 
 def print_warning(message: str) -> None:
-    """Print a warning message with a yellow warning sign.
+    """Print a warning message with a yellow [!] indicator.
 
     Args:
         message: The warning message to display.
     """
-    console.print(f"[bold yellow]⚠[/bold yellow] {message}")
+    console.print(f"[bold yellow][!][/bold yellow] {message}")
 
 
 def print_step(step: int, total: int, message: str) -> None:
@@ -122,5 +122,5 @@ def create_spinner(message: str) -> Iterator[None]:
     Yields:
         None: The spinner runs while the context is active.
     """
-    with console.status(message, spinner="dots"):
+    with console.status(message, spinner="line"):
         yield

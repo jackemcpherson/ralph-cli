@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.7] - 2026-01-27
+
+### Fixed
+
+- PowerShell TUI crashes caused by non-compliant Unicode characters (#39)
+  - Replaced Unicode checkmark (✓) with `[OK]` for success messages
+  - Replaced Unicode ballot X (✗) with `[FAIL]` for error messages
+  - Replaced Unicode warning sign (⚠) with `[!]` for warning messages
+  - Replaced Unicode bullets (•, ◦) with ASCII hyphens (-) in list output
+  - Changed spinner from `dots` (Unicode braille) to `line` (ASCII) for better compatibility
+  - All TUI characters are now fully compatible with PowerShell's default character encoding (cp437/cp1252)
+
 ## [2.0.6] - 2026-01-22
 
 ### Added
