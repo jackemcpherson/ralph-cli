@@ -9,6 +9,11 @@ from ralph.services.review_loop import (
     ReviewLoopService,
     filter_reviewers_by_language,
 )
+from ralph.services.reviewer_config_writer import (
+    ReviewerConfigWriter,
+    has_reviewer_config,
+    write_reviewer_config,
+)
 from ralph.services.reviewer_detector import ReviewerDetector, detect_reviewers
 from ralph.services.scaffold import ProjectType, ScaffoldService
 from ralph.services.skill_loader import SkillLoader, SkillNotFoundError
@@ -29,6 +34,7 @@ __all__ = [
     "Language",
     "LanguageDetector",
     "ProjectType",
+    "ReviewerConfigWriter",
     "ReviewerDetector",
     "ReviewerResult",
     "ReviewLoopService",
@@ -42,4 +48,6 @@ __all__ = [
     "detect_languages",
     "detect_reviewers",
     "filter_reviewers_by_language",
+    "has_reviewer_config",
+    "write_reviewer_config",
 ]
