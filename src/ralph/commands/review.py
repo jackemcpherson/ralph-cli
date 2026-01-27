@@ -102,6 +102,23 @@ def review(
         # Load existing configuration
         reviewers = load_reviewer_configs(claude_md_path)
 
+        # Check for suggested reviewers not in current config
+        suggested_reviewers = detect_reviewers(project_root)
+        current_names = {r.name for r in reviewers}
+        suggested_names = {r.name for r in suggested_reviewers}
+        missing_names = suggested_names - current_names
+
+        if missing_names:
+            # Sort for consistent output
+            sorted_missing = sorted(missing_names)
+            console.print("[yellow]Suggested reviewers not in current config:[/yellow]")
+            for name in sorted_missing:
+                reason = _get_detection_reason(name)
+                console.print(f"  [yellow]![/yellow] {name} ({reason})")
+            console.print()
+            console.print("[dim]Run 'ralph review --force' to update configuration[/dim]")
+            console.print()
+
     console.print(f"[dim]Loaded {len(reviewers)} reviewer(s)[/dim]")
 
     # Detect project languages for filtering
