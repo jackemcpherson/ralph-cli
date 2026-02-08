@@ -321,3 +321,33 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 9: US-009 (Parse and log already-implemented story detection) completed
+
+[Ralph Loop] 2026-02-08 06:25 UTC - Iteration 9: US-009 (Parse and log already-implemented story detection) completed
+
+## 2026-02-08 - US-010
+
+**Story:** Bump version to 2.1.0 and update CHANGELOG
+
+### What was implemented
+- Updated version from `2.0.10` to `2.1.0` in `pyproject.toml`
+- Updated version from `2.0.10` to `2.1.0` in `src/ralph/__init__.py`
+- Added `[2.1.0] - 2026-02-08` changelog entry with sections for all three features:
+  - `--no-fix` flag for audit-mode reviews (US-001 through US-003)
+  - Resumable review pipeline with `--resume-review` (US-004 through US-007)
+  - Already-implemented story detection in `ralph tasks` (US-008 through US-009)
+
+### Tests written
+- No new tests needed (version bump and changelog are documentation-only changes)
+- All 283 existing tests pass
+
+### Files changed
+- `pyproject.toml` - version bumped to 2.1.0
+- `src/ralph/__init__.py` - version bumped to 2.1.0
+- `CHANGELOG.md` - added [2.1.0] section
+- `plans/TASKS.json` - marked US-010 as passes: true
+
+### Learnings for future iterations
+- Version must be updated in both `pyproject.toml` and `src/ralph/__init__.py` to stay in sync
+- Changelog entries should summarize the feature from a user perspective, not list individual stories
+
+---
