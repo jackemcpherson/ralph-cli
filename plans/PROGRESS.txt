@@ -792,3 +792,193 @@ Both test files provide meaningful, well-structured test coverage with no anti-p
 ### Learnings for future iterations
 - Shared helper functions (_make_reviewers, _make_mock_service, _setup_tmp_project) reduce test boilerplate
 - Testing strict flag pass-through requires checking both positional and keyword args since the call signature may vary
+
+---
+
+[Review] 2026-02-08 12:00 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+1. **TQ-001**: Redundant Test - Duplicate force flag tests across two files
+   - File: tests/test_review_force.py:0
+   - Issue: `test_review_force.py` contains 7 tests for --force behavior that significantly overlap with the 3 --force tests in `test_review_command.py::TestReviewForceFlag`. For example, `test_force_re_detects_and_overwrites_config` duplicates `test_force_updates_existing_config`, and `test_force_with_no_existing_config_behaves_as_first_run` duplicates `test_force_with_no_existing_config_falls_back_to_first_run`. Both files also duplicate the `working_directory` context manager and `_make_reviewers` helper.
+   - Suggestion: Consolidate all --force tests into a single file. Either keep the more granular `test_review_force.py` tests and remove the duplicates from `test_review_command.py::TestReviewForceFlag`, or merge the unique tests from `test_review_force.py` (e.g., `test_force_displays_removed_reviewers`, `test_force_displays_no_changes_when_config_unchanged`, `test_force_shows_both_added_and_removed`, `test_force_still_executes_review_loop`) into `test_review_command.py` and delete `test_review_force.py`. Extract shared helpers (`working_directory`, `_make_reviewers`, `_make_mock_service`) into `conftest.py`.
+
+2. **TQ-002**: Test Maintainability - Duplicated helper functions across test files
+   - File: tests/test_review_force.py:15
+   - Issue: The `working_directory` context manager is duplicated identically in both `test_review_command.py:15` and `test_review_force.py:15`. The `_make_reviewers` helper is duplicated in both files with the same implementation.
+   - Suggestion: Move `working_directory` and `_make_reviewers` into `tests/conftest.py` as shared fixtures/helpers available to all test files.
+
+### Coverage Assessment
+
+| Test File | Source File | Tests | Coverage |
+|-----------|-------------|-------|----------|
+| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
+| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
+| tests/test_reviewer_config_writer.py | src/ralph/services/reviewer_config_writer.py | 15 | Complete |
+| tests/test_review_command.py | src/ralph/commands/review.py | 12 | Complete |
+| tests/test_review_force.py | src/ralph/commands/review.py | 7 | Overlaps with test_review_command.py |
+
+### Summary
+
+All 59 tests across 5 test files have meaningful assertions and test real behavior. No errors found. Two warnings identified:
+
+- **TQ-001** (warning): Significant test duplication between `test_review_force.py` and `test_review_command.py::TestReviewForceFlag` — 3 tests are near-duplicates.
+- **TQ-002** (warning): Helper functions (`working_directory`, `_make_reviewers`) duplicated across test files instead of shared via conftest.
+
+All tests are:
+- Deterministic (use `tmp_path` and mocked dependencies)
+- Well-named with clear scenario descriptions
+- Following AAA (Arrange-Act-Assert) pattern
+- Free of anti-patterns (no tautological tests, no missing assertions, no framework testing)
+- Testing behavior, not implementation details
+
+---
+
+[Review] 2026-02-08 05:30 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 12:15 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 05:31 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 12:30 UTC - python-code (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **PY-001**: Missing Type Hint - Fixture function lacks return type annotation
+   - File: tests/conftest.py:11
+   - Issue: The `mock_shutil_which` fixture is a generator (uses `yield`) but has no return type annotation. All functions must have complete type hints per the static typing standard.
+   - Suggestion: Add `-> Iterator[None]` return type annotation and import `Iterator` from `collections.abc`. **(FIXED)**
+
+### Summary
+
+One blocking issue found and fixed:
+- **PY-001**: Added `-> Iterator[None]` return type annotation to `mock_shutil_which` fixture in `tests/conftest.py`, with the corresponding `Iterator` import from `collections.abc`.
+
+Additionally, one non-blocking warning noted but not requiring action:
+- The `review()` function in `src/ralph/commands/review.py` is ~183 lines (lines 54-237), exceeding the ~50-line guideline. This is a warning-level quality concern, not a blocking error.
+
+All quality checks pass after the fix:
+- pyright: 0 errors
+- ruff check: All checks passed
+- ruff format: Files already formatted
+- pytest: 217 passed
+
+---
+
+[Review] 2026-02-08 05:32 UTC - python-code (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 15:00 UTC - github-actions (warning)
+
+### Verdict: PASSED
+
+### Workflow Coverage
+
+| Workflow Type | Present | File |
+|---------------|---------|------|
+| Lint/Format | ✅ | ci.yml |
+| Unit Tests | ✅ | ci.yml |
+| Build Check | ✅ | ci.yml |
+| Integration Tests | N/A | - |
+| Dependabot | ✅ | dependabot.yml |
+| Security Scan | ✅ | security.yml |
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 05:33 UTC - github-actions (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 16:33 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 05:34 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 18:00 UTC - release (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **RL-001**: Documentation Outdated - `ralph review` command missing from CLAUDE.md commands list
+   - File: CLAUDE.md:148
+   - Issue: The `ralph review` command was added in v2.0.10 but is not listed in the Commands section of CLAUDE.md.
+   - Suggestion: Add `- \`ralph review\` - Run the review pipeline with automatic configuration` to the commands list. **(FIXED)**
+
+2. **RL-002**: Documentation Outdated - `ralph review` command missing from AGENTS.md commands list
+   - File: AGENTS.md:97
+   - Issue: The `ralph review` command was added in v2.0.10 but is not listed in the Commands section of AGENTS.md.
+   - Suggestion: Add `- \`ralph review\` - Run the review pipeline with automatic configuration` to the commands list. **(FIXED)**
+
+3. **RL-003**: Documentation Outdated - `ralph review` command missing from README.md
+   - File: README.md:57
+   - Issue: The `ralph review` command was added in v2.0.10 but is not documented in README.md (commands table or usage section).
+   - Suggestion: Add `ralph review` to the commands table and add a usage section with examples. **(FIXED)**
+
+4. **RL-004**: Pattern Mismatch - Project structure missing `language/bicep/` directory
+   - File: CLAUDE.md:117
+   - Issue: The project structure tree in CLAUDE.md only shows `language/python/` but `language/bicep/` also exists (added in v2.0.8).
+   - Suggestion: Update the tree to show both `language/bicep/` and `language/python/` under `language/`. **(FIXED)**
+
+5. **RL-005**: Pattern Mismatch - AGENTS.md project structure missing `language/bicep/` directory
+   - File: AGENTS.md:63
+   - Issue: Same as RL-004 but in AGENTS.md.
+   - Suggestion: Update the tree to match CLAUDE.md. **(FIXED)**
+
+6. **RL-006**: Documentation Outdated - README.md reviewer skills table incomplete
+   - File: README.md:152
+   - Issue: README.md says "four code review skills" but there are now seven (bicep, code-simplifier, and release were added).
+   - Suggestion: Update the count and add missing reviewer skills to the table. **(FIXED)**
+
+7. **RL-007**: Dirty Working Directory - Uncommitted changes present
+   - File: plans/PROGRESS.txt:0
+   - Issue: Working directory has uncommitted changes in plans/PROGRESS.txt and tests/conftest.py.
+   - Suggestion: Commit all changes as part of the release PR. (Expected on feature branch.)
+
+8. **RL-008**: Branch Warning - Not on main/master branch
+   - File: .git:0
+   - Issue: Currently on feature branch 'ralph/review-command', not main or master.
+   - Suggestion: Merge this branch to main before creating the release tag. (Expected for PR workflow.)
+
+---
+
+[Review] 2026-02-08 05:37 UTC - release (blocking)
+
+### Verdict: PASSED
+---
