@@ -287,3 +287,37 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 8: US-008 (Add codebase context to ralph tasks prompt) completed
+
+[Ralph Loop] 2026-02-08 06:22 UTC - Iteration 8: US-008 (Add codebase context to ralph tasks prompt) completed
+
+## 2026-02-08 - US-009
+
+**Story:** Parse and log already-implemented story detection
+
+### What was implemented
+- Added `_log_already_implemented()` function to `src/ralph/commands/tasks.py`
+- After parsing TASKS.json output from Claude, counts stories where `passes` is `True`
+- Logs `[Tasks] N stories detected as already implemented` to the console
+- For each already-implemented story, displays the story ID and title
+- Notes on already-implemented stories are retained (function is read-only on the model)
+- Called from `tasks()` after `save_tasks()` and before the "Generated N stories" message
+
+### Tests written
+- `TestLogAlreadyImplemented::test_logs_count_when_stories_detected` - verifies count in summary line (2 of 3 stories)
+- `TestLogAlreadyImplemented::test_logs_each_story_id_and_title` - verifies US-001/US-002 IDs and titles appear
+- `TestLogAlreadyImplemented::test_no_output_when_no_stories_detected` - verifies no output when all stories have passes=False
+- `TestLogAlreadyImplemented::test_notes_are_retained_on_already_implemented_stories` - verifies notes are not mutated
+- `TestLogAlreadyImplemented::test_summary_format_matches_spec` - verifies `[Tasks]` prefix format
+
+### Files changed
+- `src/ralph/commands/tasks.py` - added `_log_already_implemented()` function and call site in `tasks()`
+- `tests/test_tasks_codebase_context.py` - added `TestLogAlreadyImplemented` class with 5 tests, added top-level imports
+- `plans/TASKS.json` - marked US-009 as passes: true
+
+### Learnings for future iterations
+- Rich console output uses `capsys` for testing (not `caplog`) since `console.print()` writes to stdout
+- The `\\[` escape is needed in Rich markup to display a literal `[` bracket (e.g., `\\[Tasks]`)
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 9: US-009 (Parse and log already-implemented story detection) completed

@@ -161,6 +161,8 @@ def tasks(
 
         save_tasks(tasks_model, output_path)
 
+        _log_already_implemented(tasks_model)
+
         archived_path = _archive_progress_file(project_root)
         if archived_path:
             console.print()
@@ -327,6 +329,29 @@ def _build_prompt_from_skill(spec_content: str, branch_name: str | None = None) 
 
     context = "\n".join(context_lines)
     return build_skill_prompt("ralph/tasks", context)
+
+
+def _log_already_implemented(tasks_model: TasksFile) -> None:
+    """Log a summary of stories detected as already implemented.
+
+    Counts stories where ``passes`` is ``True`` and displays each one
+    with its ID and title so the developer understands what was
+    auto-marked as complete.
+
+    Args:
+        tasks_model: The parsed TasksFile from Claude's output.
+    """
+    already_implemented = [s for s in tasks_model.user_stories if s.passes]
+    if not already_implemented:
+        return
+
+    console.print()
+    console.print(
+        f"[bold yellow]\\[Tasks][/bold yellow] "
+        f"{len(already_implemented)} stories detected as already implemented"
+    )
+    for story in already_implemented:
+        console.print(f"  [dim]{story.id}:[/dim] {story.title}")
 
 
 def _extract_json(text: str) -> str | None:

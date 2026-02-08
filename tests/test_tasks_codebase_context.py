@@ -5,11 +5,15 @@ Verifies that _gather_codebase_summary() and _iter_file_tree() produce
 correct output and that _build_prompt_from_skill() includes codebase context.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+from ralph.models import TasksFile
 
 
 class TestIterFileTree:
@@ -221,6 +225,160 @@ class TestBuildPromptIncludesCodebaseContext:
 
         assert "### File Tree" in prompt
         assert "app.py" in prompt
+
+
+class TestLogAlreadyImplemented:
+    """Tests for _log_already_implemented console output."""
+
+    @staticmethod
+    def _make_tasks_file(
+        stories: list[dict[str, object]],
+    ) -> TasksFile:
+        return TasksFile(
+            project="TestProject",
+            branch_name="ralph/test",
+            description="Test",
+            user_stories=stories,
+        )
+
+    def test_logs_count_when_stories_detected(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that summary line shows correct count of already-implemented stories."""
+        from ralph.commands.tasks import _log_already_implemented
+
+        tasks_model = self._make_tasks_file(
+            [
+                {
+                    "id": "US-001",
+                    "title": "First story",
+                    "description": "Desc",
+                    "priority": 1,
+                    "passes": True,
+                    "notes": "Already implemented: found in codebase",
+                },
+                {
+                    "id": "US-002",
+                    "title": "Second story",
+                    "description": "Desc",
+                    "priority": 2,
+                    "passes": False,
+                    "notes": "",
+                },
+                {
+                    "id": "US-003",
+                    "title": "Third story",
+                    "description": "Desc",
+                    "priority": 3,
+                    "passes": True,
+                    "notes": "Already implemented: evidence",
+                },
+            ]
+        )
+
+        _log_already_implemented(tasks_model)
+
+        captured = capsys.readouterr().out
+        assert "2 stories detected as already implemented" in captured
+
+    def test_logs_each_story_id_and_title(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that each already-implemented story ID and title are displayed."""
+        from ralph.commands.tasks import _log_already_implemented
+
+        tasks_model = self._make_tasks_file(
+            [
+                {
+                    "id": "US-001",
+                    "title": "Auth module",
+                    "description": "Desc",
+                    "priority": 1,
+                    "passes": True,
+                    "notes": "Already implemented",
+                },
+                {
+                    "id": "US-002",
+                    "title": "API endpoint",
+                    "description": "Desc",
+                    "priority": 2,
+                    "passes": True,
+                    "notes": "Already implemented",
+                },
+            ]
+        )
+
+        _log_already_implemented(tasks_model)
+
+        captured = capsys.readouterr().out
+        assert "US-001:" in captured
+        assert "Auth module" in captured
+        assert "US-002:" in captured
+        assert "API endpoint" in captured
+
+    def test_no_output_when_no_stories_detected(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that nothing is logged when no stories are detected as already implemented."""
+        from ralph.commands.tasks import _log_already_implemented
+
+        tasks_model = self._make_tasks_file(
+            [
+                {
+                    "id": "US-001",
+                    "title": "New story",
+                    "description": "Desc",
+                    "priority": 1,
+                    "passes": False,
+                    "notes": "",
+                },
+            ]
+        )
+
+        _log_already_implemented(tasks_model)
+
+        captured = capsys.readouterr().out
+        assert captured == ""
+
+    def test_notes_are_retained_on_already_implemented_stories(self) -> None:
+        """Test that stories detected as already-implemented retain their notes."""
+        from ralph.commands.tasks import _log_already_implemented
+
+        tasks_model = self._make_tasks_file(
+            [
+                {
+                    "id": "US-001",
+                    "title": "Auth module",
+                    "description": "Desc",
+                    "priority": 1,
+                    "passes": True,
+                    "notes": "Already implemented: found auth.py with login()",
+                },
+            ]
+        )
+
+        _log_already_implemented(tasks_model)
+
+        # Verify notes are still present on the model (not stripped by logging)
+        story = tasks_model.user_stories[0]
+        assert story.notes == "Already implemented: found auth.py with login()"
+
+    def test_summary_format_matches_spec(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that the summary format is '[Tasks] N stories detected as already implemented'."""
+        from ralph.commands.tasks import _log_already_implemented
+
+        tasks_model = self._make_tasks_file(
+            [
+                {
+                    "id": "US-001",
+                    "title": "Story one",
+                    "description": "Desc",
+                    "priority": 1,
+                    "passes": True,
+                    "notes": "Already implemented",
+                },
+            ]
+        )
+
+        _log_already_implemented(tasks_model)
+
+        captured = capsys.readouterr().out
+        assert "[Tasks]" in captured
+        assert "1 stories detected as already implemented" in captured
 
 
 class TestCodebaseContextIntegration:
