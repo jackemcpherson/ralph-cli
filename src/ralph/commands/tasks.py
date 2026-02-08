@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import shutil
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,6 +28,42 @@ from ralph.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Directories to exclude from file tree scanning
+_EXCLUDED_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        "dist",
+        "build",
+        ".eggs",
+        "*.egg-info",
+    }
+)
+
+# Key files to include content from (read in order, stop at budget)
+_KEY_FILES = [
+    "pyproject.toml",
+    "package.json",
+    "go.mod",
+    "Cargo.toml",
+    "CLAUDE.md",
+    "AGENTS.md",
+    "README.md",
+]
+
+# Maximum characters for the entire codebase summary section
+_MAX_SUMMARY_CHARS = 12_000
+
+# Maximum depth for file tree listing
+_MAX_TREE_DEPTH = 4
 
 
 def tasks(
@@ -145,6 +182,94 @@ def tasks(
         raise typer.Exit(1) from e
 
 
+def _iter_file_tree(root: Path, max_depth: int = _MAX_TREE_DEPTH) -> Iterator[str]:
+    """Yield indented file tree lines for a directory.
+
+    Walks the directory tree breadth-first, excluding common non-source
+    directories. Each line is indented to show nesting depth.
+
+    Args:
+        root: The root directory to scan.
+        max_depth: Maximum directory depth to descend into.
+
+    Yields:
+        Indented file/directory path lines.
+    """
+
+    def _should_exclude(name: str) -> bool:
+        if name in _EXCLUDED_DIRS:
+            return True
+        return any(name.endswith(suffix) for suffix in (".egg-info",))
+
+    def _walk(directory: Path, depth: int) -> Iterator[str]:
+        if depth > max_depth:
+            yield "  " * depth + "..."
+            return
+        try:
+            entries = sorted(directory.iterdir(), key=lambda p: (p.is_file(), p.name))
+        except PermissionError:
+            return
+        for entry in entries:
+            if _should_exclude(entry.name):
+                continue
+            if entry.is_dir():
+                yield "  " * depth + entry.name + "/"
+                yield from _walk(entry, depth + 1)
+            else:
+                yield "  " * depth + entry.name
+
+    yield from _walk(root, 0)
+
+
+def _gather_codebase_summary(project_root: Path) -> str:
+    """Gather a heuristic codebase snapshot using filesystem scanning.
+
+    Produces a summary containing:
+    - A file tree (truncated at depth limit)
+    - Contents of key project files (pyproject.toml, CLAUDE.md, etc.)
+
+    The summary is budget-capped to avoid oversized prompts.
+
+    Args:
+        project_root: Path to the project root directory.
+
+    Returns:
+        A formatted string containing the codebase summary.
+    """
+    sections: list[str] = []
+
+    # 1. File tree
+    tree_lines = list(_iter_file_tree(project_root))
+    tree_text = "\n".join(tree_lines)
+    sections.append("### File Tree\n\n```\n" + tree_text + "\n```")
+
+    # 2. Key file contents
+    key_file_sections: list[str] = []
+    remaining_budget = _MAX_SUMMARY_CHARS - len("\n\n".join(sections))
+
+    for filename in _KEY_FILES:
+        filepath = project_root / filename
+        if not filepath.is_file():
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        # Truncate individual file content if needed
+        if len(content) > 3000:
+            content = content[:3000] + "\n... (truncated)"
+        entry = f"### {filename}\n\n```\n{content}\n```"
+        if len(entry) > remaining_budget:
+            break
+        key_file_sections.append(entry)
+        remaining_budget -= len(entry) + 2  # account for join separator
+
+    if key_file_sections:
+        sections.extend(key_file_sections)
+
+    return "\n\n".join(sections)
+
+
 def _build_prompt_from_skill(spec_content: str, branch_name: str | None = None) -> str:
     """Build the prompt by loading the ralph/tasks skill and adding context.
 
@@ -158,6 +283,9 @@ def _build_prompt_from_skill(spec_content: str, branch_name: str | None = None) 
     Raises:
         SkillNotFoundError: If the ralph/tasks skill is not found.
     """
+    project_root = Path.cwd()
+    codebase_summary = _gather_codebase_summary(project_root)
+
     context_lines = [
         "---",
         "",
@@ -174,6 +302,20 @@ def _build_prompt_from_skill(spec_content: str, branch_name: str | None = None) 
 
     context_lines.extend(
         [
+            "",
+            "## Existing Codebase Summary",
+            "",
+            codebase_summary,
+            "",
+            "## Instructions for Already-Implemented Detection",
+            "",
+            "Review the codebase summary above alongside the specification. "
+            "If a requirement from the spec appears to already be implemented "
+            "in the existing codebase, mark that story with `passes: true` and "
+            "add a note explaining why it appears already implemented "
+            '(e.g., `"notes": "Already implemented: <evidence>"`). '
+            "Only mark stories as already implemented when there is clear evidence "
+            "in the file tree or key file contents.",
             "",
             "**Specification content:**",
             "",

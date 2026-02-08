@@ -254,3 +254,36 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 7: US-007 (Add .ralph-review-state.json to init scaffold) completed
+
+[Ralph Loop] 2026-02-08 06:18 UTC - Iteration 7: US-007 (Add .ralph-review-state.json to init scaffold) completed
+
+## 2026-02-08 - US-008
+
+**Story:** Add codebase context to ralph tasks prompt
+
+### What was implemented
+- Added `_iter_file_tree()` generator function that walks the project directory, excluding common non-source dirs (.git, .venv, __pycache__, node_modules, etc.) with configurable max depth
+- Added `_gather_codebase_summary()` function that produces a budget-capped summary containing a file tree and key file contents (pyproject.toml, CLAUDE.md, README.md, etc.)
+- Extended `_build_prompt_from_skill()` to call `_gather_codebase_summary(Path.cwd())` and include the result in the prompt
+- Added "Instructions for Already-Implemented Detection" section to the prompt instructing Claude to mark stories with `passes: true` when evidence exists in the codebase
+- All codebase scanning is pure filesystem I/O — zero additional Claude API calls
+
+### Tests written
+- `TestIterFileTree` (5 tests): files/dirs listing, .git/.venv exclusion, max_depth respect, empty dir, egg-info exclusion
+- `TestGatherCodebaseSummary` (6 tests): file tree section, pyproject.toml content, README content, missing key files, large file truncation, return type
+- `TestBuildPromptIncludesCodebaseContext` (5 tests): codebase summary presence, already-implemented instructions, spec content preserved, branch name, file tree from cwd
+- `TestCodebaseContextIntegration` (1 test): end-to-end tasks command sends codebase context to Claude
+
+### Files changed
+- `src/ralph/commands/tasks.py` - added _EXCLUDED_DIRS, _KEY_FILES, _MAX_SUMMARY_CHARS, _MAX_TREE_DEPTH constants; added _iter_file_tree(), _gather_codebase_summary(); modified _build_prompt_from_skill()
+- `tests/test_tasks_codebase_context.py` - new file with 17 tests
+- `plans/TASKS.json` - marked US-008 as passes: true
+
+### Learnings for future iterations
+- Using `Iterator[str]` yield pattern for file tree keeps memory usage low for large directories
+- Budget-capping the codebase summary prevents oversized prompts; 12K chars is a reasonable limit
+- The `_iter_file_tree` function sorts entries with directories first (using `p.is_file()` as sort key) for a cleaner tree display
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 8: US-008 (Add codebase context to ralph tasks prompt) completed

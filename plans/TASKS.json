@@ -125,8 +125,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added _iter_file_tree() and _gather_codebase_summary() for filesystem scanning. Prompt includes codebase summary and instructions for already-implemented detection. Zero additional Claude API calls."
     },
     {
       "id": "US-009",
