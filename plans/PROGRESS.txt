@@ -65,3 +65,41 @@
 - `caplog` fixture with `caplog.at_level(logging.INFO)` is the clean way to assert log messages in tests.
 
 ---
+
+[Ralph Loop] 2026-02-08 05:58 UTC - Iteration 2: US-002 (Implement --no-fix behavior in ReviewLoopService) completed
+
+## 2026-02-08 - US-003
+
+**Story:** Add --no-fix summary to review output
+
+### What was implemented
+- Added `fix_skipped` field (default: False) to `ReviewerResult` NamedTuple in `review_loop.py`
+- In `ReviewLoopService.run_review_loop()`, set `fix_skipped=True` on results when `no_fix=True` and reviewer has NEEDS_WORK findings eligible for fix loop
+- Updated summary display in `_run_review_loop()` in `loop.py` to show `[FINDINGS] reviewer: findings (not fixed)` for fix-skipped reviewers
+- Updated summary display in `review()` in `review.py` with the same logic
+- Both summaries include `Findings (not fixed): N` count in the summary line when skipped_fix > 0
+- Both commands detect `no_fix` + NEEDS_WORK + eligible fix loop and mark results with `fix_skipped=True`
+
+### Tests written
+- `TestNoFixSummary::test_no_fix_sets_fix_skipped_on_needs_work_result` - verifies fix_skipped=True on NEEDS_WORK results in run_review_loop
+- `TestNoFixSummary::test_no_fix_does_not_set_fix_skipped_on_passed_result` - verifies fix_skipped=False on PASSED results
+- `TestNoFixSummary::test_no_fix_false_does_not_set_fix_skipped` - verifies default behavior leaves fix_skipped=False
+- `TestNoFixSummary::test_no_fix_mixed_results_only_marks_needs_work` - verifies only NEEDS_WORK reviewers get fix_skipped
+- `TestReviewNoFixSummary::test_no_fix_shows_findings_not_fixed_in_summary` - verifies CLI output shows "findings (not fixed)"
+- `TestReviewNoFixSummary::test_no_fix_includes_skipped_fix_count_in_summary_line` - verifies "Findings (not fixed): 1" in summary line
+- `TestReviewNoFixSummary::test_no_fix_not_set_does_not_show_findings_not_fixed` - verifies no spurious output without --no-fix
+
+### Files changed
+- `src/ralph/services/review_loop.py` - added `fix_skipped` field to ReviewerResult, set it in run_review_loop()
+- `src/ralph/commands/loop.py` - added Verdict import, no_fix-aware result marking, updated summary display
+- `src/ralph/commands/review.py` - added Verdict import, no_fix-aware result marking, updated summary display
+- `tests/test_review_loop.py` - added TestNoFixSummary class with 4 tests
+- `tests/test_review_command.py` - added TestReviewNoFixSummary class with 3 tests, updated _make_mock_service()
+- `plans/TASKS.json` - marked US-003 as passes: true
+
+### Learnings for future iterations
+- Both `loop.py::_run_review_loop()` and `review.py::review()` manually iterate reviewers rather than calling `ReviewLoopService.run_review_loop()`, so changes to summary display must be made in both places
+- NamedTuple fields with defaults must come after fields without defaults; `fix_skipped: bool = False` works at the end
+- When using MagicMock for ReviewerResult in integration tests, auto-generated attributes (like fix_skipped) return MagicMock objects which are truthy — switching to real ReviewerResult instances avoids this
+
+---

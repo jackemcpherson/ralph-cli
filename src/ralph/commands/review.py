@@ -10,6 +10,7 @@ from pathlib import Path
 import typer
 
 from ralph.models import load_reviewer_configs
+from ralph.models.finding import Verdict
 from ralph.services import (
     ReviewerResult,
     ReviewLoopService,
@@ -195,6 +196,25 @@ def review(
 
         enforced = review_service.is_enforced(reviewer, strict)
         result = review_service.run_reviewer(reviewer, enforced=enforced)
+
+        # Mark fix_skipped when --no-fix and reviewer has NEEDS_WORK findings
+        if (
+            no_fix
+            and result.review_output
+            and result.review_output.verdict == Verdict.NEEDS_WORK
+            and result.review_output.findings
+            and review_service.should_run_fix_loop(reviewer, strict, was_language_filtered=False)
+        ):
+            result = ReviewerResult(
+                reviewer_name=result.reviewer_name,
+                success=result.success,
+                skipped=result.skipped,
+                attempts=result.attempts,
+                error=result.error,
+                review_output=result.review_output,
+                fix_skipped=True,
+            )
+
         results.append(result)
 
         review_service._append_review_summary(progress_path, reviewer, result)
@@ -215,11 +235,17 @@ def review(
     passed = 0
     failed = 0
     skipped = 0
+    skipped_fix = 0
 
     for result in results:
         if result.skipped:
             skipped += 1
             console.print(f"  [dim]- {result.reviewer_name}: skipped (language filter)[/dim]")
+        elif result.fix_skipped:
+            skipped_fix += 1
+            console.print(
+                f"  [yellow][FINDINGS][/yellow] {result.reviewer_name}: findings (not fixed)"
+            )
         elif result.success:
             passed += 1
             console.print(f"  [green][OK][/green] {result.reviewer_name}: passed")
@@ -232,7 +258,10 @@ def review(
             )
 
     console.print()
-    console.print(f"[dim]Passed: {passed}, Failed: {failed}, Skipped: {skipped}[/dim]")
+    summary_parts = [f"Passed: {passed}", f"Failed: {failed}", f"Skipped: {skipped}"]
+    if skipped_fix > 0:
+        summary_parts.append(f"Findings (not fixed): {skipped_fix}")
+    console.print(f"[dim]{', '.join(summary_parts)}[/dim]")
 
     if failed == 0:
         print_success("All reviews passed!")

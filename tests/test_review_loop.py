@@ -718,6 +718,147 @@ No issues found.
         assert call_kwargs.get("on_fix_step") == callback
 
 
+class TestNoFixSummary:
+    """Tests for --no-fix summary output in review results."""
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_no_fix_sets_fix_skipped_on_needs_work_result(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test no_fix=True sets fix_skipped=True on NEEDS_WORK results."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing type
+   - File: src/test.py:10
+   - Issue: Missing type annotation
+   - Suggestion: Add type hint
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        results = service.run_review_loop([reviewer], {Language.python}, no_fix=True)
+
+        assert len(results) == 1
+        assert results[0].fix_skipped is True
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_no_fix_does_not_set_fix_skipped_on_passed_result(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test no_fix=True does not set fix_skipped on PASSED results."""
+        passed_output = """
+### Verdict: PASSED
+
+No issues found.
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (passed_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        results = service.run_review_loop([reviewer], {Language.python}, no_fix=True)
+
+        assert len(results) == 1
+        assert results[0].fix_skipped is False
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_no_fix_false_does_not_set_fix_skipped(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test no_fix=False (default) does not set fix_skipped."""
+        structured_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing type
+   - File: src/test.py:10
+   - Issue: Missing type annotation
+   - Suggestion: Add type hint
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.return_value = (structured_output, 0)
+        mock_claude_class.return_value = mock_claude
+
+        mock_fix_service = MagicMock()
+        mock_fix_service.run_fix_loop.return_value = []
+        mock_fix_service_class.return_value = mock_fix_service
+
+        service = _create_service_with_skill(tmp_path)
+        reviewer = _create_reviewer(level=ReviewerLevel.blocking)
+
+        results = service.run_review_loop([reviewer], {Language.python}, no_fix=False)
+
+        assert len(results) == 1
+        assert results[0].fix_skipped is False
+
+    @patch("ralph.services.review_loop.FixLoopService")
+    @patch("ralph.services.review_loop.ClaudeService")
+    def test_no_fix_mixed_results_only_marks_needs_work(
+        self,
+        mock_claude_class: MagicMock,
+        mock_fix_service_class: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Test no_fix only marks fix_skipped on NEEDS_WORK reviewers, not PASSED ones."""
+        needs_work_output = """
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **FINDING-001**: Type Safety - Missing type
+   - File: src/test.py:10
+   - Issue: Missing type annotation
+   - Suggestion: Add type hint
+"""
+        passed_output = """
+### Verdict: PASSED
+
+No issues found.
+"""
+        mock_claude = MagicMock()
+        mock_claude.run_print_mode.side_effect = [
+            (needs_work_output, 0),
+            (passed_output, 0),
+        ]
+        mock_claude_class.return_value = mock_claude
+
+        service = _create_service_with_skills(tmp_path, ["test-quality", "code-simplifier"])
+        reviewers = [
+            _create_reviewer(name="test-quality", skill="reviewers/test-quality"),
+            _create_reviewer(name="code-simplifier", skill="reviewers/code-simplifier"),
+        ]
+
+        results = service.run_review_loop(reviewers, {Language.python}, no_fix=True)
+
+        assert len(results) == 2
+        assert results[0].fix_skipped is True
+        assert results[0].reviewer_name == "test-quality"
+        assert results[1].fix_skipped is False
+        assert results[1].reviewer_name == "code-simplifier"
+
+
 class TestFilterReviewersByLanguage:
     """Tests for filter_reviewers_by_language function."""
 

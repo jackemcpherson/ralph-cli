@@ -32,6 +32,7 @@ class ReviewerResult(NamedTuple):
         attempts: Number of attempts made (1-3 for blocking reviewers).
         error: Error message if the reviewer failed.
         review_output: Parsed ReviewOutput with verdict and findings when available.
+        fix_skipped: Whether auto-fix was skipped due to --no-fix flag.
     """
 
     reviewer_name: str
@@ -40,6 +41,7 @@ class ReviewerResult(NamedTuple):
     attempts: int
     error: str | None = None
     review_output: ReviewOutput | None = None
+    fix_skipped: bool = False
 
 
 class ReviewLoopService(BaseModel):
@@ -292,6 +294,17 @@ class ReviewLoopService(BaseModel):
             ):
                 if no_fix:
                     logger.info("[Fix] Skipped (--no-fix)")
+                    # Replace result with fix_skipped=True
+                    results[-1] = ReviewerResult(
+                        reviewer_name=result.reviewer_name,
+                        success=result.success,
+                        skipped=result.skipped,
+                        attempts=result.attempts,
+                        error=result.error,
+                        review_output=result.review_output,
+                        fix_skipped=True,
+                    )
+                    result = results[-1]
                 else:
                     logger.info(
                         f"Running fix loop for {reviewer.name} "

@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from ralph.cli import app
+from ralph.models.finding import Finding, ReviewOutput, Verdict
 from ralph.models.reviewer import ReviewerConfig, ReviewerLevel
+from ralph.services.review_loop import ReviewerResult
 
 
 @contextmanager
@@ -40,12 +42,15 @@ def _make_mock_service() -> MagicMock:
     mock_service = MagicMock()
     mock_service.should_run_reviewer.return_value = True
     mock_service.is_enforced.return_value = True
-    mock_service.run_reviewer.return_value = MagicMock(
+    mock_service.should_run_fix_loop.return_value = False
+    mock_service.run_reviewer.return_value = ReviewerResult(
         reviewer_name="test",
         success=True,
         skipped=False,
         attempts=1,
         error=None,
+        review_output=None,
+        fix_skipped=False,
     )
     return mock_service
 
@@ -328,3 +333,132 @@ class TestReviewStrictFlag:
         assert call_args[1].get("strict") is False or (
             len(call_args[0]) >= 2 and call_args[0][1] is False
         )
+
+
+class TestReviewNoFixSummary:
+    """Tests for --no-fix summary output in review command."""
+
+    def test_no_fix_shows_findings_not_fixed_in_summary(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test --no-fix shows 'findings (not fixed)' for NEEDS_WORK reviewers."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["test-quality"])
+
+        needs_work_output = ReviewOutput(
+            verdict=Verdict.NEEDS_WORK,
+            findings=[
+                Finding(
+                    id="FINDING-001",
+                    category="Type Safety",
+                    file_path="src/test.py",
+                    line_number=10,
+                    issue="Missing type",
+                    suggestion="Add type hint",
+                )
+            ],
+        )
+        needs_work_result = ReviewerResult(
+            reviewer_name="test-quality",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=needs_work_output,
+        )
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_service = MagicMock()
+                mock_service.should_run_reviewer.return_value = True
+                mock_service.is_enforced.return_value = True
+                mock_service.should_run_fix_loop.return_value = True
+                mock_service.run_reviewer.return_value = needs_work_result
+                mock_cls.return_value = mock_service
+                result = runner.invoke(app, ["review", "--no-fix"])
+
+        assert "findings (not fixed)" in result.output
+        assert "test-quality" in result.output
+
+    def test_no_fix_includes_skipped_fix_count_in_summary_line(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test --no-fix includes 'Findings (not fixed)' count in summary line."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["test-quality", "code-simplifier"])
+
+        needs_work_output = ReviewOutput(
+            verdict=Verdict.NEEDS_WORK,
+            findings=[
+                Finding(
+                    id="FINDING-001",
+                    category="Type Safety",
+                    file_path="src/test.py",
+                    line_number=10,
+                    issue="Missing type",
+                    suggestion="Add type hint",
+                )
+            ],
+        )
+        needs_work_result = ReviewerResult(
+            reviewer_name="test-quality",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=needs_work_output,
+        )
+        passed_result = ReviewerResult(
+            reviewer_name="code-simplifier",
+            success=True,
+            skipped=False,
+            attempts=1,
+            review_output=ReviewOutput(verdict=Verdict.PASSED, findings=[]),
+        )
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_service = MagicMock()
+                mock_service.should_run_reviewer.return_value = True
+                mock_service.is_enforced.return_value = True
+                mock_service.should_run_fix_loop.return_value = True
+                mock_service.run_reviewer.side_effect = [
+                    needs_work_result,
+                    passed_result,
+                ]
+                mock_cls.return_value = mock_service
+                result = runner.invoke(app, ["review", "--no-fix"])
+
+        assert "Findings (not fixed): 1" in result.output
+        assert "Passed: 1" in result.output
+
+    def test_no_fix_not_set_does_not_show_findings_not_fixed(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test summary without --no-fix does not show 'findings (not fixed)'."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["code-simplifier"])
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_cls.return_value = _make_mock_service()
+                result = runner.invoke(app, ["review"])
+
+        assert "findings (not fixed)" not in result.output
+        assert "Findings (not fixed)" not in result.output
