@@ -103,3 +103,50 @@
 - When using MagicMock for ReviewerResult in integration tests, auto-generated attributes (like fix_skipped) return MagicMock objects which are truthy — switching to real ReviewerResult instances avoids this
 
 ---
+
+[Ralph Loop] 2026-02-08 06:04 UTC - Iteration 3: US-003 (Add --no-fix summary to review output) completed
+
+## 2026-02-08 - US-004
+
+**Story:** Create ReviewState Pydantic model
+
+### What was implemented
+- Created `ReviewState` Pydantic model in `src/ralph/models/review_state.py` with fields: `reviewer_names`, `completed`, `timestamp`, `config_hash`
+- Added `compute_config_hash()` static method that produces a deterministic SHA-256 hash from a list of `ReviewerConfig` objects (captures name, skill, level, sorted languages)
+- Added `save()` instance method to write state to a JSON file
+- Added `load()` class method to read state from a JSON file (returns `None` for missing/invalid files)
+- Added `REVIEW_STATE_FILENAME` constant (`.ralph-review-state.json`)
+- Exported `ReviewState` and `REVIEW_STATE_FILENAME` from `src/ralph/models/__init__.py`
+
+### Tests written
+- `TestReviewStateModel::test_create_review_state` - verifies model creation with all fields
+- `TestReviewStateModel::test_completed_defaults_to_empty_dict` - verifies default factory
+- `TestReviewStateModel::test_serialization_round_trip` - verifies JSON serialization/deserialization
+- `TestComputeConfigHash::test_hash_is_deterministic` - same config produces same hash
+- `TestComputeConfigHash::test_hash_is_hex_string` - valid 64-char hex digest
+- `TestComputeConfigHash::test_hash_changes_with_different_config` - different configs differ
+- `TestComputeConfigHash::test_hash_changes_when_level_changes` - level change detected
+- `TestComputeConfigHash::test_hash_empty_list` - empty list produces valid hash
+- `TestComputeConfigHash::test_hash_language_order_irrelevant` - language list order normalized
+- `TestSaveAndLoad::test_save_creates_json_file` - file written with correct content
+- `TestSaveAndLoad::test_load_valid_file` - valid file loaded correctly
+- `TestSaveAndLoad::test_load_nonexistent_returns_none` - missing file returns None
+- `TestSaveAndLoad::test_load_invalid_json_returns_none` - malformed JSON returns None
+- `TestSaveAndLoad::test_load_invalid_schema_returns_none` - wrong schema returns None
+- `TestSaveAndLoad::test_save_load_round_trip` - save and load are inverse operations
+- `TestReviewStateFilename::test_filename_value` - constant has expected value
+
+### Files changed
+- `src/ralph/models/review_state.py` - new file, ReviewState model
+- `src/ralph/models/__init__.py` - added ReviewState and REVIEW_STATE_FILENAME exports
+- `tests/test_review_state.py` - new file, 16 tests
+- `plans/TASKS.json` - marked US-004 as passes: true
+
+### Learnings for future iterations
+- The manifest model (`manifest.py`) uses `by_alias=True` for camelCase JSON, but ReviewState uses snake_case throughout since `.ralph-review-state.json` is internal-only
+- `compute_config_hash` sorts languages to ensure order-independence; this is important since `ReviewerConfig.languages` is a plain list
+- Follow the `load`/`save` pattern from `manifest.py` for consistency: `load` returns `None` on failure, `save` writes with trailing newline
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 4: US-004 (Create ReviewState Pydantic model) completed

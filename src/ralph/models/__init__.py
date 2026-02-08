@@ -13,6 +13,7 @@ from ralph.models.finding import (
     parse_review_output,
 )
 from ralph.models.manifest import Manifest, load_manifest, save_manifest
+from ralph.models.review_state import REVIEW_STATE_FILENAME, ReviewState
 from ralph.models.reviewer import (
     ReviewerConfig,
     ReviewerConfigs,
@@ -28,7 +29,9 @@ __all__ = [
     "Manifest",
     "QualityCheck",
     "QualityChecks",
+    "REVIEW_STATE_FILENAME",
     "ReviewOutput",
+    "ReviewState",
     "ReviewerConfig",
     "ReviewerConfigs",
     "ReviewerLevel",
