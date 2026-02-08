@@ -709,3 +709,45 @@ Both test files provide meaningful, well-structured test coverage with no anti-p
 - All acceptance criteria should still be explicitly verified even when tests pre-exist
 
 ---
+
+[Ralph Loop] 2026-02-08 05:24 UTC - Iteration 2: US-007 (Add unit tests for reviewer detection) completed
+
+---
+
+## 2026-02-08 - US-008
+
+**Story:** Add unit tests for CLAUDE.md manipulation
+
+### What was implemented
+- Created `tests/test_reviewer_config_writer.py` with 15 tests for the ReviewerConfigWriter service
+- Tests organized into 4 test classes covering all acceptance criteria
+
+### Tests written
+- `TestHasReviewerConfig` (3 tests):
+  - `test_returns_false_when_file_missing` - Missing file returns False
+  - `test_returns_false_when_no_markers` - File without markers returns False
+  - `test_returns_true_when_markers_present` - File with markers returns True
+- `TestWriteReviewerConfigNoMarkers` (5 tests):
+  - `test_creates_file_when_missing` - Creates file when it doesn't exist
+  - `test_appends_section_when_no_markers_and_no_project_specific` - Appends at end of file
+  - `test_inserts_before_project_specific_heading` - Inserts before '## Project-Specific Instructions'
+  - `test_preserves_content_before_insertion_point` - Content before insertion preserved
+  - `test_preserves_content_after_insertion_point` - Content after insertion preserved
+- `TestWriteReviewerConfigWithMarkers` (5 tests):
+  - `test_replaces_content_between_markers` - Old config replaced with new
+  - `test_preserves_content_before_markers` - Content before markers untouched
+  - `test_preserves_content_after_markers` - Content after markers untouched
+  - `test_languages_field_preserved_in_output` - Languages field written correctly
+  - `test_reviewer_without_languages_omits_field` - No languages field when None
+- `TestConvenienceFunctions` (2 tests):
+  - `test_has_reviewer_config_function` - Module-level function works
+  - `test_write_reviewer_config_function` - Module-level function works
+
+### Files changed
+- `tests/test_reviewer_config_writer.py` - New file with 15 tests (created)
+- `plans/TASKS.json` - Marked US-008 as passes: true
+- `plans/PROGRESS.txt` - Appended this entry
+
+### Learnings for future iterations
+- The ReviewerConfigWriter has three distinct write paths: new file, no markers, and existing markers - each needs its own test coverage
+- Testing content preservation requires checking both before and after the insertion/replacement point
