@@ -160,6 +160,28 @@ The CLI provides these commands:
 3. **Branch management**: Auto-create/checkout branches from TASKS.json branchName
 4. **Memory system**: PROGRESS.txt is append-only; CLAUDE.md/AGENTS.md get pattern updates
 
+### Linear Integration
+
+This project tracks work in [Linear](https://linear.app/jmcptest) under the **Ralph CLI** team (identifier: `RAL`).
+
+**Hierarchy:** Project (release) > Parent Issue (feature/epic) > Sub-issue (user story)
+
+**GitHub integration is configured with:**
+- **Branch/PR linking** — PRs referencing `RAL-XX` identifiers auto-link to Linear issues
+- **Magic words** — Commits with `RAL-XX` get linked via webhook
+- **Public repo linkbacks** — Linear adds comments on linked GitHub PRs
+- **Bidirectional GitHub Issues sync** — Issues sync between `jackemcpherson/ralph-cli` and the Ralph CLI team (note: syncs new activity, does not back-import existing issues)
+
+**When creating PRs:**
+- Reference Linear identifiers in the PR body (e.g., `RAL-1`, `RAL-15`) for automatic linking
+- Use `Closes #XX` for GitHub issues to auto-close on merge
+- Linear issues should be updated to Done when their stories pass
+
+**When completing a feature branch:**
+1. Mark all completed stories as Done in Linear
+2. Mark parent issues as Done when all sub-issues complete
+3. Update the Linear project status to Completed after release
+
 ### Release Process
 
 When merging a release PR:
@@ -167,6 +189,9 @@ When merging a release PR:
 2. Add changelog entry to `CHANGELOG.md`
 3. Merge the PR to main
 4. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+5. Create a GitHub Release from the tag with notes from CHANGELOG.md
+6. Update the Linear project description (link to release) and set status to Completed
+7. Clean up local and remote feature branches: `git branch -d <branch> && git fetch --prune`
 
 Tags must match the version in pyproject.toml (e.g., `v1.2.6` for version `1.2.6`).
 
