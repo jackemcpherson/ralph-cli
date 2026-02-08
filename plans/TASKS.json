@@ -138,8 +138,8 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created PUBLISHING.md with Trusted Publisher setup for PyPI and TestPyPI, quick-start checklist, GitHub Actions environment setup, troubleshooting, and references."
     }
   ]
 }

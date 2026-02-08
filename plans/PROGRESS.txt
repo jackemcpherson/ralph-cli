@@ -818,3 +818,32 @@
 ---
 
 [Ralph Loop] 2026-02-08 18:40 UTC - Iteration 8: US-008 (Create branch protection setup script) completed
+
+[Ralph Loop] 2026-02-08 07:41 UTC - Iteration 8: US-008 (Create branch protection setup script) completed
+
+## 2026-02-08 - US-009
+
+**Story:** Document Trusted Publisher setup steps
+
+### What was implemented
+- Created `PUBLISHING.md` with complete Trusted Publisher setup documentation
+- Documented PyPI configuration: project name (`ralph-cli`), owner (`jackemcpherson`), repo (`ralph-cli`), workflow (`publish.yml`), environment (`pypi`)
+- Documented TestPyPI configuration separately with its own environment name (`testpypi`)
+- Included a quick-start checklist covering project creation, Trusted Publisher setup, environment creation, and first tag push
+- Added sections for how the pipeline works, GitHub Actions environment setup, triggering a release, and troubleshooting common issues
+- Added references to PyPI Trusted Publishers docs, pypa/gh-action-pypi-publish, and GitHub OIDC docs
+
+### Tests written
+- No new tests needed (documentation-only change; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `PUBLISHING.md` - new file, Trusted Publisher setup guide
+- `plans/TASKS.json` - marked US-009 as passes: true
+
+### Learnings for future iterations
+- Trusted Publisher configuration requires exact match on all 5 fields (project name, owner, repo, workflow name, environment name)
+- PyPI and TestPyPI are independent registries; each needs its own Trusted Publisher entry
+- The environment name in the workflow YAML must match the environment name configured in the Trusted Publisher on PyPI/TestPyPI
+
+---
