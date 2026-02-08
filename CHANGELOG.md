@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.2.0] - 2026-02-08
+
+### Added
+
+- PyPI packaging pipeline with Trusted Publishers (OIDC) for automated releases
+  - Tag-triggered `publish.yml` workflow: ci-check → build → TestPyPI → PyPI → GitHub Release
+  - All GitHub Actions pinned to full commit SHAs
+- Version consistency CI check validating `pyproject.toml`, `__init__.py`, and `CHANGELOG.md` on every PR
+  - Tag-version validation on release tags (catches `v*` tag/version mismatches)
+- GitHub Release automation with changelog extraction and artifact attachment
+- Branch protection setup script (`scripts/setup-branch-protection.sh`) via `gh api`
+- `PUBLISHING.md` documenting one-time Trusted Publisher setup for PyPI and TestPyPI
+- PyPI classifiers and project URLs in `pyproject.toml`
+
 ## [2.1.0] - 2026-02-08
 
 ### Added
