@@ -625,3 +625,34 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 2: US-002 (Add version consistency check to CI) completed
+
+[Ralph Loop] 2026-02-08 07:28 UTC - Iteration 2: US-002 (Add version consistency check to CI) completed
+
+## 2026-02-08 - US-003
+
+**Story:** Add tag-version validation to version check
+
+### What was implemented
+- Extended CI push trigger to also fire on tag pushes matching `v*`
+- Added "Verify tag matches pyproject.toml version" step to the version-check job
+- Step uses `if: startsWith(github.ref, 'refs/tags/v')` so it runs only on tag pushes
+- On tag runs, strips the `v` prefix from `GITHUB_REF` and compares to the pyproject.toml version extracted earlier
+- On mismatch, fails with a `::error::` annotation clearly showing the tag vs pyproject.toml values
+- On non-tag runs (push to main, PRs), the step is skipped entirely (passes silently)
+
+### Tests written
+- No new tests needed (CI workflow YAML change only; verified by lint/format/typecheck/test checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/ci.yml` - added `tags: ['v*']` to push trigger, added tag validation step
+- `plans/TASKS.json` - marked US-003 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions `if: startsWith(github.ref, 'refs/tags/v')` is the clean way to conditionally run steps only on tag pushes
+- `${GITHUB_REF#refs/tags/v}` shell parameter expansion strips the prefix to get the bare version number
+- The existing `steps.pyproject.outputs.version` output can be reused in subsequent steps without re-extraction
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 3: US-003 (Add tag-version validation to version check) completed

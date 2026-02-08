@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -80,6 +81,19 @@ jobs:
           fi
 
           echo "Version consistency check passed: $pyproject"
+
+      - name: Verify tag matches pyproject.toml version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          pyproject="${{ steps.pyproject.outputs.version }}"
+
+          if [ "$tag" != "$pyproject" ]; then
+            echo "::error::Git tag 'v$tag' does not match pyproject.toml version '$pyproject'"
+            exit 1
+          fi
+
+          echo "Tag validation passed: v$tag matches pyproject.toml version $pyproject"
 
   test:
     runs-on: ${{ matrix.os }}

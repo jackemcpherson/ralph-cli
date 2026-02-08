@@ -46,8 +46,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Extended CI push trigger with tags: ['v*']. Added conditional step using startsWith(github.ref, 'refs/tags/v') that strips v prefix and compares to pyproject.toml version. Step is skipped on non-tag runs."
     },
     {
       "id": "US-004",
