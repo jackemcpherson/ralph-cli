@@ -150,3 +150,37 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 4: US-004 (Create ReviewState Pydantic model) completed
+
+[Ralph Loop] 2026-02-08 06:07 UTC - Iteration 4: US-004 (Create ReviewState Pydantic model) completed
+
+## 2026-02-08 - US-005
+
+**Story:** Implement resumable review logic in review commands
+
+### What was implemented
+- Added `--resume-review` boolean flag (default: False) to the `loop()` command in `src/ralph/commands/loop.py`
+- Added `--resume-review` boolean flag (default: False) to the `review()` command in `src/ralph/commands/review.py`
+- Threaded `resume_review` parameter through `_run_review_loop()` in `loop.py`
+- Both commands load `ReviewState` from `.ralph-review-state.json` when `--resume-review` is set
+- When state exists and config hash matches, already-completed reviewers are skipped
+- When no state file exists or config hash mismatches, the full pipeline runs from the beginning
+- State file is written/updated after each reviewer completes (via `ReviewState.save()`)
+
+### Tests written
+- `TestReviewResumeReview::test_resume_review_skips_completed_reviewers` - verifies completed reviewers from state file are skipped
+- `TestReviewResumeReview::test_resume_review_runs_full_pipeline_without_state_file` - verifies full pipeline runs when no state exists
+- `TestReviewResumeReview::test_resume_review_saves_state_after_each_reviewer` - verifies state file is created and updated
+- `TestReviewResumeReview::test_resume_review_config_hash_mismatch_runs_full_pipeline` - verifies stale state is discarded
+
+### Files changed
+- `src/ralph/commands/loop.py` - added `resume_review` param to `loop()` and `_run_review_loop()`, added resume/state-save logic
+- `src/ralph/commands/review.py` - added `resume_review` param to `review()`, added resume/state-save logic
+- `tests/test_review_command.py` - added `TestReviewResumeReview` class with 4 tests
+- `plans/TASKS.json` - marked US-005 as passes: true
+
+### Learnings for future iterations
+- The resume logic is implemented directly in both `_run_review_loop()` (loop.py) and `review()` (review.py) since both have their own reviewer iteration loops
+- State file uses the existing `ReviewState` model from US-004 with `compute_config_hash()` for validation
+- Config hash mismatch causes state to be discarded silently (logged but not errored)
+
+---

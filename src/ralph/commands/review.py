@@ -5,11 +5,12 @@ detects and configures reviewers on first run, then executes the review loop.
 """
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 
-from ralph.models import load_reviewer_configs
+from ralph.models import REVIEW_STATE_FILENAME, ReviewState, load_reviewer_configs
 from ralph.models.finding import Verdict
 from ralph.services import (
     ReviewerResult,
@@ -68,6 +69,11 @@ def review(
         False,
         "--no-fix",
         help="Report review findings without applying automated fixes",
+    ),
+    resume_review: bool = typer.Option(
+        False,
+        "--resume-review",
+        help="Resume an interrupted review pipeline, skipping already-completed reviewers",
     ),
 ) -> None:
     """Run the review loop with automatic configuration.
@@ -173,6 +179,23 @@ def review(
         verbose=verbose,
     )
 
+    # Load resume state if requested
+    state_path = project_root / REVIEW_STATE_FILENAME
+    state: ReviewState | None = None
+    if resume_review:
+        config_hash = ReviewState.compute_config_hash(reviewers)
+        state = ReviewState.load(state_path)
+        if state is not None and state.config_hash == config_hash:
+            completed_names = list(state.completed)
+            logger.info(f"Resuming review: {len(completed_names)} reviewer(s) already completed")
+            console.print(
+                f"[dim]Resuming review: {len(completed_names)} reviewer(s) already completed[/dim]"
+            )
+        else:
+            if state is not None:
+                logger.info("Review state config hash mismatch, starting fresh")
+            state = None
+
     results: list[ReviewerResult] = []
     total_reviewers = len(reviewers)
 
@@ -189,6 +212,19 @@ def review(
             )
             results.append(result)
             review_service._append_review_summary(progress_path, reviewer, result)
+            continue
+
+        # Skip already-completed reviewers when resuming
+        if state is not None and reviewer.name in state.completed:
+            was_successful = state.completed[reviewer.name]
+            logger.info(f"Skipping reviewer {reviewer.name} (already completed, resume)")
+            result = ReviewerResult(
+                reviewer_name=reviewer.name,
+                success=was_successful,
+                skipped=False,
+                attempts=1,
+            )
+            results.append(result)
             continue
 
         print_review_step(i, total_reviewers, reviewer.name)
@@ -218,6 +254,21 @@ def review(
         results.append(result)
 
         review_service._append_review_summary(progress_path, reviewer, result)
+
+        # Save state after each reviewer completes
+        if resume_review:
+            config_hash = ReviewState.compute_config_hash(reviewers)
+            current_completed: dict[str, bool] = {}
+            if state is not None:
+                current_completed = dict(state.completed)
+            current_completed[reviewer.name] = result.success
+            state = ReviewState(
+                reviewer_names=[r.name for r in reviewers],
+                completed=current_completed,
+                timestamp=datetime.now(UTC).isoformat(),
+                config_hash=config_hash,
+            )
+            state.save(state_path)
 
         if result.success:
             logger.info(f"Reviewer {reviewer.name} completed successfully")

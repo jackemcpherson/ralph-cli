@@ -79,8 +79,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added --resume-review flag to loop and review commands. Resume logic loads ReviewState, skips completed reviewers with matching config hash, and saves state after each reviewer completes."
     },
     {
       "id": "US-006",
