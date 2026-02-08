@@ -666,3 +666,46 @@ Both test files provide meaningful, well-structured test coverage with no anti-p
 - Set difference operations cleanly identify added/removed reviewers between old and new configs
 
 ---
+
+[Ralph Loop] 2026-02-08 05:22 UTC - Iteration 1: US-006 (Implement --force flag behavior) completed
+
+---
+
+## 2026-02-08 - US-007
+
+**Story:** Add unit tests for reviewer detection
+
+### What was implemented
+- Verified that tests/test_reviewer_detector.py already exists from US-002 with 17 comprehensive tests
+- Confirmed all acceptance criteria are met by existing tests
+- All quality checks pass (pyright, ruff check, ruff format, pytest)
+
+### Tests written
+- All tests were written during US-002 implementation:
+  - `test_always_includes_universal_reviewers` - Universal reviewers always present
+  - `test_universal_reviewer_skills_are_correct` - Correct skill paths for universal reviewers
+  - `test_detects_python_project` - Python files trigger python-code reviewer with correct config
+  - `test_detects_python_in_subdirectory` - Subdirectory Python files detected
+  - `test_detects_bicep_project` - Bicep files trigger bicep reviewer with correct config
+  - `test_detects_bicep_in_subdirectory` - Subdirectory Bicep files detected
+  - `test_detects_github_actions_yml` - .yml workflow files trigger github-actions reviewer
+  - `test_detects_github_actions_yaml` - .yaml workflow files trigger github-actions reviewer
+  - `test_no_github_actions_without_workflows_dir` - No false positive without workflows dir
+  - `test_no_github_actions_with_empty_workflows_dir` - No false positive with empty dir
+  - `test_detects_test_files_with_prefix` - test_*.py files trigger test-quality reviewer
+  - `test_detects_test_files_with_suffix` - *_test.py files trigger test-quality reviewer
+  - `test_detects_changelog_adds_release_reviewer` - CHANGELOG.md triggers release reviewer
+  - `test_no_release_without_changelog` - No release reviewer without CHANGELOG.md
+  - `test_detects_multiple_project_types` - All detections work together
+  - `test_detect_reviewers_works` - Convenience function works
+  - `test_empty_project_returns_only_universal` - Empty project baseline
+
+### Files changed
+- `plans/TASKS.json` - Marked US-007 as passes: true
+- `plans/PROGRESS.txt` - Appended this entry
+
+### Learnings for future iterations
+- When task-planning creates separate testing stories, the implementation story may already include the tests
+- All acceptance criteria should still be explicitly verified even when tests pre-exist
+
+---
