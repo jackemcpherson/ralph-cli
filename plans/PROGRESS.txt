@@ -351,3 +351,38 @@
 - Changelog entries should summarize the feature from a user perspective, not list individual stories
 
 ---
+
+[Ralph Loop] 2026-02-08 06:26 UTC - Iteration 10: US-010 (Bump version to 2.1.0 and update CHANGELOG) completed
+
+## 2026-02-08 - US-011
+
+**Story:** Add unit tests for --no-fix and resumable review features
+
+### What was implemented
+- Created comprehensive test file `tests/test_nofix_and_resume.py` with 30 tests across 12 test classes
+- Tests cover both `review.py` and `loop.py` code paths (gap identified: `_run_review_loop()` in loop.py was not previously tested for new features)
+- Organised tests by acceptance criteria into 6 sections matching the story requirements
+
+### Tests written
+- **TestNoFixSkipsFixLoopInService** (4 tests): FixLoopService not instantiated with no_fix=True, multiple NEEDS_WORK reviewers, default behavior still invokes fix, log messages per reviewer
+- **TestNoFixSummaryReviewCommand** (3 tests): reviewer name in summary, multiple skipped-fix names, absence without --no-fix
+- **TestNoFixSummaryLoopRunReviewLoop** (1 test): _run_review_loop shows "findings (not fixed)" with reviewer name
+- **TestReviewStateSerialisation** (4 tests): round-trip preserves fields, truncated JSON returns None, save overwrites, valid JSON keys
+- **TestReviewStateConfigHash** (6 tests): deterministic, skill change, name change, reviewer added, language order normalised, None vs empty languages
+- **TestResumeSkipsCompletedReviewCommand** (3 tests): only remaining reviewers run, no state runs all, state saved after each
+- **TestResumeInLoopRunReviewLoop** (1 test): _run_review_loop skips completed reviewers
+- **TestStateCleanupReviewCommand** (3 tests): cleanup with resume, cleanup without resume, no error on missing file
+- **TestStateCleanupInLoopRunReviewLoop** (1 test): state file removed after completion
+- **TestConfigInvalidationReviewCommand** (2 tests): stale hash runs all reviewers, stale hash logs message
+- **TestConfigInvalidationInLoopRunReviewLoop** (2 tests): stale hash runs all, stale hash console message
+
+### Files changed
+- `tests/test_nofix_and_resume.py` - new file, 30 tests
+- `plans/TASKS.json` - marked US-011 as passes: true
+
+### Learnings for future iterations
+- Both `review.py` and `loop.py` implement reviewer iteration independently; tests should cover both paths
+- The `_run_review_loop()` function in loop.py can be tested directly by patching `load_reviewer_configs`, `detect_languages`, and `ReviewLoopService`
+- Rich console output can be captured with a StringIO-backed Console for assertions in unit tests
+
+---

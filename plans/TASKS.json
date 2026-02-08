@@ -172,8 +172,8 @@
         "Tests verify config change invalidates stale state"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added 30 comprehensive tests in tests/test_nofix_and_resume.py covering --no-fix skip behavior, summary output, ReviewState serialization/hash, resume logic, state cleanup, and config invalidation across both review.py and loop.py code paths."
     },
     {
       "id": "US-012",
