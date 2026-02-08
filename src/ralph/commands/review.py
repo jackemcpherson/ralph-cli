@@ -63,6 +63,11 @@ def review(
         "--force",
         help="Re-detect and update reviewer configuration",
     ),
+    no_fix: bool = typer.Option(
+        False,
+        "--no-fix",
+        help="Report review findings without applying automated fixes",
+    ),
 ) -> None:
     """Run the review loop with automatic configuration.
 

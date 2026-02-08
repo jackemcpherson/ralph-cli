@@ -266,6 +266,11 @@ def loop(
         "--strict",
         help="Treat warning-level reviewers as blocking during the review loop",
     ),
+    no_fix: bool = typer.Option(
+        False,
+        "--no-fix",
+        help="Report review findings without applying automated fixes",
+    ),
 ) -> None:
     """Run multiple Ralph iterations automatically.
 
@@ -404,6 +409,7 @@ def loop(
                 progress_path=progress_path,
                 strict=strict,
                 verbose=verbose,
+                no_fix=no_fix,
             )
             if not review_success:
                 print_warning("Review loop completed with failures")
@@ -505,6 +511,7 @@ def _run_review_loop(
     progress_path: Path,
     strict: bool,
     verbose: bool,
+    no_fix: bool = False,
 ) -> bool:
     """Run the automated review loop after all stories complete.
 
@@ -516,6 +523,7 @@ def _run_review_loop(
         progress_path: Path to PROGRESS.txt for logging.
         strict: Whether to treat warning-level reviewers as blocking.
         verbose: Whether to show verbose output.
+        no_fix: Whether to skip automated fixes for review findings.
 
     Returns:
         True if all enforced reviewers passed, False otherwise.

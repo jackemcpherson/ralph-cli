@@ -1,155 +1,194 @@
 {
-  "project": "RalphReview",
-  "branchName": "ralph/review-command",
-  "description": "Standalone ralph review command with automatic reviewer detection and configuration",
+  "project": "RalphCLI",
+  "branchName": "ralph/v2.1.0-enhancements",
+  "description": "Point release adding --no-fix review-only mode, resumable review runs, and heuristic detection of already-implemented stories",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add Bicep language detection support",
-      "description": "As a developer, I need the language detection service to recognize Bicep files so that the appropriate reviewer can be automatically configured.",
+      "title": "Add --no-fix flag to review commands",
+      "description": "As a developer running reviews for audit, I want a --no-fix flag so that I can see findings without automated changes being made to my codebase.",
       "acceptanceCriteria": [
-        "Add 'bicep' to the Language enum in src/ralph/services/language.py",
-        "Add '*.bicep' file pattern detection using glob-based detection (not marker files)",
-        "detect_languages() returns Language.bicep when .bicep files exist in project",
+        "Add --no-fix boolean flag (default: false) to the ralph loop command signature in src/ralph/commands/loop.py",
+        "Add --no-fix boolean flag (default: false) to the ralph review command signature in src/ralph/commands/review.py",
+        "Thread the no_fix parameter through _run_review_loop() in loop.py",
+        "Flag has help text visible via ralph loop --help and ralph review --help",
         "Typecheck passes",
-        "Tests pass"
+        "Lint passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Added bicep to Language enum and introduced _LANGUAGE_PATTERNS dict for glob-based detection. Detection works for both root and subdirectory .bicep files."
+      "notes": "Added --no-fix flag to loop() and review() commands, threaded no_fix through _run_review_loop()."
     },
     {
       "id": "US-002",
-      "title": "Create ReviewerDetector service for project analysis",
-      "description": "As a developer, I need a service that analyzes project characteristics and determines which reviewers should be configured.",
+      "title": "Implement --no-fix behavior in ReviewLoopService",
+      "description": "As a developer, I want the --no-fix flag to skip FixLoopService.run_fix_loop() calls so that review findings are reported without code modifications.",
       "acceptanceCriteria": [
-        "Create src/ralph/services/reviewer_detector.py with ReviewerDetector class",
-        "Implement detect_reviewers() method returning list of ReviewerConfig",
-        "Detect Python projects (*.py files) → python-code reviewer",
-        "Detect Bicep projects (*.bicep files) → bicep reviewer",
-        "Detect GitHub Actions (.github/workflows/*.yml) → github-actions reviewer",
-        "Detect test files (test_*.py, *_test.py) → test-quality reviewer",
-        "Always include universal reviewers: code-simplifier, repo-structure",
-        "Include release reviewer if CHANGELOG.md exists",
-        "Export from services/__init__.py",
-        "Typecheck passes"
+        "Add no_fix parameter to ReviewLoopService.run_review_loop() method signature",
+        "When no_fix is true, skip the FixLoopService.run_fix_loop() call after a NEEDS_WORK verdict",
+        "Log '[Fix] Skipped (--no-fix)' when a fix is skipped due to the flag",
+        "Continue to the next reviewer after logging (do not abort the pipeline)",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Created ReviewerDetector class with detect_reviewers() method. Detects Python, Bicep, GitHub Actions, test files, and CHANGELOG.md. Always includes code-simplifier and repo-structure as universal reviewers."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Create ReviewerConfigWriter service for CLAUDE.md manipulation",
-      "description": "As a developer, I need a service that can read and write the RALPH:REVIEWERS section in CLAUDE.md files.",
+      "title": "Add --no-fix summary to review output",
+      "description": "As a developer running reviews in audit mode, I want the final summary to indicate which reviewers had findings that were not auto-fixed so that I can see what needs manual attention.",
       "acceptanceCriteria": [
-        "Create src/ralph/services/reviewer_config_writer.py with ReviewerConfigWriter class",
-        "Implement has_reviewer_config(path) method to check if markers exist",
-        "Implement write_reviewer_config(path, reviewers) method to write/update config",
-        "Preserve all CLAUDE.md content outside the RALPH:REVIEWERS markers",
-        "If markers don't exist, append section before '## Project-Specific Instructions' or at end",
-        "Export from services/__init__.py",
+        "Final review summary in both ralph loop and ralph review indicates which reviewers had NEEDS_WORK findings that were not auto-fixed due to --no-fix",
+        "Summary shows a distinct status like 'findings (not fixed)' for skipped-fix reviewers",
+        "Skipped-fix count is included in the summary line alongside passed/failed/skipped counts",
+        "Unit tests verify summary output includes skipped-fix information when --no-fix is set",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Created ReviewerConfigWriter class with has_reviewer_config() and write_reviewer_config() methods. Preserves content outside markers, inserts before '## Project-Specific Instructions' when markers don't exist."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Implement ralph review command with first-run behavior",
-      "description": "As a developer, I want to run ralph review to automatically configure reviewers and execute the review loop on first run.",
+      "title": "Create ReviewState Pydantic model",
+      "description": "As a developer, I need a ReviewState model to persist review progress so that interrupted review runs can be resumed.",
       "acceptanceCriteria": [
-        "Create src/ralph/commands/review.py with review command function",
-        "Support --verbose flag consistent with other commands",
-        "Support --strict flag to pass through to review loop",
-        "On first run (no existing config): detect reviewers, write CLAUDE.md config, execute review loop",
-        "Display which reviewers were configured and why (e.g., 'Added python-code reviewer (found .py files)')",
-        "Register command in cli.py and export from commands/__init__.py",
-        "Typecheck passes"
+        "Create ReviewState Pydantic model in src/ralph/models/ with fields: reviewer_names (list of configured reviewer names), completed (dict mapping reviewer name to pass/fail status), timestamp (ISO 8601 string), and config_hash (string for detecting config changes)",
+        "Model includes a class method or utility to compute a config hash from a list of ReviewerConfig objects",
+        "Model includes methods to load from and save to .ralph-review-state.json",
+        "Model is exported from src/ralph/models/__init__.py",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Created review command with --verbose and --strict flags. On first run, detects reviewers using ReviewerDetector, displays detection reasons (e.g., 'found .py files'), writes config to CLAUDE.md, then executes review loop."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Implement subsequent-run behavior with suggestions",
-      "description": "As a developer, I want ralph review to detect missing reviewers on subsequent runs and suggest updating the configuration.",
+      "title": "Implement resumable review logic in review commands",
+      "description": "As a developer with interrupted sessions, I want a --resume-review flag so that I can resume a long review pipeline without re-running completed reviewers.",
       "acceptanceCriteria": [
-        "On subsequent runs (config exists): execute review loop using existing config",
-        "Detect if there are suggested reviewers not in current config",
-        "Display warning listing suggested reviewers that could be added",
-        "Suggest running 'ralph review --force' to update configuration",
+        "Add --resume-review flag to ralph loop command (default: false)",
+        "Add --resume-review flag to ralph review command (default: false)",
+        "When --resume-review is set and a valid state file exists with matching config hash, skip already-completed reviewers",
+        "When --resume-review is set and no state file exists, run the full pipeline from the beginning",
+        "State file is written/updated after each reviewer completes",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "On subsequent runs, compares current config with detected reviewers using set difference. Displays missing reviewers with detection reasons and suggests --force flag."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Implement --force flag behavior",
-      "description": "As a developer, I want to run ralph review --force to re-detect and update my reviewer configuration when my project evolves.",
+      "title": "Handle state file cleanup and config invalidation",
+      "description": "As a developer, I want the review state to be cleaned up on success and invalidated when config changes so that stale state never causes incorrect behavior.",
       "acceptanceCriteria": [
-        "Support --force flag on review command",
-        "Re-run full project detection when --force is provided",
-        "Overwrite existing RALPH:REVIEWERS section with newly detected config",
-        "Display what changed (added/removed reviewers) before executing review loop",
+        "Clean up .ralph-review-state.json when the review loop completes successfully (all reviewers run)",
+        "If reviewer configuration has changed since the state file was written (config hash mismatch), discard state and restart the full pipeline",
+        "Log a message when state is discarded due to config change",
+        "Unit tests verify cleanup on success and invalidation on config change",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Implemented --force flag on review command. Re-runs full detection, compares old vs new config, displays added/removed reviewers, overwrites RALPH:REVIEWERS section. Tests cover all force flag scenarios including added, removed, both, no-changes, and first-run fallback."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add unit tests for reviewer detection",
-      "description": "As a developer, I need tests to verify the reviewer detection logic works correctly for different project configurations.",
+      "title": "Add .ralph-review-state.json to init scaffold",
+      "description": "As a developer, I want .ralph-review-state.json to be gitignored by default so that review state files are not accidentally committed.",
       "acceptanceCriteria": [
-        "Create tests/test_reviewer_detector.py",
-        "Test Python project detection returns python-code reviewer",
-        "Test Bicep project detection returns bicep reviewer",
-        "Test GitHub Actions detection returns github-actions reviewer",
-        "Test universal reviewers always included",
-        "Test CHANGELOG.md presence triggers release reviewer",
+        "ScaffoldService in src/ralph/services/scaffold.py gains a create_gitignore() method that creates or appends to .gitignore",
+        "The .gitignore scaffold includes .ralph-review-state.json entry",
+        "scaffold_all() calls create_gitignore()",
+        "If .gitignore already exists, append the entry only if not already present",
+        "Typecheck passes",
         "Tests pass"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "tests/test_reviewer_detector.py already existed from US-002 with 17 comprehensive tests covering all acceptance criteria. All tests pass. No additional code changes needed."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Add unit tests for CLAUDE.md manipulation",
-      "description": "As a developer, I need tests to verify the CLAUDE.md reviewer config writing preserves existing content correctly.",
+      "title": "Add codebase context to ralph tasks prompt",
+      "description": "As a developer generating tasks, I want Claude to receive codebase context alongside the spec so that it can identify requirements that appear to already be implemented.",
       "acceptanceCriteria": [
-        "Create tests/test_reviewer_config_writer.py",
-        "Test writing config when markers don't exist appends section correctly",
-        "Test writing config when markers exist replaces content between markers",
-        "Test content outside markers is preserved",
-        "Test insertion before '## Project-Specific Instructions' when present",
-        "Tests pass"
+        "Extend _build_prompt_from_skill() in src/ralph/commands/tasks.py to gather a codebase summary (file tree, key file contents, or similar heuristic snapshot)",
+        "Include the codebase summary in the prompt sent to Claude alongside the spec content",
+        "Prompt instructs Claude to identify requirements that appear already implemented and mark them with passes: true and a note",
+        "Codebase context gathering does not add more than one additional Claude API call (use filesystem scanning, not Claude)",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Created tests/test_reviewer_config_writer.py with 15 tests covering has_reviewer_config, write with/without markers, content preservation, Project-Specific Instructions insertion, and convenience functions."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Add integration tests for ralph review command",
-      "description": "As a developer, I need integration tests to verify the ralph review command works end-to-end.",
+      "title": "Parse and log already-implemented story detection",
+      "description": "As a developer, I want to see a summary of stories that were detected as already implemented so that I understand what was auto-marked as complete.",
       "acceptanceCriteria": [
-        "Create tests/test_review_command.py",
-        "Test first-run behavior creates CLAUDE.md config",
-        "Test subsequent-run behavior uses existing config",
-        "Test --force flag updates existing config",
-        "Test --strict flag is passed through to review loop",
+        "After parsing the TASKS.json output from Claude, count stories where passes is true",
+        "Log a summary to the console: '[Tasks] N stories detected as already implemented'",
+        "For each already-implemented story, display the story ID and title",
+        "Stories detected as already-implemented retain their notes explaining the detection",
+        "Typecheck passes",
         "Tests pass"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Created tests/test_review_command.py with 12 integration tests in 4 test classes covering first-run, subsequent-run, --force, and --strict behaviors."
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Bump version to 2.1.0 and update CHANGELOG",
+      "description": "As a maintainer, I want the version bumped to 2.1.0 with a changelog entry so that the release is properly documented.",
+      "acceptanceCriteria": [
+        "Update version to 2.1.0 in pyproject.toml",
+        "Update version to 2.1.0 in src/ralph/__init__.py",
+        "Add changelog entry to CHANGELOG.md under [Unreleased] or [2.1.0] section with entries for --no-fix flag, resumable reviews, and already-implemented detection",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add unit tests for --no-fix and resumable review features",
+      "description": "As a developer, I want comprehensive tests for the new review features so that regressions are caught early.",
+      "acceptanceCriteria": [
+        "Tests verify --no-fix flag skips FixLoopService calls in ReviewLoopService.run_review_loop()",
+        "Tests verify --no-fix summary output includes skipped-fix reviewer names",
+        "Tests verify ReviewState model serialization, deserialization, and config hash computation",
+        "Tests verify resume logic skips completed reviewers and runs remaining ones",
+        "Tests verify state file cleanup on successful completion",
+        "Tests verify config change invalidates stale state"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add unit tests for already-implemented story detection",
+      "description": "As a developer, I want tests for the heuristic detection feature so that the codebase context gathering and summary logging are verified.",
+      "acceptanceCriteria": [
+        "Tests verify codebase summary is included in the prompt when generating tasks",
+        "Tests verify stories with passes: true from Claude output are counted and logged correctly",
+        "Tests verify the console summary message format: '[Tasks] N stories detected as already implemented'",
+        "Tests verify normal operation when no stories are detected as already implemented",
+        "All tests pass"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
