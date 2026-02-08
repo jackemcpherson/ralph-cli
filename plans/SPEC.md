@@ -1,201 +1,99 @@
-# Review Auto-Fix Loop - Product Requirements Document
+# Ralph CLI v2.1.0 — Point Release Enhancements - Product Requirements Document
 
 ## Overview
 
-Extend the Ralph review loop to automatically fix issues identified by reviewers. When a reviewer returns a `NEEDS_WORK` verdict, the system will parse the structured findings, attempt to fix each one (with retries), commit successful fixes, and log progress to PROGRESS.txt before continuing to the next reviewer.
+Point release adding three enhancements to the Ralph CLI: a `--no-fix` flag for review-only mode, resumable review runs, and heuristic detection of already-implemented stories during task generation. These improvements address usability gaps identified during v2.0.x usage (#37, #26, #17).
 
 ## Goals
 
-- Automate resolution of review findings without human intervention
-- Reduce iteration cycles by fixing issues as they're discovered
-- Maintain clear audit trail of fixes in PROGRESS.txt
-- Preserve granular git history with one commit per fix
+- Allow users to run the review pipeline without automated fixes (#37)
+- Enable resuming interrupted review runs from the last completed reviewer (#26)
+- Reduce wasted iteration time by detecting already-implemented stories before generating tasks (#17)
 
 ## Non-Goals
 
-- Interactive approval mode (defeats the purpose of automation)
-- Rollback/undo capability for fixes
-- `--no-fix` flag (deferred to future enhancement - log as GitHub issue)
+- No changes to the core iteration loop (`ralph once` / `ralph loop` story execution)
+- No changes to the reviewer skill format or review verdict schema
+- No deterministic/AST-level detection for already-implemented stories — heuristic only
+- No new CLI commands — all changes extend existing commands
 
 ## User Stories Overview
 
-**Primary user**: Developer running `ralph loop` who wants the review pipeline to automatically fix issues rather than just report them.
+Three personas benefit from these changes:
 
-**Workflow**: After all user stories complete, the review loop runs. When a reviewer identifies issues, instead of just logging "failed", the system attempts to fix each finding, commits successful fixes, and continues.
+- **Developer running reviews for audit**: Wants to see findings without automated changes (`--no-fix`)
+- **Developer with interrupted sessions**: Wants to resume a long review pipeline without re-running completed reviewers (`--resume-review`)
+- **Developer generating tasks**: Wants to avoid stories for work that's already shipped (heuristic detection)
 
 ## Requirements
 
 ### Functional Requirements
 
-#### Reviewer Output Format
+#### Review-Only Mode (#37)
 
-- FR-001: Reviewers MUST output findings in a structured markdown format to PROGRESS.txt
-- FR-002: Each finding MUST include: ID, category, file path with line number, issue description, and fix suggestion
-- FR-003: Reviewers MUST log a summary to PROGRESS.txt regardless of verdict (PASSED or NEEDS_WORK)
-- FR-004: The verdict and findings format MUST be parseable by the fix loop
+- FR-001: Add a `--no-fix` boolean flag to the `ralph loop` command (default: `false`)
+- FR-002: When `--no-fix` is set, skip the call to `FixLoopService.run_fix_loop()` after a NEEDS_WORK verdict
+- FR-003: Log `[Fix] Skipped (--no-fix)` when a fix is skipped due to the flag
+- FR-004: Continue to the next reviewer after logging (do not abort the pipeline)
+- FR-005: Final summary must indicate which reviewers had findings that were not auto-fixed
 
-#### Fix Loop Behavior
+#### Resumable Review Runs (#26)
 
-- FR-005: When a reviewer returns NEEDS_WORK, the fix loop MUST attempt to resolve each finding
-- FR-006: Similar findings MAY be batched into a single fix attempt (at Claude's discretion)
-- FR-007: Each fix attempt MUST be retried up to 3 times before moving on
-- FR-008: After exhausting retries, the fix loop MUST log the failure and continue to the next finding
-- FR-009: The fix loop MUST read findings from PROGRESS.txt to determine what needs fixing
+- FR-006: Track review progress in a state file (`.ralph-review-state.json`) in the project root
+- FR-007: State file records: list of reviewers, pass/fail status for each completed reviewer, and timestamp
+- FR-008: Add a `--resume-review` flag to `ralph loop` that resumes from the last completed reviewer
+- FR-009: When `--resume-review` is set and no state file exists, run the full review pipeline from the beginning
+- FR-010: Clean up the state file when the review loop completes successfully
+- FR-011: If the reviewer configuration has changed since the state file was written (e.g., reviewers added/removed), discard state and restart
 
-#### Commit Behavior
+#### Already-Implemented Story Detection (#17)
 
-- FR-010: Each successful fix MUST be committed individually
-- FR-011: Fix commits MUST use format: `fix(review): [reviewer-name] - [finding-id] - [brief description]`
-
-#### Reviewer Level Handling
-
-- FR-012: By default, auto-fix MUST only run for `blocking` level reviewers
-- FR-013: When `--strict` is passed, auto-fix MUST run for all levels (blocking, warning, suggestion)
-- FR-014: Skipped reviewers (language filter) MUST NOT trigger the fix loop
-
-#### Progress Logging
-
-- FR-015: Fix attempts MUST be logged to PROGRESS.txt following the iteration entry format
-- FR-016: Fix entries MUST include: what was fixed, files changed, and attempt count if retried
-- FR-017: Failed fixes MUST be logged with the error/reason for failure
+- FR-012: During `ralph tasks` generation, pass codebase context to Claude alongside the SPEC.md
+- FR-013: Prompt Claude to identify requirements that appear to already be implemented in the codebase
+- FR-014: Stories detected as already-implemented must be included in TASKS.json with `"passes": true` and a note explaining the detection
+- FR-015: Log a summary of detected already-implemented stories to the console (e.g., `[Tasks] 2 stories detected as already implemented`)
 
 ### Non-Functional Requirements
 
-- NFR-001: Fix attempts should complete within the same timeout as regular Claude operations
-- NFR-002: The fix loop should not significantly increase total review time for passing reviews
-- NFR-003: Progress output should clearly indicate fix attempts vs reviewer execution
+- NFR-001: All new flags must include help text visible via `ralph loop --help` and `ralph tasks --help`
+- NFR-002: State file (`.ralph-review-state.json`) must be added to the default `.gitignore` scaffold in `ralph init`
+- NFR-003: Heuristic detection must not add more than one additional Claude API call to `ralph tasks`
+- NFR-004: All new functionality must have unit tests
 
 ## Technical Considerations
 
 ### Architecture
 
-```
-Review Loop Flow (Updated):
-
-For each reviewer:
-  ├─ Run reviewer → Claude returns structured output
-  ├─ Parse output for verdict and findings
-  ├─ Log summary to PROGRESS.txt (always)
-  │
-  ├─ If PASSED → continue to next reviewer
-  │
-  ├─ If NEEDS_WORK and should_fix(level, strict):
-  │   ├─ For each finding (or batch of similar findings):
-  │   │   ├─ Attempt fix (up to 3 retries)
-  │   │   ├─ If success:
-  │   │   │   ├─ Commit with fix message
-  │   │   │   └─ Log fix to PROGRESS.txt
-  │   │   └─ If failure after retries:
-  │   │       └─ Log failure and continue
-  │   └─ Continue to next reviewer
-  │
-  └─ Next reviewer
-```
-
-### Structured Output Format
-
-Reviewers will output findings in this format:
-
-```markdown
-[Review] YYYY-MM-DD HH:MM UTC - {reviewer-name} ({level})
-
-### Verdict: {PASSED|NEEDS_WORK}
-
-### Findings
-
-1. **{FINDING-ID}**: {Category} - {Brief description}
-   - File: {path/to/file.py}:{line_number}
-   - Issue: {Detailed description of the problem}
-   - Suggestion: {How to fix it}
-
-2. **{FINDING-ID}**: {Category} - {Brief description}
-   - File: {path/to/file.py}:{line_number}
-   - Issue: {Detailed description of the problem}
-   - Suggestion: {How to fix it}
-
----
-```
-
-Fix entries will follow this format:
-
-```markdown
-[Review Fix] YYYY-MM-DD HH:MM UTC - {reviewer-name}/{finding-id}
-
-### What was fixed
-- {Description of the fix applied}
-
-### Files changed
-- {path/to/file.py}
-
-### Attempts
-{N} of 3
-
----
-```
-
-Failed fix entries:
-
-```markdown
-[Review Fix Failed] YYYY-MM-DD HH:MM UTC - {reviewer-name}/{finding-id}
-
-### Issue
-- {Description of what couldn't be fixed}
-
-### Attempts
-3 of 3 (exhausted)
-
-### Reason
-{Error message or explanation of why fix failed}
-
----
-```
+- **`--no-fix` flag**: Minimal change — thread the flag through `run_review_loop()` and gate the `FixLoopService.run_fix_loop()` call
+- **Resume state**: New `ReviewState` Pydantic model in `src/ralph/models/`. `ReviewLoopService` writes state after each reviewer completes, reads it on `--resume-review`
+- **Heuristic detection**: Extend the Claude prompt in `ralph tasks` to include a codebase summary and ask Claude to flag already-implemented items. Parse Claude's response to set `passes: true` and add notes
 
 ### Dependencies
 
-- Existing `ReviewLoopService` in `src/ralph/services/review_loop.py`
-- Existing reviewer skills in `src/ralph/skills/reviewers/`
-- `ClaudeService.run_print_mode()` for fix attempts
-- PROGRESS.txt append utilities
+- No new external dependencies required
+- All features use existing Claude subprocess integration
 
 ### Integration Points
 
-- All 6 reviewer skills must be updated to output structured findings format
-- `ReviewLoopService.run_reviewer()` must parse structured output
-- New `FixLoopService` (or extension to ReviewLoopService) for fix logic
-- Git service for fix commits
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/ralph/services/review_loop.py` | Add fix loop logic, parse structured output |
-| `src/ralph/skills/reviewers/*/SKILL.md` | Update all 6 skills with structured output format |
-| `src/ralph/commands/loop.py` | Pass strict flag through to fix logic |
-| `src/ralph/utils/console.py` | Add `print_fix_step()` for fix progress display |
-
-### New Files
-
-| File | Purpose |
-|------|---------|
-| `src/ralph/services/fix_loop.py` | Fix attempt logic, retry handling, commit creation |
-| `src/ralph/models/finding.py` | Pydantic models for parsing structured findings |
+- `--no-fix` integrates with `FixLoopService` and `ReviewLoopService` in `src/ralph/services/`
+- Resume state integrates with `ReviewLoopService` and the reviewer configuration parser
+- Heuristic detection integrates with the `ralph tasks` command and `SkillLoader`
 
 ## Success Criteria
 
-- [ ] All 6 reviewer skills output structured findings format
-- [ ] Fix loop attempts to resolve NEEDS_WORK findings automatically
-- [ ] Each successful fix is committed individually with proper message format
-- [ ] Failed fixes are logged and don't block subsequent fixes or reviewers
-- [ ] `--strict` flag enables fix loop for warning/suggestion level reviewers
-- [ ] PROGRESS.txt contains clear audit trail of all fix attempts
-- [ ] Existing tests pass; new tests cover fix loop behavior
+- [ ] `ralph loop --no-fix` runs all reviewers and reports findings without modifying code
+- [ ] `ralph loop --resume-review` skips previously-completed reviewers and picks up where it left off
+- [ ] Changing reviewer config between runs correctly invalidates stale resume state
+- [ ] `ralph tasks` flags at least one obviously-implemented story when run against a spec with already-shipped features
+- [ ] All quality checks pass (pyright, ruff, pytest)
+- [ ] Version bumped to 2.1.0 in `pyproject.toml` and `src/ralph/__init__.py`
 
 ## Open Questions
 
-- None - all requirements clarified during discovery
+- None — all three issues are well-defined and the user has confirmed the approaches.
 
 ## References
 
-- Current review loop: `src/ralph/services/review_loop.py`
-- Iteration skill format: `src/ralph/skills/ralph/iteration/SKILL.md`
-- Existing PROGRESS.txt examples: `plans/PROGRESS.txt`
+- [#37 — Add --no-fix flag to disable auto-fix in review loop](https://github.com/jackmcpherson/ralph-cli/issues/37)
+- [#26 — Enhancement: Resume partial review runs](https://github.com/jackmcpherson/ralph-cli/issues/26)
+- [#17 — ralph tasks: Detect already-implemented stories before generating tasks](https://github.com/jackmcpherson/ralph-cli/issues/17)

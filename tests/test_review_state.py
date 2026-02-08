@@ -164,6 +164,32 @@ class TestComputeConfigHash:
             reviewers2
         )
 
+    def test_hash_changes_when_name_changes(self) -> None:
+        """Test that changing a reviewer's name changes the hash."""
+        reviewers1 = [ReviewerConfig(name="a", skill="reviewers/x", level=ReviewerLevel.blocking)]
+        reviewers2 = [ReviewerConfig(name="b", skill="reviewers/x", level=ReviewerLevel.blocking)]
+
+        assert ReviewState.compute_config_hash(reviewers1) != ReviewState.compute_config_hash(
+            reviewers2
+        )
+
+    def test_hash_none_languages_vs_empty_list(self) -> None:
+        """Test that None languages and empty list are treated equivalently."""
+        reviewers_none = [
+            ReviewerConfig(
+                name="x", skill="reviewers/x", level=ReviewerLevel.blocking, languages=None
+            )
+        ]
+        reviewers_empty: list[ReviewerConfig] = [
+            ReviewerConfig(
+                name="x", skill="reviewers/x", level=ReviewerLevel.blocking, languages=[]
+            )
+        ]
+        # Both None and empty list are normalised to None in compute_config_hash
+        assert ReviewState.compute_config_hash(reviewers_none) == ReviewState.compute_config_hash(
+            reviewers_empty
+        )
+
 
 class TestSaveAndLoad:
     """Tests for ReviewState.save and ReviewState.load."""
@@ -244,11 +270,3 @@ class TestSaveAndLoad:
         assert loaded.completed == original.completed
         assert loaded.timestamp == original.timestamp
         assert loaded.config_hash == original.config_hash
-
-
-class TestReviewStateFilename:
-    """Tests for the REVIEW_STATE_FILENAME constant."""
-
-    def test_filename_value(self) -> None:
-        """Test that the filename constant has the expected value."""
-        assert REVIEW_STATE_FILENAME == ".ralph-review-state.json"
