@@ -527,9 +527,16 @@ class TestReviewResumeReview:
     def test_resume_review_saves_state_after_each_reviewer(
         self, runner: CliRunner, tmp_path: Path
     ) -> None:
-        """Test --resume-review saves state file after each reviewer completes."""
+        """Test --resume-review saves state after each reviewer, cleaned up on success."""
         _setup_tmp_project(tmp_path)
         reviewers = _make_reviewers(["test-quality", "code-simplifier"])
+
+        saved_states: list[ReviewState] = []
+        original_save = ReviewState.save
+
+        def tracking_save(self_state: ReviewState, path: Path) -> None:
+            saved_states.append(self_state.model_copy())
+            original_save(self_state, path)
 
         with working_directory(tmp_path):
             with (
@@ -538,19 +545,18 @@ class TestReviewResumeReview:
                 patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
                 patch("ralph.commands.review.detect_languages", return_value=set()),
                 patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+                patch.object(ReviewState, "save", tracking_save),
             ):
                 mock_service = _make_mock_service()
                 mock_cls.return_value = mock_service
                 result = runner.invoke(app, ["review", "--resume-review"])
 
         assert result.exit_code == 0
-        state_path = tmp_path / REVIEW_STATE_FILENAME
-        assert state_path.exists()
-
-        loaded_state = ReviewState.load(state_path)
-        assert loaded_state is not None
-        assert "test-quality" in loaded_state.completed
-        assert "code-simplifier" in loaded_state.completed
+        # State was saved after each reviewer (2 saves for 2 reviewers)
+        assert len(saved_states) == 2
+        assert "test-quality" in saved_states[0].completed
+        assert "test-quality" in saved_states[1].completed
+        assert "code-simplifier" in saved_states[1].completed
 
     def test_resume_review_config_hash_mismatch_runs_full_pipeline(
         self, runner: CliRunner, tmp_path: Path
@@ -582,4 +588,159 @@ class TestReviewResumeReview:
 
         assert result.exit_code == 0
         # Both reviewers should run since hash didn't match
+        assert mock_service.run_reviewer.call_count == 2
+
+
+class TestReviewStateCleanup:
+    """Tests for state file cleanup on successful completion."""
+
+    def test_state_file_cleaned_up_on_successful_completion(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test that .ralph-review-state.json is deleted when all reviewers pass."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["test-quality", "code-simplifier"])
+        config_hash = ReviewState.compute_config_hash(reviewers)
+
+        # Create a state file as if from a previous resume
+        state = ReviewState(
+            reviewer_names=["test-quality", "code-simplifier"],
+            completed={"test-quality": True},
+            timestamp="2026-02-08T10:00:00Z",
+            config_hash=config_hash,
+        )
+        state_path = tmp_path / REVIEW_STATE_FILENAME
+        state.save(state_path)
+        assert state_path.exists()
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_cls.return_value = _make_mock_service()
+                result = runner.invoke(app, ["review", "--resume-review"])
+
+        assert result.exit_code == 0
+        # State file should be cleaned up after successful completion
+        assert not state_path.exists()
+
+    def test_state_file_cleaned_up_without_resume_flag(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test cleanup happens even without --resume-review if state file exists."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["code-simplifier"])
+
+        # Create a leftover state file
+        state = ReviewState(
+            reviewer_names=["code-simplifier"],
+            completed={},
+            timestamp="2026-02-08T10:00:00Z",
+            config_hash="some_hash",
+        )
+        state_path = tmp_path / REVIEW_STATE_FILENAME
+        state.save(state_path)
+        assert state_path.exists()
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_cls.return_value = _make_mock_service()
+                result = runner.invoke(app, ["review"])
+
+        assert result.exit_code == 0
+        # State file should be cleaned up even without --resume-review
+        assert not state_path.exists()
+
+    def test_no_error_when_no_state_file_to_clean(self, runner: CliRunner, tmp_path: Path) -> None:
+        """Test that cleanup doesn't error when no state file exists."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["code-simplifier"])
+        state_path = tmp_path / REVIEW_STATE_FILENAME
+        assert not state_path.exists()
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_cls.return_value = _make_mock_service()
+                result = runner.invoke(app, ["review"])
+
+        assert result.exit_code == 0
+
+
+class TestReviewConfigInvalidation:
+    """Tests for config change invalidation of stale state."""
+
+    def test_config_change_logs_discard_message(self, runner: CliRunner, tmp_path: Path) -> None:
+        """Test that a console message is shown when state is discarded due to config change."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["test-quality", "code-simplifier"])
+
+        # Write state file with a stale config hash
+        state = ReviewState(
+            reviewer_names=["test-quality", "code-simplifier"],
+            completed={"test-quality": True},
+            timestamp="2026-02-08T10:00:00Z",
+            config_hash="stale_hash_that_does_not_match",
+        )
+        state.save(tmp_path / REVIEW_STATE_FILENAME)
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_cls.return_value = _make_mock_service()
+                result = runner.invoke(app, ["review", "--resume-review"])
+
+        assert result.exit_code == 0
+        assert "reviewer configuration has changed" in result.output
+
+    def test_config_change_runs_all_reviewers_from_scratch(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test that config change causes all reviewers to run, ignoring stale completed state."""
+        _setup_tmp_project(tmp_path)
+        reviewers = _make_reviewers(["test-quality", "code-simplifier"])
+
+        # Write state file with stale hash where test-quality was already completed
+        state = ReviewState(
+            reviewer_names=["test-quality", "code-simplifier"],
+            completed={"test-quality": True},
+            timestamp="2026-02-08T10:00:00Z",
+            config_hash="stale_hash",
+        )
+        state.save(tmp_path / REVIEW_STATE_FILENAME)
+
+        with working_directory(tmp_path):
+            with (
+                patch("ralph.commands.review.has_reviewer_config", return_value=True),
+                patch("ralph.commands.review.load_reviewer_configs", return_value=reviewers),
+                patch("ralph.commands.review.detect_reviewers", return_value=reviewers),
+                patch("ralph.commands.review.detect_languages", return_value=set()),
+                patch("ralph.commands.review.ReviewLoopService") as mock_cls,
+            ):
+                mock_service = _make_mock_service()
+                mock_cls.return_value = mock_service
+                result = runner.invoke(app, ["review", "--resume-review"])
+
+        assert result.exit_code == 0
+        # Both reviewers should run since config hash didn't match
         assert mock_service.run_reviewer.call_count == 2

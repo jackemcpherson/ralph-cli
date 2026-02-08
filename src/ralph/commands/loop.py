@@ -587,6 +587,9 @@ def _run_review_loop(
         else:
             if state is not None:
                 logger.info("Review state config hash mismatch, starting fresh")
+                console.print(
+                    "[yellow]Review state discarded: reviewer configuration has changed[/yellow]"
+                )
             state = None
 
     # Run each reviewer with progress display
@@ -713,5 +716,10 @@ def _run_review_loop(
     if skipped_fix > 0:
         summary_parts.append(f"Findings (not fixed): {skipped_fix}")
     console.print(f"[dim]{', '.join(summary_parts)}[/dim]")
+
+    # Clean up state file on successful completion
+    if state_path.exists():
+        state_path.unlink()
+        logger.info("Cleaned up review state file after successful completion")
 
     return failed == 0

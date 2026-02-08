@@ -184,3 +184,35 @@
 - Config hash mismatch causes state to be discarded silently (logged but not errored)
 
 ---
+
+[Ralph Loop] 2026-02-08 06:11 UTC - Iteration 5: US-005 (Implement resumable review logic in review commands) completed
+
+## 2026-02-08 - US-006
+
+**Story:** Handle state file cleanup and config invalidation
+
+### What was implemented
+- Added state file cleanup (`.ralph-review-state.json` deletion) after review loop completes in both `review.py` and `loop.py`'s `_run_review_loop()`
+- Cleanup runs regardless of whether `--resume-review` was used — any leftover state file is removed
+- Added visible console message when state is discarded due to config hash mismatch: "Review state discarded: reviewer configuration has changed"
+- The config mismatch message appears in both `review.py` and `_run_review_loop()` in `loop.py`
+
+### Tests written
+- `TestReviewStateCleanup::test_state_file_cleaned_up_on_successful_completion` - verifies state file is deleted after all reviewers pass with `--resume-review`
+- `TestReviewStateCleanup::test_state_file_cleaned_up_without_resume_flag` - verifies cleanup happens even without `--resume-review` flag
+- `TestReviewStateCleanup::test_no_error_when_no_state_file_to_clean` - verifies no error when no state file exists to clean
+- `TestReviewConfigInvalidation::test_config_change_logs_discard_message` - verifies console output includes "reviewer configuration has changed"
+- `TestReviewConfigInvalidation::test_config_change_runs_all_reviewers_from_scratch` - verifies all reviewers run when config hash mismatches
+- Updated `TestReviewResumeReview::test_resume_review_saves_state_after_each_reviewer` to account for post-completion cleanup
+
+### Files changed
+- `src/ralph/commands/review.py` - added state file cleanup on completion, added console message on config hash mismatch
+- `src/ralph/commands/loop.py` - added state file cleanup in `_run_review_loop()`, added console message on config hash mismatch
+- `tests/test_review_command.py` - added `TestReviewStateCleanup` (3 tests) and `TestReviewConfigInvalidation` (2 tests), updated 1 existing test
+- `plans/TASKS.json` - marked US-006 as passes: true
+
+### Learnings for future iterations
+- When adding cleanup logic that removes files created during a loop, existing tests that assert file existence after the loop need to be updated to track intermediate writes (e.g., spy on `save()` calls)
+- The `patch.object(ReviewState, "save", tracking_save)` pattern is useful for verifying intermediate save calls when the file gets cleaned up at the end
+
+---
