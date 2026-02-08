@@ -751,3 +751,44 @@ Both test files provide meaningful, well-structured test coverage with no anti-p
 ### Learnings for future iterations
 - The ReviewerConfigWriter has three distinct write paths: new file, no markers, and existing markers - each needs its own test coverage
 - Testing content preservation requires checking both before and after the insertion/replacement point
+
+[Ralph Loop] 2026-02-08 05:26 UTC - Iteration 3: US-008 (Add unit tests for CLAUDE.md manipulation) completed
+
+---
+
+## 2026-02-08 - US-009
+
+**Story:** Add integration tests for ralph review command
+
+### What was implemented
+- Created `tests/test_review_command.py` with 12 integration tests in 4 test classes
+- Tests cover first-run, subsequent-run, --force, and --strict behaviors end-to-end
+- Uses CliRunner to invoke the review command through the Typer app
+- Mocks external services (ReviewLoopService, detect_reviewers, etc.) to isolate command logic
+
+### Tests written
+- `TestReviewFirstRun` (3 tests):
+  - `test_first_run_detects_and_writes_config` - Verifies first run detects reviewers and writes CLAUDE.md config
+  - `test_first_run_displays_detected_reviewers` - Verifies detected reviewers shown with reasons
+  - `test_first_run_executes_review_loop` - Verifies review loop runs after config written
+- `TestReviewSubsequentRun` (3 tests):
+  - `test_subsequent_run_uses_existing_config` - Verifies existing config is loaded from CLAUDE.md
+  - `test_subsequent_run_suggests_missing_reviewers` - Verifies warnings about reviewers not in config
+  - `test_subsequent_run_no_suggestions_when_config_complete` - Verifies no warnings when config covers all
+- `TestReviewForceFlag` (3 tests):
+  - `test_force_updates_existing_config` - Verifies --force re-detects and overwrites config
+  - `test_force_displays_configuration_changes` - Verifies added/removed reviewers displayed
+  - `test_force_with_no_existing_config_falls_back_to_first_run` - Verifies fallback to first-run
+- `TestReviewStrictFlag` (3 tests):
+  - `test_strict_flag_displayed_in_output` - Verifies strict mode acknowledged in output
+  - `test_strict_flag_passed_to_is_enforced` - Verifies is_enforced called with strict=True
+  - `test_without_strict_flag_is_not_enforced` - Verifies is_enforced called with strict=False
+
+### Files changed
+- `tests/test_review_command.py` - New file with 12 integration tests (created)
+- `plans/TASKS.json` - Marked US-009 as passes: true
+- `plans/PROGRESS.txt` - Appended this entry
+
+### Learnings for future iterations
+- Shared helper functions (_make_reviewers, _make_mock_service, _setup_tmp_project) reduce test boilerplate
+- Testing strict flag pass-through requires checking both positional and keyword args since the call signature may vary
