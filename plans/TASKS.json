@@ -32,8 +32,8 @@
         "Tests pass"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added no_fix parameter to run_review_loop(). When True, logs '[Fix] Skipped (--no-fix)' and continues to next reviewer."
     },
     {
       "id": "US-003",

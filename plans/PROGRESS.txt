@@ -36,3 +36,32 @@
 - The `_run_review_loop()` function in loop.py is the bridge between the loop command and the review pipeline; subsequent stories (US-002, US-003) will wire no_fix into ReviewLoopService
 
 ---
+
+[Ralph Loop] 2026-02-08 05:55 UTC - Iteration 1: US-001 (Add --no-fix flag to review commands) completed
+
+## 2026-02-08 - US-002
+
+**Story:** Implement --no-fix behavior in ReviewLoopService
+
+### What was implemented
+- Added `no_fix` keyword parameter (default: False) to `ReviewLoopService.run_review_loop()` method signature
+- When `no_fix=True`, the `FixLoopService.run_fix_loop()` call is skipped after a NEEDS_WORK verdict
+- Logs `[Fix] Skipped (--no-fix)` via `logger.info()` when a fix is skipped
+- Continues to the next reviewer after logging (pipeline is not aborted)
+
+### Tests written
+- `test_no_fix_skips_fix_loop_on_needs_work` - verifies FixLoopService is not instantiated when no_fix=True
+- `test_no_fix_logs_skip_message` - verifies '[Fix] Skipped (--no-fix)' appears in log records
+- `test_no_fix_continues_to_next_reviewer` - verifies both reviewers in a 2-reviewer pipeline execute when no_fix=True
+- `test_no_fix_false_still_runs_fix_loop` - verifies default behavior (no_fix=False) still invokes fix loop
+
+### Files changed
+- `src/ralph/services/review_loop.py` - added `no_fix` param to `run_review_loop()`, conditional skip of fix loop
+- `tests/test_review_loop.py` - added 4 new tests, `logging` and `pytest` imports
+- `plans/TASKS.json` - marked US-002 as passes: true
+
+### Learnings for future iterations
+- The commands (loop.py, review.py) currently iterate reviewers manually rather than calling `run_review_loop()`. Future stories (US-003) that add no_fix summary output to commands will need to handle this in both places.
+- `caplog` fixture with `caplog.at_level(logging.INFO)` is the clean way to assert log messages in tests.
+
+---
