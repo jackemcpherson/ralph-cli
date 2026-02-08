@@ -656,3 +656,33 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 3: US-003 (Add tag-version validation to version check) completed
+
+[Ralph Loop] 2026-02-08 07:30 UTC - Iteration 3: US-003 (Add tag-version validation to version check) completed
+
+## 2026-02-08 - US-004
+
+**Story:** Create publish workflow with build and TestPyPI jobs
+
+### What was implemented
+- Created `.github/workflows/publish.yml` triggered on tag pushes matching `v*`
+- Set workflow-level permissions to `id-token: write` (for OIDC) and `contents: write` (for releases)
+- Added `build` job that installs uv, runs `uv build`, and uploads `dist/` via `actions/upload-artifact`
+- Added `testpypi` job with `needs: build` that downloads artifacts and publishes to TestPyPI using `pypa/gh-action-pypi-publish` with Trusted Publishers (OIDC)
+- testpypi job uses a `testpypi` GitHub Actions environment with URL pointing to `https://test.pypi.org/p/ralph-cli`
+- testpypi job declares its own `id-token: write` permission for OIDC token generation
+- All 5 action versions pinned to full 40-character commit SHAs with version comments
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - new file, publish workflow with build and testpypi jobs
+- `plans/TASKS.json` - marked US-004 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions annotated tags need dereferencing via `git/tags/<sha>` API to get the actual commit SHA for pinning
+- The `pypa/gh-action-pypi-publish` action uses `release/v1` as its tag namespace, with specific versions like `v1.13.0`
+- Trusted Publishers require both the `id-token: write` permission and a matching GitHub Actions environment name configured in PyPI/TestPyPI
+
+---

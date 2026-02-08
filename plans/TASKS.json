@@ -62,8 +62,8 @@
         "All action versions are pinned to full commit SHAs"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created publish.yml with build job (uv build + upload-artifact) and testpypi job (download-artifact + pypa/gh-action-pypi-publish with OIDC). All 5 action versions pinned to full commit SHAs. Workflow-level permissions: id-token: write, contents: write."
     },
     {
       "id": "US-005",
