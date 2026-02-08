@@ -31,8 +31,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added version-check job to ci.yml. Uses python3 one-liners to extract versions from pyproject.toml and __init__.py, grep to check CHANGELOG.md. Clear error messages via GitHub Actions ::error annotations."
     },
     {
       "id": "US-003",

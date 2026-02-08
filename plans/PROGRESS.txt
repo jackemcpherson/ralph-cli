@@ -594,3 +594,34 @@
 - `unzip -p` on wheel files can inspect dist-info/METADATA to verify embedded metadata without installing
 
 ---
+
+[Ralph Loop] 2026-02-08 07:26 UTC - Iteration 1: US-001 (Add package metadata to pyproject.toml) completed
+
+## 2026-02-08 - US-002
+
+**Story:** Add version consistency check to CI
+
+### What was implemented
+- Added `version-check` job to `.github/workflows/ci.yml` that runs on push to main and PRs targeting main
+- Job extracts version from `pyproject.toml` using a python3 one-liner with regex
+- Job extracts `__version__` from `src/ralph/__init__.py` using a python3 one-liner with regex
+- Job checks `CHANGELOG.md` for a `## [X.Y.Z]` header matching the pyproject.toml version using `grep -qF`
+- Final verification step compares all three and fails with `::error` annotations identifying exactly which files mismatch
+- Job runs without installing project dependencies (only python3 stdlib and grep)
+
+### Tests written
+- No new tests needed (CI workflow YAML change only; verified by lint/format checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/ci.yml` - added `version-check` job
+- `plans/TASKS.json` - marked US-002 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions `::error file=<path>::<message>` annotations surface directly on PR file diffs
+- Python3 is available on `ubuntu-latest` runners without any setup step
+- Using `grep -qF` for fixed-string matching avoids regex escaping issues with brackets in changelog headers
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 2: US-002 (Add version consistency check to CI) completed
