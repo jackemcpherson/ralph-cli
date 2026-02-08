@@ -569,3 +569,28 @@
 ---
 
 [Ralph CLI] 2026-02-08 06:55 UTC - US-012 (Add unit tests for already-implemented story detection) completed successfully - All stories complete!
+
+## 2026-02-08 - US-001
+
+**Story:** Add package metadata to pyproject.toml
+
+### What was implemented
+- Added PyPI classifiers for Python 3.11, 3.12, 3.13, MIT license, and Development Tools topics
+- Added `[project.urls]` section with Homepage, Repository, Changelog, and Issue Tracker links pointing to the GitHub repo
+- Verified `uv build` produces valid sdist (`ralph_cli-2.1.0.tar.gz`) and wheel (`ralph_cli-2.1.0-py3-none-any.whl`)
+- Confirmed metadata is embedded correctly in wheel METADATA file
+
+### Tests written
+- No new tests needed (metadata-only change to pyproject.toml; verified via uv build + METADATA inspection)
+- All 312 existing tests pass
+
+### Files changed
+- `pyproject.toml` - added `classifiers` list and `[project.urls]` section
+- `plans/TASKS.json` - marked US-001 as passes: true
+
+### Learnings for future iterations
+- PyPI classifiers must use exact strings from the PyPI classifier list (e.g., "Topic :: Software Development :: Build Tools")
+- `[project.urls]` keys with spaces need quoting in TOML (e.g., `"Issue Tracker"`)
+- `unzip -p` on wheel files can inspect dist-info/METADATA to verify embedded metadata without installing
+
+---
