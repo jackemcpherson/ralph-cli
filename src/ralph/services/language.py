@@ -21,7 +21,6 @@ class Language(str, Enum):
     bicep = "bicep"
 
 
-# Mapping of marker files to the languages they indicate
 _LANGUAGE_MARKERS: dict[str, set[Language]] = {
     "pyproject.toml": {Language.python},
     "setup.py": {Language.python},
@@ -32,8 +31,6 @@ _LANGUAGE_MARKERS: dict[str, set[Language]] = {
     "Cargo.toml": {Language.rust},
 }
 
-# Mapping of glob patterns to languages they indicate
-# Used for languages that don't have specific marker files
 _LANGUAGE_PATTERNS: dict[str, set[Language]] = {
     "**/*.bicep": {Language.bicep},
 }
@@ -60,13 +57,11 @@ class LanguageDetector(BaseModel):
         """
         detected: set[Language] = set()
 
-        # Check marker files
         for marker_file, languages in _LANGUAGE_MARKERS.items():
             marker_path = self.project_root / marker_file
             if marker_path.exists():
                 detected.update(languages)
 
-        # Check glob patterns
         for pattern, languages in _LANGUAGE_PATTERNS.items():
             matches = list(self.project_root.glob(pattern))
             if matches:

@@ -35,3 +35,634 @@
 - The `**/*.ext` pattern allows detecting files in any subdirectory
 
 ---
+
+[Ralph Loop] 2026-01-27 02:43 UTC - Iteration 1: US-001 (Add Bicep language detection support) completed
+
+---
+
+## 2026-01-27 - US-002
+
+**Story:** Create ReviewerDetector service for project analysis
+
+### What was implemented
+- Created `src/ralph/services/reviewer_detector.py` with `ReviewerDetector` class
+- Implemented `detect_reviewers()` method returning list of `ReviewerConfig`
+- Detection logic for Python files (`**/*.py`) → python-code reviewer
+- Detection logic for Bicep files (`**/*.bicep`) → bicep reviewer
+- Detection logic for GitHub Actions (`.github/workflows/*.yml` or `.yaml`) → github-actions reviewer
+- Detection logic for test files (`**/test_*.py` or `**/*_test.py`) → test-quality reviewer
+- Always includes universal reviewers: code-simplifier, repo-structure
+- Includes release reviewer if `CHANGELOG.md` exists
+- Added convenience function `detect_reviewers(project_root)`
+- Exported `ReviewerDetector` and `detect_reviewers` from `services/__init__.py`
+
+### Tests written
+- `test_always_includes_universal_reviewers` - Verifies code-simplifier and repo-structure always present
+- `test_universal_reviewer_skills_are_correct` - Verifies skill paths for universal reviewers
+- `test_detects_python_project` - Python files trigger python-code reviewer
+- `test_detects_python_in_subdirectory` - Subdirectory Python files are detected
+- `test_detects_bicep_project` - Bicep files trigger bicep reviewer
+- `test_detects_bicep_in_subdirectory` - Subdirectory Bicep files are detected
+- `test_detects_github_actions_yml` - .yml workflow files detected
+- `test_detects_github_actions_yaml` - .yaml workflow files detected
+- `test_no_github_actions_without_workflows_dir` - No false positives without workflows dir
+- `test_no_github_actions_with_empty_workflows_dir` - No false positives with empty workflows dir
+- `test_detects_test_files_with_prefix` - test_*.py files trigger test-quality reviewer
+- `test_detects_test_files_with_suffix` - *_test.py files trigger test-quality reviewer
+- `test_detects_changelog_adds_release_reviewer` - CHANGELOG.md triggers release reviewer
+- `test_no_release_without_changelog` - No release reviewer without CHANGELOG.md
+- `test_detects_multiple_project_types` - All detections work together
+- `test_detect_reviewers_works` - Convenience function works correctly
+- `test_empty_project_returns_only_universal` - Empty project gets only universal reviewers
+
+### Files changed
+- `src/ralph/services/reviewer_detector.py` - New file with ReviewerDetector class (created)
+- `src/ralph/services/__init__.py` - Added exports for ReviewerDetector and detect_reviewers
+- `tests/test_reviewer_detector.py` - New file with 17 tests (created)
+
+### Learnings for future iterations
+- Followed the same pattern as LanguageDetector: Pydantic BaseModel with project_root field
+- Used `ConfigDict(arbitrary_types_allowed=True)` for Path fields
+- Glob patterns in private methods keep the main detect_reviewers() clean
+- GitHub Actions needs to check both .yml and .yaml extensions
+
+---
+
+[Ralph Loop] 2026-01-27 02:49 UTC - Iteration 2: US-002 (Create ReviewerDetector service for project analysis) completed
+
+---
+
+## 2026-01-27 - US-003
+
+**Story:** Create ReviewerConfigWriter service for CLAUDE.md manipulation
+
+### What was implemented
+- Created `src/ralph/services/reviewer_config_writer.py` with `ReviewerConfigWriter` class
+- Implemented `has_reviewer_config(path)` method to check if RALPH:REVIEWERS markers exist
+- Implemented `write_reviewer_config(path, reviewers)` method to write/update config
+- Preserves all content outside the RALPH:REVIEWERS markers when updating
+- Inserts new section before `## Project-Specific Instructions` if heading exists
+- Falls back to appending at end of file if heading not present
+- Added convenience functions `has_reviewer_config()` and `write_reviewer_config()`
+- Exported `ReviewerConfigWriter`, `has_reviewer_config`, `write_reviewer_config` from `services/__init__.py`
+
+### Tests written
+- No unit tests written in this story (covered by US-008)
+
+### Files changed
+- `src/ralph/services/reviewer_config_writer.py` - New file with ReviewerConfigWriter class (created)
+- `src/ralph/services/__init__.py` - Added exports for ReviewerConfigWriter and convenience functions
+
+### Learnings for future iterations
+- Followed the same pattern as ReviewerDetector: Pydantic BaseModel with Path field
+- Used `ConfigDict(arbitrary_types_allowed=True)` for Path fields
+- The `_format_reviewer_yaml()` helper keeps the main write method clean
+- Using `str.replace()` for marker insertion works well for simple cases
+
+---
+
+[Ralph Loop] 2026-01-27 - Iteration 3: US-003 (Create ReviewerConfigWriter service for CLAUDE.md manipulation) completed
+
+[Ralph Loop] 2026-01-27 02:51 UTC - Iteration 3: US-003 (Create ReviewerConfigWriter service for CLAUDE.md manipulation) completed
+
+---
+
+## 2026-01-27 - US-004
+
+**Story:** Implement ralph review command with first-run behavior
+
+### What was implemented
+- Created `src/ralph/commands/review.py` with the `review` command function
+- Supports `--verbose` flag for full JSON output (consistent with other commands)
+- Supports `--strict` flag to treat warning-level reviewers as blocking
+- First-run behavior: detects reviewers using ReviewerDetector, writes config to CLAUDE.md, executes review loop
+- Displays detection reasons for each reviewer (e.g., "python-code (found .py files)")
+- Uses `_DETECTION_REASONS` mapping to provide human-readable reasons
+- Registered command in `cli.py` and exported from `commands/__init__.py`
+
+### Tests written
+- No unit tests written in this story (covered by US-009)
+
+### Files changed
+- `src/ralph/commands/review.py` - New file with review command (created)
+- `src/ralph/cli.py` - Added review command import and registration
+- `src/ralph/commands/__init__.py` - Added review export
+
+### Learnings for future iterations
+- Reused patterns from `loop.py` for review loop execution and progress display
+- The ReviewerDetector returns ReviewerConfig objects but not reasons, so reasons are provided via a mapping in the command module
+- Used the same console output patterns (print_review_step, print_success, print_error) for consistency
+
+---
+
+[Ralph Loop] 2026-01-27 02:54 UTC - Iteration 4: US-004 (Implement ralph review command with first-run behavior) completed
+
+---
+
+## 2026-01-27 - US-005
+
+**Story:** Implement subsequent-run behavior with suggestions
+
+### What was implemented
+- Enhanced subsequent-run path in `ralph review` command to detect missing reviewers
+- Compare current config reviewer names with detected reviewer names using set difference
+- Display warning listing suggested reviewers not in current config with detection reasons
+- Suggest running `ralph review --force` to update configuration
+
+### Tests written
+- No unit tests written in this story (covered by US-009)
+
+### Files changed
+- `src/ralph/commands/review.py` - Added missing reviewer detection in subsequent-run path
+
+### Learnings for future iterations
+- Set operations (difference) are ideal for comparing lists by name
+- Sorting missing names ensures consistent output for testing
+- Reusing `_get_detection_reason()` provides consistent messaging between first-run and suggestions
+
+---
+
+[Ralph Loop] 2026-01-27 - Iteration 5: US-005 (Implement subsequent-run behavior with suggestions) completed
+
+---
+
+[Review] 2026-01-27 03:45 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+### Coverage Assessment
+
+| Test File | Source File | Coverage |
+|-----------|-------------|----------|
+| tests/test_language_detection.py | src/ralph/services/language.py | Complete |
+| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | Complete |
+
+### Summary
+
+Both test files provide meaningful, well-structured test coverage:
+
+**test_language_detection.py (8 tests)**
+- All 6 languages tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
+- Subdirectory detection tested for Bicep
+- Empty case tested
+- `has_language()` helper method tested
+- Convenience function `detect_languages()` tested
+
+**test_reviewer_detector.py (17 tests)**
+- Universal reviewers always included (code-simplifier, repo-structure)
+- All conditional reviewers tested (python-code, bicep, github-actions, test-quality, release)
+- Negative cases tested (no workflows dir, empty workflows dir, no changelog)
+- Subdirectory detection tested (Python, Bicep)
+- Both test file patterns tested (test_*.py, *_test.py)
+- Multiple project types combination tested
+- Convenience function `detect_reviewers()` tested
+
+All tests follow good practices:
+- Use `tmp_path` fixture for isolated test environments
+- Clear test names describing scenario and expected outcome
+- Arrange-Act-Assert pattern followed
+- Meaningful assertions that verify behavior, not implementation
+- No anti-patterns detected (no tautological tests, no missing assertions, no framework testing)
+
+---
+
+[Review] 2026-01-27 02:56 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 02:57 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+1. **CS-001**: Import Inside Loop - ReviewerResult imported inside loop body
+   - File: src/ralph/commands/review.py:153
+   - Issue: `ReviewerResult` was imported inside a for loop, causing repeated import checks and reducing code clarity.
+   - Suggestion: Move import to top-level imports. **(FIXED)**
+
+### Summary
+
+One issue was found and fixed:
+- Moved `ReviewerResult` import from inside the loop (line 153) to the top-level imports with other ralph.services imports.
+
+All quality checks pass after the fix:
+- pyright: 0 errors
+- ruff check: All checks passed
+- ruff format: 59 files already formatted
+- pytest: 183 passed
+
+---
+
+[Review] 2026-01-27 02:57 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 03:01 UTC - python-code (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+1. **PY-001**: Inline Comment - Violated zero inline comments policy
+   - File: src/ralph/commands/review.py:77-186 (16 occurrences)
+   - Issue: Inline comments found throughout the review command implementation.
+   - Suggestion: Remove all inline comments; code should be self-documenting. **(FIXED)**
+
+2. **PY-002**: Inline Comment - Violated zero inline comments policy
+   - File: src/ralph/services/reviewer_detector.py:41-99 (6 occurrences)
+   - Issue: Inline comments found in detect_reviewers() method describing each detection block.
+   - Suggestion: Remove inline comments; method names and docstrings provide sufficient documentation. **(FIXED)**
+
+3. **PY-003**: Inline Comment - Violated zero inline comments policy
+   - File: src/ralph/services/reviewer_config_writer.py:87-110 (5 occurrences)
+   - Issue: Inline comments found in write_reviewer_config() method describing conditional branches.
+   - Suggestion: Remove inline comments; the logic is clear from the code structure. **(FIXED)**
+
+4. **PY-004**: Inline Comment - Violated zero inline comments policy
+   - File: src/ralph/services/language.py:63-69 (2 occurrences)
+   - Issue: Inline comments found in detect() method describing iteration blocks.
+   - Suggestion: Remove inline comments; for-loop structure is self-explanatory. **(FIXED)**
+
+### Summary
+
+All 29 inline comments across 4 files have been removed. The code is now self-documenting through:
+- Clear variable and function names
+- Comprehensive docstrings on all public APIs
+- Well-structured code that follows logical flow
+
+All quality checks pass after fixes:
+- pyright: 0 errors
+- ruff check: All checks passed
+- ruff format: Files already formatted
+- pytest: 26 tests passed
+
+---
+
+[Review] 2026-01-27 03:01 UTC - python-code (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 03:50 UTC - github-actions (warning)
+
+### Verdict: PASSED
+
+### Workflow Coverage
+
+| Workflow Type | Present | File |
+|---------------|---------|------|
+| Lint/Format | ✅ | ci.yml |
+| Unit Tests | ✅ | ci.yml |
+| Build Check | ✅ | ci.yml |
+| Integration Tests | N/A | - |
+| Dependabot | ✅ | dependabot.yml |
+| Security Scan | ✅ | security.yml |
+
+### Findings
+
+(No issues found)
+
+### Summary
+
+All GitHub Actions workflows meet the required standards:
+
+**ci.yml:**
+- Runs lint, format, type check, and tests on PRs to main
+- Uses minimal permissions (`contents: read`)
+- All actions pinned to version tags (v4, v5, v6, v7)
+- Timeout set (15 minutes)
+- Caching enabled for uv
+- Matrix builds for multiple OS (ubuntu, windows) and Python versions (3.11, 3.12, 3.13)
+- Coverage reporting configured with Codecov
+
+**security.yml:**
+- CodeQL analysis runs on PRs, pushes, and weekly schedule
+- Minimal permissions for security scanning
+- Actions pinned to version tags
+- Timeout set (15 minutes)
+
+**dependabot.yml:**
+- Configured for pip and github-actions ecosystems
+- Weekly update schedule
+- Reasonable PR limits (10 for pip, 5 for actions)
+- Dependency grouping for dev dependencies
+
+---
+
+[Review] 2026-01-27 03:02 UTC - github-actions (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 14:05 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+### Repository Structure Summary
+
+| Category | Status | Details |
+|----------|--------|---------|
+| README.md | Pass | Complete with description, installation, usage, contribution guidelines |
+| .gitignore | Pass | Python stack patterns covered (venv, pycache, IDE, OS files, env) |
+| Secrets | Pass | No secrets in tracked files; .env properly gitignored |
+| Source Dir | Pass | Code in dedicated `src/ralph/` directory |
+| Tests Dir | Pass | `tests/` directory with `test_*.py` naming convention |
+| Config File | Pass | `pyproject.toml` at root |
+| LICENSE | Pass | MIT license present |
+| CHANGELOG.md | Pass | Present with Keep a Changelog format |
+| docs/ | Pass | Directory exists (with .gitkeep) |
+| CI/CD | Pass | `.github/workflows/ci.yml`, `security.yml` |
+| .editorconfig | Pass | Present for consistent formatting |
+
+### Details
+
+**Mandatory Requirements (all passed):**
+1. README.md exists with all required sections (description, installation, usage, contribution link)
+2. .gitignore covers Python patterns: `__pycache__/`, `.venv/`, `.env`, IDE files, OS files
+3. No secrets committed - search found only documentation about handling secrets
+4. Source code organized in `src/ralph/` - not scattered at root
+5. Tests in `tests/` with 15+ test files following `test_*.py` convention
+6. `pyproject.toml` at root with proper hatch build configuration
+
+**Recommended Items (all present):**
+1. LICENSE - MIT license
+2. CHANGELOG.md - comprehensive changelog with Keep a Changelog format
+3. docs/ - directory exists (with .gitkeep placeholder)
+4. CI/CD - GitHub Actions workflows for CI and security scanning
+5. .editorconfig - editor configuration for consistency
+
+**Notes:**
+- No .env.example file, but the project doesn't use environment variables
+- The .gitignore includes `.env` and `.env.*` patterns with `.env.example` exempted
+- Project structure is exemplary for a Python CLI tool
+
+---
+
+[Review] 2026-01-27 03:03 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 13:05 UTC - release (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **RL-001**: Tag Exists - Git tag v2.0.9 already exists
+   - File: pyproject.toml:7
+   - Issue: The version 2.0.9 already has a git tag (v2.0.9). You cannot release the same version twice.
+   - Suggestion: Bump the version to 2.0.10 in both pyproject.toml and src/ralph/__init__.py, and add a new CHANGELOG.md entry for v2.0.10.
+   - **FIXED**: Bumped version to 2.0.10 and added CHANGELOG entry.
+
+2. **RL-002**: Dirty Working Directory - Uncommitted changes present
+   - File: plans/PROGRESS.txt:0
+   - Issue: Working directory has uncommitted changes: plans/PROGRESS.txt, plans/TASKS.json, src/ralph/commands/review.py, src/ralph/services/language.py, src/ralph/services/reviewer_config_writer.py, src/ralph/services/reviewer_detector.py
+   - Suggestion: Commit or stash all changes before release.
+   - **NOTE**: Changes should be committed as part of the release PR.
+
+3. **RL-003**: Archive Cleanup - PROGRESS.txt archive file found
+   - File: plans/PROGRESS.20260127_022755.txt:0
+   - Issue: Found archived PROGRESS file that should be deleted before release.
+   - Suggestion: Delete plans/PROGRESS.20260127_022755.txt or move it out of the plans/ directory.
+   - **FIXED**: Deleted archive file.
+
+4. **RL-004**: Branch Warning - Not on main/master branch
+   - File: .git:0
+   - Issue: Currently on feature branch 'ralph/review-command', not main or master. Releases should typically be made from the main branch.
+   - Suggestion: Merge this branch to main before creating the release, or verify this is intentional.
+   - **NOTE**: This is expected - merge this PR to main before tagging the release.
+
+---
+
+[Review] 2026-01-27 13:10 UTC - release (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(All issues resolved)
+
+### Summary
+
+Fixed the following release readiness issues:
+- **RL-001**: Bumped version from 2.0.9 to 2.0.10 in pyproject.toml and src/ralph/__init__.py
+- **RL-003**: Deleted plans/PROGRESS.20260127_022755.txt archive file
+- Added comprehensive CHANGELOG.md entry for v2.0.10 documenting the new `ralph review` command and supporting services
+
+Remaining notes:
+- **RL-002**: Uncommitted changes are expected for a feature branch PR
+- **RL-004**: On feature branch by design - merge to main before creating release tag
+
+Version consistency verified:
+- pyproject.toml: 2.0.10
+- src/ralph/__init__.py: 2.0.10
+- CHANGELOG.md: Entry for [2.0.10] present
+- Git tag v2.0.10: Does not exist (ready for tagging after merge)
+
+---
+
+[Review] 2026-01-27 03:05 UTC - release (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-01-27 14:30 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+### Coverage Assessment
+
+| Test File | Source File | Tests | Coverage |
+|-----------|-------------|-------|----------|
+| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
+| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
+
+### Summary
+
+Both test files provide meaningful, well-structured test coverage with no anti-patterns detected.
+
+**test_language_detection.py (8 tests)**
+- All 6 language detection paths tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
+- Glob-based detection tested for Bicep including subdirectory cases
+- Empty/negative case tested (no markers returns empty set)
+- `has_language()` helper method tested
+- Convenience function `detect_languages()` tested
+
+**test_reviewer_detector.py (17 tests)**
+- Universal reviewers always included (code-simplifier, repo-structure)
+- All conditional reviewers tested with comprehensive assertions:
+  - python-code: name, skill path, level, languages field
+  - bicep: name, skill path, level, languages field
+  - github-actions: name, skill path, level
+  - test-quality: name, skill path, level
+  - release: name, skill path, level
+- Negative cases covered:
+  - No github-actions without workflows dir
+  - No github-actions with empty workflows dir
+  - No release without CHANGELOG.md
+- Subdirectory detection tested (Python, Bicep)
+- Both test file naming conventions tested (test_*.py, *_test.py)
+- Integration test verifies all detections work together
+- Convenience function `detect_reviewers()` tested
+- Baseline case tested (empty project returns only universal reviewers)
+
+**Quality Checklist Results:**
+- [x] All changed test files reviewed
+- [x] Each test has meaningful assertions
+- [x] No anti-patterns detected (tautological, missing assertions, framework testing)
+- [x] Critical path coverage complete
+- [x] Tests are deterministic (use tmp_path fixture)
+- [x] AAA (Arrange-Act-Assert) pattern followed
+- [x] Clear test names describing scenario and outcome
+
+---
+
+[Review Loop] 2026-01-27 03:16 UTC - test-quality (blocking): failed after 3 attempts ([Errno 32] Broken pipe)
+
+---
+
+[Review] 2026-01-27 03:16 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+### Coverage Assessment
+
+| Test File | Source File | Tests | Coverage |
+|-----------|-------------|-------|----------|
+| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
+| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
+
+### Summary
+
+Both test files provide meaningful, well-structured test coverage with no anti-patterns detected.
+
+**test_language_detection.py (8 tests)**
+- All 6 language detection paths tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
+- Marker file detection tested (pyproject.toml, package.json, tsconfig.json, go.mod, Cargo.toml)
+- Glob-based detection tested for Bicep including subdirectory cases
+- Empty/negative case tested (no markers returns empty set)
+- `has_language()` helper method tested
+- Multiple language detection tested
+- Convenience function `detect_languages()` tested
+
+**test_reviewer_detector.py (17 tests)**
+- Universal reviewers always included (code-simplifier, repo-structure)
+- All conditional reviewers tested with comprehensive assertions:
+  - python-code: name, skill path, level, languages field
+  - bicep: name, skill path, level, languages field
+  - github-actions: name, skill path, level
+  - test-quality: name, skill path, level
+  - release: name, skill path, level
+- Negative cases covered:
+  - No github-actions without workflows dir
+  - No github-actions with empty workflows dir
+  - No release without CHANGELOG.md
+- Subdirectory detection tested (Python, Bicep)
+- Both test file naming conventions tested (test_*.py, *_test.py)
+- Integration test verifies all detections work together
+- Convenience function `detect_reviewers()` tested
+- Baseline case tested (empty project returns only universal reviewers)
+
+**Quality Checklist Results:**
+- [x] All changed test files reviewed
+- [x] Each test has meaningful assertions
+- [x] No anti-patterns detected (tautological, missing assertions, framework testing)
+- [x] Critical path coverage complete
+- [x] Tests are deterministic (use tmp_path fixture)
+- [x] AAA (Arrange-Act-Assert) pattern followed
+- [x] Clear test names describing scenario and outcome
+
+---
+[Review] 2026-02-06 23:04 UTC - python-code (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **PY-001**: Inline Comment - Non-exception inline comment found
+   - File: src/ralph/commands/review.py:31
+   - Issue: The inline comment `# Mapping of reviewer names to their detection reasons` violates the zero inline comments policy.
+   - Suggestion: Remove the comment and make intent self-evident through naming or module/class docstrings.
+
+2. **PY-002**: Inline Comment - Non-exception inline comments found
+   - File: src/ralph/services/language.py:24
+   - Issue: Inline comments describing `_LANGUAGE_MARKERS` and `_LANGUAGE_PATTERNS` violate the zero inline comments policy.
+   - Suggestion: Remove inline comments and rely on existing docstrings or clearer symbol names.
+
+3. **PY-003**: Inline Comment - Non-exception inline comments found
+   - File: tests/test_reviewer_detector.py:163
+   - Issue: Inline comments in test logic (for example `# Create Python project with tests, GH Actions, and changelog`, `# Universal reviewers`, `# Detected reviewers`) violate the zero inline comments policy.
+   - Suggestion: Remove these comments and let test names/assertion grouping communicate intent.
+
+---
+[Review] 2026-02-06 23:07 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+[Review] 2026-02-06 23:08 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+
+## 2026-02-08 - US-006
+
+**Story:** Implement --force flag behavior
+
+### What was implemented
+- Verified --force flag already wired into review command with typer.Option
+- Force mode re-runs full project detection via ReviewerDetector
+- Compares old config (from CLAUDE.md) with newly detected config using set difference
+- Displays added reviewers (green +) and removed reviewers (red -) before executing review loop
+- Shows "No changes detected" when config is already up to date
+- Falls back to first-run behavior when --force is used with no existing config
+- Overwrites existing RALPH:REVIEWERS section via ReviewerConfigWriter
+- Fixed lint issues in test file (unused import, line length, unused variable)
+
+### Tests written
+- `test_force_re_detects_and_overwrites_config` - Verifies force mode calls write_reviewer_config with new reviewers
+- `test_force_displays_added_reviewers` - Verifies added reviewers shown in output
+- `test_force_displays_removed_reviewers` - Verifies removed reviewers shown in output
+- `test_force_displays_no_changes_when_config_unchanged` - Verifies "No changes detected" message
+- `test_force_with_no_existing_config_behaves_as_first_run` - Verifies fallback to first-run path
+- `test_force_shows_both_added_and_removed` - Verifies both additions and removals displayed
+- `test_force_still_executes_review_loop` - Verifies review loop runs after config update
+
+### Files changed
+- `tests/test_review_force.py` - Fixed lint issues (unused pytest import, line length, unused variable)
+- `plans/TASKS.json` - Marked US-006 as passes: true
+
+### Learnings for future iterations
+- The --force implementation was already complete from US-004/US-005; this story primarily validated and cleaned up tests
+- Set difference operations cleanly identify added/removed reviewers between old and new configs
+
+---

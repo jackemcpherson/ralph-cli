@@ -38,7 +38,6 @@ class ReviewerDetector(BaseModel):
         """
         reviewers: list[ReviewerConfig] = []
 
-        # Universal reviewers (always included)
         reviewers.append(
             ReviewerConfig(
                 name="code-simplifier",
@@ -54,7 +53,6 @@ class ReviewerDetector(BaseModel):
             )
         )
 
-        # Python project detection (*.py files)
         if self._has_python_files():
             reviewers.append(
                 ReviewerConfig(
@@ -65,7 +63,6 @@ class ReviewerDetector(BaseModel):
                 )
             )
 
-        # Bicep project detection (*.bicep files)
         if self._has_bicep_files():
             reviewers.append(
                 ReviewerConfig(
@@ -76,7 +73,6 @@ class ReviewerDetector(BaseModel):
                 )
             )
 
-        # GitHub Actions detection (.github/workflows/*.yml)
         if self._has_github_actions():
             reviewers.append(
                 ReviewerConfig(
@@ -86,7 +82,6 @@ class ReviewerDetector(BaseModel):
                 )
             )
 
-        # Test files detection (test_*.py, *_test.py)
         if self._has_test_files():
             reviewers.append(
                 ReviewerConfig(
@@ -96,7 +91,6 @@ class ReviewerDetector(BaseModel):
                 )
             )
 
-        # Release reviewer if CHANGELOG.md exists
         if self._has_changelog():
             reviewers.append(
                 ReviewerConfig(

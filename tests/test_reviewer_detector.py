@@ -160,7 +160,6 @@ class TestReviewerDetector:
 
     def test_detects_multiple_project_types(self, tmp_path: Path) -> None:
         """Test detection works for projects with multiple characteristics."""
-        # Create Python project with tests, GH Actions, and changelog
         (tmp_path / "main.py").write_text("print('hello')\n")
         (tmp_path / "test_main.py").write_text("def test(): pass\n")
         workflows_dir = tmp_path / ".github" / "workflows"
@@ -171,10 +170,8 @@ class TestReviewerDetector:
         reviewers = ReviewerDetector(project_root=tmp_path).detect_reviewers()
         names = [r.name for r in reviewers]
 
-        # Universal reviewers
         assert "code-simplifier" in names
         assert "repo-structure" in names
-        # Detected reviewers
         assert "python-code" in names
         assert "github-actions" in names
         assert "test-quality" in names

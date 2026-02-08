@@ -35,8 +35,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created ReviewerDetector class with detect_reviewers() method. Detects Python, Bicep, GitHub Actions, test files, and CHANGELOG.md. Always includes code-simplifier and repo-structure as universal reviewers."
     },
     {
       "id": "US-003",
@@ -52,8 +52,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created ReviewerConfigWriter class with has_reviewer_config() and write_reviewer_config() methods. Preserves content outside markers, inserts before '## Project-Specific Instructions' when markers don't exist."
     },
     {
       "id": "US-004",
@@ -69,8 +69,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created review command with --verbose and --strict flags. On first run, detects reviewers using ReviewerDetector, displays detection reasons (e.g., 'found .py files'), writes config to CLAUDE.md, then executes review loop."
     },
     {
       "id": "US-005",
@@ -84,8 +84,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "On subsequent runs, compares current config with detected reviewers using set difference. Displays missing reviewers with detection reasons and suggests --force flag."
     },
     {
       "id": "US-006",
@@ -99,8 +99,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented --force flag on review command. Re-runs full detection, compares old vs new config, displays added/removed reviewers, overwrites RALPH:REVIEWERS section. Tests cover all force flag scenarios including added, removed, both, no-changes, and first-run fallback."
     },
     {
       "id": "US-007",

@@ -11,6 +11,7 @@ import typer
 
 from ralph.models import load_reviewer_configs
 from ralph.services import (
+    ReviewerResult,
     ReviewLoopService,
     detect_languages,
     detect_reviewers,
@@ -27,7 +28,6 @@ from ralph.utils import (
 logger = logging.getLogger(__name__)
 
 
-# Mapping of reviewer names to their detection reasons
 _DETECTION_REASONS: dict[str, str] = {
     "code-simplifier": "universal reviewer (included for all projects)",
     "repo-structure": "universal reviewer (included for all projects)",
@@ -58,6 +58,11 @@ def review(
         "--strict",
         help="Treat warning-level reviewers as blocking",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-detect and update reviewer configuration",
+    ),
 ) -> None:
     """Run the review loop with automatic configuration.
 
@@ -65,6 +70,9 @@ def review(
     contents, writes configuration to CLAUDE.md, then executes the review loop.
 
     On subsequent runs: uses existing configuration from CLAUDE.md.
+
+    With --force: re-detects reviewers, shows what changed, and overwrites
+    the existing configuration before running the review loop.
     """
     project_root = Path.cwd()
     claude_md_path = project_root / "CLAUDE.md"
@@ -73,17 +81,42 @@ def review(
     console.print("[bold]Ralph Review[/bold]")
     console.print()
 
-    # Check if this is first run (no existing config)
-    is_first_run = not has_reviewer_config(claude_md_path)
+    has_config = has_reviewer_config(claude_md_path)
 
-    if is_first_run:
+    if force and has_config:
+        console.print("[dim]Force mode - re-detecting reviewers...[/dim]")
+        console.print()
+
+        old_reviewers = load_reviewer_configs(claude_md_path)
+        old_names = {r.name for r in old_reviewers}
+
+        reviewers = detect_reviewers(project_root)
+        new_names = {r.name for r in reviewers}
+
+        added_names = sorted(new_names - old_names)
+        removed_names = sorted(old_names - new_names)
+
+        if added_names or removed_names:
+            console.print("[bold]Configuration Changes:[/bold]")
+            for name in added_names:
+                reason = _get_detection_reason(name)
+                console.print(f"  [green]+ {name}[/green] ({reason})")
+            for name in removed_names:
+                console.print(f"  [red]- {name}[/red]")
+            console.print()
+        else:
+            console.print("[dim]No changes detected - configuration is up to date[/dim]")
+            console.print()
+
+        write_reviewer_config(claude_md_path, reviewers)
+        console.print(f"[dim]Configuration updated in {claude_md_path}[/dim]")
+        console.print()
+    elif not has_config:
         console.print("[dim]First run detected - configuring reviewers...[/dim]")
         console.print()
 
-        # Detect reviewers based on project contents
         reviewers = detect_reviewers(project_root)
 
-        # Display what was detected and why
         console.print("[bold]Detected Reviewers:[/bold]")
         for reviewer in reviewers:
             reason = _get_detection_reason(reviewer.name)
@@ -91,7 +124,6 @@ def review(
 
         console.print()
 
-        # Write configuration to CLAUDE.md
         write_reviewer_config(claude_md_path, reviewers)
         console.print(f"[dim]Configuration written to {claude_md_path}[/dim]")
         console.print()
@@ -99,17 +131,14 @@ def review(
         console.print("[dim]Using existing reviewer configuration[/dim]")
         console.print()
 
-        # Load existing configuration
         reviewers = load_reviewer_configs(claude_md_path)
 
-        # Check for suggested reviewers not in current config
         suggested_reviewers = detect_reviewers(project_root)
         current_names = {r.name for r in reviewers}
         suggested_names = {r.name for r in suggested_reviewers}
         missing_names = suggested_names - current_names
 
         if missing_names:
-            # Sort for consistent output
             sorted_missing = sorted(missing_names)
             console.print("[yellow]Suggested reviewers not in current config:[/yellow]")
             for name in sorted_missing:
@@ -121,7 +150,6 @@ def review(
 
     console.print(f"[dim]Loaded {len(reviewers)} reviewer(s)[/dim]")
 
-    # Detect project languages for filtering
     detected_languages = detect_languages(project_root)
     if detected_languages:
         lang_names = ", ".join(lang.value for lang in detected_languages)
@@ -134,24 +162,19 @@ def review(
 
     console.print()
 
-    # Create review loop service and run
     review_service = ReviewLoopService(
         project_root=project_root,
         verbose=verbose,
     )
 
-    # Run each reviewer with progress display
-    results = []
+    results: list[ReviewerResult] = []
     total_reviewers = len(reviewers)
 
     for i, reviewer in enumerate(reviewers, start=1):
-        # Check if reviewer should be skipped due to language filter
         if not review_service.should_run_reviewer(reviewer, detected_languages):
             logger.info(
                 f"Skipping reviewer {reviewer.name} (language filter: {reviewer.languages})"
             )
-            from ralph.services import ReviewerResult
-
             result = ReviewerResult(
                 reviewer_name=reviewer.name,
                 success=True,
@@ -162,19 +185,15 @@ def review(
             review_service._append_review_summary(progress_path, reviewer, result)
             continue
 
-        # Display progress counter and reviewer name
         print_review_step(i, total_reviewers, reviewer.name)
         console.print()
 
-        # Run the reviewer
         enforced = review_service.is_enforced(reviewer, strict)
         result = review_service.run_reviewer(reviewer, enforced=enforced)
         results.append(result)
 
-        # Log to progress file
         review_service._append_review_summary(progress_path, reviewer, result)
 
-        # Log result
         if result.success:
             logger.info(f"Reviewer {reviewer.name} completed successfully")
         elif result.skipped:
@@ -184,7 +203,6 @@ def review(
 
         console.print()
 
-    # Display summary
     console.print()
     console.print("[bold]Review Summary[/bold]")
     console.print()

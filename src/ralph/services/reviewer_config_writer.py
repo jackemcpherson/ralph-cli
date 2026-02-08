@@ -84,7 +84,6 @@ class ReviewerConfigWriter(BaseModel):
         formatted_config = _format_reviewer_yaml(reviewers)
 
         if not self.path.exists():
-            # Create new file with just the reviewer config
             section = f"## Reviewers\n\n{formatted_config}\n"
             self.path.write_text(section, encoding="utf-8")
             return
@@ -92,22 +91,18 @@ class ReviewerConfigWriter(BaseModel):
         content = self.path.read_text(encoding="utf-8")
 
         if _REVIEWERS_PATTERN.search(content):
-            # Replace existing config
             new_content = _REVIEWERS_PATTERN.sub(formatted_config, content)
             self.path.write_text(new_content, encoding="utf-8")
             return
 
-        # Insert new section
         section_to_insert = f"\n## Reviewers\n\n{formatted_config}\n"
 
         if _PROJECT_SPECIFIC_HEADING in content:
-            # Insert before '## Project-Specific Instructions'
             new_content = content.replace(
                 _PROJECT_SPECIFIC_HEADING,
                 f"{section_to_insert}\n{_PROJECT_SPECIFIC_HEADING}",
             )
         else:
-            # Append at end
             new_content = content.rstrip() + "\n" + section_to_insert
 
         self.path.write_text(new_content, encoding="utf-8")

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.0.10] - 2026-01-27
+
+### Added
+
+- New `ralph review` command for automated code review pipeline
+  - First-run behavior: auto-detects project languages and configures reviewers in CLAUDE.md
+  - Subsequent-run behavior: suggests missing reviewers when project adds new file types
+  - Supports `--verbose` and `--strict` flags consistent with other commands
+- ReviewerDetector service for automatic project language/framework detection
+  - Detects Python, Bicep, GitHub Actions, test files, and CHANGELOG presence
+  - Always includes universal reviewers (code-simplifier, repo-structure)
+- ReviewerConfigWriter service for CLAUDE.md reviewer configuration management
+  - Reads and writes RALPH:REVIEWERS config blocks
+  - Preserves existing file content when updating configuration
+- Bicep language detection in LanguageDetector service
+  - Uses glob patterns (`**/*.bicep`) for detection in any subdirectory
+
 ## [2.0.9] - 2026-01-27
 
 ### Fixed
