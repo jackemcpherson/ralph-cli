@@ -54,6 +54,7 @@ ralph loop
 | `ralph tasks <spec>` | Convert spec to TASKS.json |
 | `ralph once` | Execute single iteration |
 | `ralph loop [n]` | Run n iterations (default: 10) |
+| `ralph review` | Run the review pipeline with automatic configuration |
 | `ralph sync` | Sync skills to ~/.claude/skills/ |
 
 ### ralph init
@@ -123,6 +124,19 @@ Stop conditions:
 - Persistent failure (same story fails twice)
 - Transient failure (Claude error)
 
+### ralph review
+
+Runs the automated review pipeline:
+
+```bash
+ralph review                    # Auto-detect and configure reviewers
+ralph review --force            # Re-detect and overwrite reviewer config
+ralph review --strict           # Treat warnings as blocking
+ralph review --verbose          # Verbose Claude output
+```
+
+On first run, detects project languages and configures reviewers in CLAUDE.md. On subsequent runs, uses the existing configuration and suggests any missing reviewers.
+
 ### ralph sync
 
 Syncs skills to Claude Code:
@@ -135,14 +149,17 @@ ralph sync --remove                  # Remove synced skills
 
 ## Reviewer Skills
 
-Ralph includes four code review skills that can be invoked directly in Claude Code:
+Ralph includes code review skills that can be invoked directly in Claude Code:
 
 | Skill | Description |
 |-------|-------------|
 | `/python-code-reviewer` | Type hints, docstrings, logging, code quality |
+| `/bicep-reviewer` | Azure Bicep template best practices and security |
 | `/repo-structure-reviewer` | README, .gitignore, project organization |
 | `/github-actions-reviewer` | CI/CD completeness, security, best practices |
 | `/test-quality-reviewer` | Meaningful assertions, coverage, anti-patterns |
+| `/code-simplifier` | Code clarity and maintainability improvements |
+| `/release-reviewer` | Version consistency, changelog, release readiness |
 
 Each reviewer outputs a structured report with severity levels (error/warning/suggestion) and a verdict tag:
 - `<ralph-review>PASS</ralph-review>` - No blocking errors

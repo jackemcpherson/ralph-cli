@@ -40,6 +40,23 @@ class TestLanguageDetector:
 
         assert Language.rust in LanguageDetector(project_root=tmp_path).detect()
 
+    def test_detects_bicep_from_bicep_files(self, tmp_path: Path) -> None:
+        """Test Bicep detected from .bicep files using glob pattern."""
+        (tmp_path / "main.bicep").write_text("param location string\n")
+
+        detected = LanguageDetector(project_root=tmp_path).detect()
+
+        assert Language.bicep in detected
+        assert LanguageDetector(project_root=tmp_path).has_language(Language.bicep)
+
+    def test_detects_bicep_in_subdirectory(self, tmp_path: Path) -> None:
+        """Test Bicep detected from .bicep files in subdirectories."""
+        infra_dir = tmp_path / "infra"
+        infra_dir.mkdir()
+        (infra_dir / "storage.bicep").write_text("resource storage 'Microsoft.Storage'\n")
+
+        assert Language.bicep in LanguageDetector(project_root=tmp_path).detect()
+
     def test_detects_multiple_languages(self, tmp_path: Path) -> None:
         """Test multiple languages detected simultaneously."""
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")

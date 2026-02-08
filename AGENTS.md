@@ -60,7 +60,9 @@ ralph_cli/
 │       │   └── reviewers/      # Review pipeline skills
 │       │       ├── code_simplifier/
 │       │       ├── github_actions/
-│       │       ├── language/python/
+│       │       ├── language/
+│       │       │   ├── bicep/
+│       │       │   └── python/
 │       │       ├── release/
 │       │       ├── repo_structure/
 │       │       └── test_quality/
@@ -94,6 +96,7 @@ The CLI provides these commands:
 - `ralph tasks <spec>` - Convert spec to TASKS.json
 - `ralph once` - Execute single iteration
 - `ralph loop [n]` - Run n iterations (default: 10)
+- `ralph review` - Run the review pipeline with automatic configuration
 - `ralph sync` - Sync skills to ~/.claude/skills/
 
 ### Key Design Decisions

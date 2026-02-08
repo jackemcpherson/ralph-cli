@@ -1,6 +1,7 @@
 """Shared pytest fixtures for Ralph CLI tests."""
 
 import re
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -8,7 +9,7 @@ from typer.testing import CliRunner
 
 
 @pytest.fixture(autouse=True)
-def mock_shutil_which():
+def mock_shutil_which() -> Iterator[None]:
     """Automatically mock shutil.which to return a fake Claude CLI path.
 
     This ensures tests pass in CI environments where Claude CLI is not installed.
