@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.1.0] - 2026-02-08
+
+### Added
+
+- `--no-fix` flag for `ralph loop` and `ralph review` commands to report review findings without applying automated fixes
+  - Final summary shows "findings (not fixed)" status for skipped-fix reviewers
+  - Skipped-fix count included in summary line alongside passed/failed/skipped counts
+- Resumable review pipeline with `--resume-review` flag for `ralph loop` and `ralph review`
+  - Persists review progress to `.ralph-review-state.json` after each reviewer completes
+  - Skips already-completed reviewers when resuming with matching config hash
+  - Automatically cleans up state file on successful completion
+  - Discards stale state when reviewer configuration changes
+- Already-implemented story detection in `ralph tasks`
+  - Gathers codebase context (file tree + key file contents) and includes it in the prompt
+  - Claude marks stories as already implemented when evidence exists in the codebase
+  - Logs summary of detected stories: "[Tasks] N stories detected as already implemented"
+- `.ralph-review-state.json` added to `.gitignore` scaffold in `ralph init`
+
 ## [2.0.10] - 2026-01-27
 
 ### Added

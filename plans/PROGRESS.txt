@@ -12,837 +12,458 @@
 
 ---
 
-## 2026-01-27 - US-001
+## 2026-02-08 - US-001
 
-**Story:** Add Bicep language detection support
-
-### What was implemented
-- Added `bicep` to the `Language` enum in `src/ralph/services/language.py`
-- Introduced `_LANGUAGE_PATTERNS` dictionary for glob-based language detection
-- Added `**/*.bicep` pattern to detect Bicep files anywhere in the project tree
-- Updated `LanguageDetector.detect()` method to check both marker files and glob patterns
-
-### Tests written
-- `test_detects_bicep_from_bicep_files` - Verifies Bicep detected from .bicep files in root
-- `test_detects_bicep_in_subdirectory` - Verifies Bicep detected from .bicep files in subdirectories
-
-### Files changed
-- `src/ralph/services/language.py` - Added bicep enum value and glob-based detection
-- `tests/test_language_detection.py` - Added 2 tests for Bicep detection
-
-### Learnings for future iterations
-- Glob-based detection using `Path.glob()` is needed for languages without specific marker files
-- The `**/*.ext` pattern allows detecting files in any subdirectory
-
----
-
-[Ralph Loop] 2026-01-27 02:43 UTC - Iteration 1: US-001 (Add Bicep language detection support) completed
-
----
-
-## 2026-01-27 - US-002
-
-**Story:** Create ReviewerDetector service for project analysis
+**Story:** Add --no-fix flag to review commands
 
 ### What was implemented
-- Created `src/ralph/services/reviewer_detector.py` with `ReviewerDetector` class
-- Implemented `detect_reviewers()` method returning list of `ReviewerConfig`
-- Detection logic for Python files (`**/*.py`) → python-code reviewer
-- Detection logic for Bicep files (`**/*.bicep`) → bicep reviewer
-- Detection logic for GitHub Actions (`.github/workflows/*.yml` or `.yaml`) → github-actions reviewer
-- Detection logic for test files (`**/test_*.py` or `**/*_test.py`) → test-quality reviewer
-- Always includes universal reviewers: code-simplifier, repo-structure
-- Includes release reviewer if `CHANGELOG.md` exists
-- Added convenience function `detect_reviewers(project_root)`
-- Exported `ReviewerDetector` and `detect_reviewers` from `services/__init__.py`
+- Added `--no-fix` boolean flag (default: False) to the `loop()` command in `src/ralph/commands/loop.py`
+- Added `--no-fix` boolean flag (default: False) to the `review()` command in `src/ralph/commands/review.py`
+- Threaded `no_fix` parameter through `_run_review_loop()` in `loop.py` (signature + call site)
+- Help text: "Report review findings without applying automated fixes"
 
 ### Tests written
-- `test_always_includes_universal_reviewers` - Verifies code-simplifier and repo-structure always present
-- `test_universal_reviewer_skills_are_correct` - Verifies skill paths for universal reviewers
-- `test_detects_python_project` - Python files trigger python-code reviewer
-- `test_detects_python_in_subdirectory` - Subdirectory Python files are detected
-- `test_detects_bicep_project` - Bicep files trigger bicep reviewer
-- `test_detects_bicep_in_subdirectory` - Subdirectory Bicep files are detected
-- `test_detects_github_actions_yml` - .yml workflow files detected
-- `test_detects_github_actions_yaml` - .yaml workflow files detected
-- `test_no_github_actions_without_workflows_dir` - No false positives without workflows dir
-- `test_no_github_actions_with_empty_workflows_dir` - No false positives with empty workflows dir
-- `test_detects_test_files_with_prefix` - test_*.py files trigger test-quality reviewer
-- `test_detects_test_files_with_suffix` - *_test.py files trigger test-quality reviewer
-- `test_detects_changelog_adds_release_reviewer` - CHANGELOG.md triggers release reviewer
-- `test_no_release_without_changelog` - No release reviewer without CHANGELOG.md
-- `test_detects_multiple_project_types` - All detections work together
-- `test_detect_reviewers_works` - Convenience function works correctly
-- `test_empty_project_returns_only_universal` - Empty project gets only universal reviewers
+- No new tests needed for this story (flag plumbing only; behavior implementation is US-002)
+- All 217 existing tests pass
 
 ### Files changed
-- `src/ralph/services/reviewer_detector.py` - New file with ReviewerDetector class (created)
-- `src/ralph/services/__init__.py` - Added exports for ReviewerDetector and detect_reviewers
-- `tests/test_reviewer_detector.py` - New file with 17 tests (created)
+- `src/ralph/commands/loop.py` - added `no_fix` param to `loop()` and `_run_review_loop()`
+- `src/ralph/commands/review.py` - added `no_fix` param to `review()`
+- `plans/TASKS.json` - marked US-001 as passes: true
 
 ### Learnings for future iterations
-- Followed the same pattern as LanguageDetector: Pydantic BaseModel with project_root field
-- Used `ConfigDict(arbitrary_types_allowed=True)` for Path fields
-- Glob patterns in private methods keep the main detect_reviewers() clean
-- GitHub Actions needs to check both .yml and .yaml extensions
+- Typer `--no-fix` automatically maps to `no_fix` Python parameter via Typer's flag naming convention
+- The `_run_review_loop()` function in loop.py is the bridge between the loop command and the review pipeline; subsequent stories (US-002, US-003) will wire no_fix into ReviewLoopService
 
 ---
 
-[Ralph Loop] 2026-01-27 02:49 UTC - Iteration 2: US-002 (Create ReviewerDetector service for project analysis) completed
+[Ralph Loop] 2026-02-08 05:55 UTC - Iteration 1: US-001 (Add --no-fix flag to review commands) completed
 
----
+## 2026-02-08 - US-002
 
-## 2026-01-27 - US-003
-
-**Story:** Create ReviewerConfigWriter service for CLAUDE.md manipulation
+**Story:** Implement --no-fix behavior in ReviewLoopService
 
 ### What was implemented
-- Created `src/ralph/services/reviewer_config_writer.py` with `ReviewerConfigWriter` class
-- Implemented `has_reviewer_config(path)` method to check if RALPH:REVIEWERS markers exist
-- Implemented `write_reviewer_config(path, reviewers)` method to write/update config
-- Preserves all content outside the RALPH:REVIEWERS markers when updating
-- Inserts new section before `## Project-Specific Instructions` if heading exists
-- Falls back to appending at end of file if heading not present
-- Added convenience functions `has_reviewer_config()` and `write_reviewer_config()`
-- Exported `ReviewerConfigWriter`, `has_reviewer_config`, `write_reviewer_config` from `services/__init__.py`
+- Added `no_fix` keyword parameter (default: False) to `ReviewLoopService.run_review_loop()` method signature
+- When `no_fix=True`, the `FixLoopService.run_fix_loop()` call is skipped after a NEEDS_WORK verdict
+- Logs `[Fix] Skipped (--no-fix)` via `logger.info()` when a fix is skipped
+- Continues to the next reviewer after logging (pipeline is not aborted)
 
 ### Tests written
-- No unit tests written in this story (covered by US-008)
+- `test_no_fix_skips_fix_loop_on_needs_work` - verifies FixLoopService is not instantiated when no_fix=True
+- `test_no_fix_logs_skip_message` - verifies '[Fix] Skipped (--no-fix)' appears in log records
+- `test_no_fix_continues_to_next_reviewer` - verifies both reviewers in a 2-reviewer pipeline execute when no_fix=True
+- `test_no_fix_false_still_runs_fix_loop` - verifies default behavior (no_fix=False) still invokes fix loop
 
 ### Files changed
-- `src/ralph/services/reviewer_config_writer.py` - New file with ReviewerConfigWriter class (created)
-- `src/ralph/services/__init__.py` - Added exports for ReviewerConfigWriter and convenience functions
+- `src/ralph/services/review_loop.py` - added `no_fix` param to `run_review_loop()`, conditional skip of fix loop
+- `tests/test_review_loop.py` - added 4 new tests, `logging` and `pytest` imports
+- `plans/TASKS.json` - marked US-002 as passes: true
 
 ### Learnings for future iterations
-- Followed the same pattern as ReviewerDetector: Pydantic BaseModel with Path field
-- Used `ConfigDict(arbitrary_types_allowed=True)` for Path fields
-- The `_format_reviewer_yaml()` helper keeps the main write method clean
-- Using `str.replace()` for marker insertion works well for simple cases
+- The commands (loop.py, review.py) currently iterate reviewers manually rather than calling `run_review_loop()`. Future stories (US-003) that add no_fix summary output to commands will need to handle this in both places.
+- `caplog` fixture with `caplog.at_level(logging.INFO)` is the clean way to assert log messages in tests.
 
 ---
 
-[Ralph Loop] 2026-01-27 - Iteration 3: US-003 (Create ReviewerConfigWriter service for CLAUDE.md manipulation) completed
+[Ralph Loop] 2026-02-08 05:58 UTC - Iteration 2: US-002 (Implement --no-fix behavior in ReviewLoopService) completed
 
-[Ralph Loop] 2026-01-27 02:51 UTC - Iteration 3: US-003 (Create ReviewerConfigWriter service for CLAUDE.md manipulation) completed
+## 2026-02-08 - US-003
 
----
-
-## 2026-01-27 - US-004
-
-**Story:** Implement ralph review command with first-run behavior
+**Story:** Add --no-fix summary to review output
 
 ### What was implemented
-- Created `src/ralph/commands/review.py` with the `review` command function
-- Supports `--verbose` flag for full JSON output (consistent with other commands)
-- Supports `--strict` flag to treat warning-level reviewers as blocking
-- First-run behavior: detects reviewers using ReviewerDetector, writes config to CLAUDE.md, executes review loop
-- Displays detection reasons for each reviewer (e.g., "python-code (found .py files)")
-- Uses `_DETECTION_REASONS` mapping to provide human-readable reasons
-- Registered command in `cli.py` and exported from `commands/__init__.py`
+- Added `fix_skipped` field (default: False) to `ReviewerResult` NamedTuple in `review_loop.py`
+- In `ReviewLoopService.run_review_loop()`, set `fix_skipped=True` on results when `no_fix=True` and reviewer has NEEDS_WORK findings eligible for fix loop
+- Updated summary display in `_run_review_loop()` in `loop.py` to show `[FINDINGS] reviewer: findings (not fixed)` for fix-skipped reviewers
+- Updated summary display in `review()` in `review.py` with the same logic
+- Both summaries include `Findings (not fixed): N` count in the summary line when skipped_fix > 0
+- Both commands detect `no_fix` + NEEDS_WORK + eligible fix loop and mark results with `fix_skipped=True`
 
 ### Tests written
-- No unit tests written in this story (covered by US-009)
+- `TestNoFixSummary::test_no_fix_sets_fix_skipped_on_needs_work_result` - verifies fix_skipped=True on NEEDS_WORK results in run_review_loop
+- `TestNoFixSummary::test_no_fix_does_not_set_fix_skipped_on_passed_result` - verifies fix_skipped=False on PASSED results
+- `TestNoFixSummary::test_no_fix_false_does_not_set_fix_skipped` - verifies default behavior leaves fix_skipped=False
+- `TestNoFixSummary::test_no_fix_mixed_results_only_marks_needs_work` - verifies only NEEDS_WORK reviewers get fix_skipped
+- `TestReviewNoFixSummary::test_no_fix_shows_findings_not_fixed_in_summary` - verifies CLI output shows "findings (not fixed)"
+- `TestReviewNoFixSummary::test_no_fix_includes_skipped_fix_count_in_summary_line` - verifies "Findings (not fixed): 1" in summary line
+- `TestReviewNoFixSummary::test_no_fix_not_set_does_not_show_findings_not_fixed` - verifies no spurious output without --no-fix
 
 ### Files changed
-- `src/ralph/commands/review.py` - New file with review command (created)
-- `src/ralph/cli.py` - Added review command import and registration
-- `src/ralph/commands/__init__.py` - Added review export
+- `src/ralph/services/review_loop.py` - added `fix_skipped` field to ReviewerResult, set it in run_review_loop()
+- `src/ralph/commands/loop.py` - added Verdict import, no_fix-aware result marking, updated summary display
+- `src/ralph/commands/review.py` - added Verdict import, no_fix-aware result marking, updated summary display
+- `tests/test_review_loop.py` - added TestNoFixSummary class with 4 tests
+- `tests/test_review_command.py` - added TestReviewNoFixSummary class with 3 tests, updated _make_mock_service()
+- `plans/TASKS.json` - marked US-003 as passes: true
 
 ### Learnings for future iterations
-- Reused patterns from `loop.py` for review loop execution and progress display
-- The ReviewerDetector returns ReviewerConfig objects but not reasons, so reasons are provided via a mapping in the command module
-- Used the same console output patterns (print_review_step, print_success, print_error) for consistency
+- Both `loop.py::_run_review_loop()` and `review.py::review()` manually iterate reviewers rather than calling `ReviewLoopService.run_review_loop()`, so changes to summary display must be made in both places
+- NamedTuple fields with defaults must come after fields without defaults; `fix_skipped: bool = False` works at the end
+- When using MagicMock for ReviewerResult in integration tests, auto-generated attributes (like fix_skipped) return MagicMock objects which are truthy — switching to real ReviewerResult instances avoids this
 
 ---
 
-[Ralph Loop] 2026-01-27 02:54 UTC - Iteration 4: US-004 (Implement ralph review command with first-run behavior) completed
+[Ralph Loop] 2026-02-08 06:04 UTC - Iteration 3: US-003 (Add --no-fix summary to review output) completed
 
----
+## 2026-02-08 - US-004
 
-## 2026-01-27 - US-005
-
-**Story:** Implement subsequent-run behavior with suggestions
+**Story:** Create ReviewState Pydantic model
 
 ### What was implemented
-- Enhanced subsequent-run path in `ralph review` command to detect missing reviewers
-- Compare current config reviewer names with detected reviewer names using set difference
-- Display warning listing suggested reviewers not in current config with detection reasons
-- Suggest running `ralph review --force` to update configuration
+- Created `ReviewState` Pydantic model in `src/ralph/models/review_state.py` with fields: `reviewer_names`, `completed`, `timestamp`, `config_hash`
+- Added `compute_config_hash()` static method that produces a deterministic SHA-256 hash from a list of `ReviewerConfig` objects (captures name, skill, level, sorted languages)
+- Added `save()` instance method to write state to a JSON file
+- Added `load()` class method to read state from a JSON file (returns `None` for missing/invalid files)
+- Added `REVIEW_STATE_FILENAME` constant (`.ralph-review-state.json`)
+- Exported `ReviewState` and `REVIEW_STATE_FILENAME` from `src/ralph/models/__init__.py`
 
 ### Tests written
-- No unit tests written in this story (covered by US-009)
+- `TestReviewStateModel::test_create_review_state` - verifies model creation with all fields
+- `TestReviewStateModel::test_completed_defaults_to_empty_dict` - verifies default factory
+- `TestReviewStateModel::test_serialization_round_trip` - verifies JSON serialization/deserialization
+- `TestComputeConfigHash::test_hash_is_deterministic` - same config produces same hash
+- `TestComputeConfigHash::test_hash_is_hex_string` - valid 64-char hex digest
+- `TestComputeConfigHash::test_hash_changes_with_different_config` - different configs differ
+- `TestComputeConfigHash::test_hash_changes_when_level_changes` - level change detected
+- `TestComputeConfigHash::test_hash_empty_list` - empty list produces valid hash
+- `TestComputeConfigHash::test_hash_language_order_irrelevant` - language list order normalized
+- `TestSaveAndLoad::test_save_creates_json_file` - file written with correct content
+- `TestSaveAndLoad::test_load_valid_file` - valid file loaded correctly
+- `TestSaveAndLoad::test_load_nonexistent_returns_none` - missing file returns None
+- `TestSaveAndLoad::test_load_invalid_json_returns_none` - malformed JSON returns None
+- `TestSaveAndLoad::test_load_invalid_schema_returns_none` - wrong schema returns None
+- `TestSaveAndLoad::test_save_load_round_trip` - save and load are inverse operations
+- `TestReviewStateFilename::test_filename_value` - constant has expected value
 
 ### Files changed
-- `src/ralph/commands/review.py` - Added missing reviewer detection in subsequent-run path
+- `src/ralph/models/review_state.py` - new file, ReviewState model
+- `src/ralph/models/__init__.py` - added ReviewState and REVIEW_STATE_FILENAME exports
+- `tests/test_review_state.py` - new file, 16 tests
+- `plans/TASKS.json` - marked US-004 as passes: true
 
 ### Learnings for future iterations
-- Set operations (difference) are ideal for comparing lists by name
-- Sorting missing names ensures consistent output for testing
-- Reusing `_get_detection_reason()` provides consistent messaging between first-run and suggestions
+- The manifest model (`manifest.py`) uses `by_alias=True` for camelCase JSON, but ReviewState uses snake_case throughout since `.ralph-review-state.json` is internal-only
+- `compute_config_hash` sorts languages to ensure order-independence; this is important since `ReviewerConfig.languages` is a plain list
+- Follow the `load`/`save` pattern from `manifest.py` for consistency: `load` returns `None` on failure, `save` writes with trailing newline
 
 ---
 
-[Ralph Loop] 2026-01-27 - Iteration 5: US-005 (Implement subsequent-run behavior with suggestions) completed
+[Ralph Loop] 2026-02-08 - Iteration 4: US-004 (Create ReviewState Pydantic model) completed
+
+[Ralph Loop] 2026-02-08 06:07 UTC - Iteration 4: US-004 (Create ReviewState Pydantic model) completed
+
+## 2026-02-08 - US-005
+
+**Story:** Implement resumable review logic in review commands
+
+### What was implemented
+- Added `--resume-review` boolean flag (default: False) to the `loop()` command in `src/ralph/commands/loop.py`
+- Added `--resume-review` boolean flag (default: False) to the `review()` command in `src/ralph/commands/review.py`
+- Threaded `resume_review` parameter through `_run_review_loop()` in `loop.py`
+- Both commands load `ReviewState` from `.ralph-review-state.json` when `--resume-review` is set
+- When state exists and config hash matches, already-completed reviewers are skipped
+- When no state file exists or config hash mismatches, the full pipeline runs from the beginning
+- State file is written/updated after each reviewer completes (via `ReviewState.save()`)
+
+### Tests written
+- `TestReviewResumeReview::test_resume_review_skips_completed_reviewers` - verifies completed reviewers from state file are skipped
+- `TestReviewResumeReview::test_resume_review_runs_full_pipeline_without_state_file` - verifies full pipeline runs when no state exists
+- `TestReviewResumeReview::test_resume_review_saves_state_after_each_reviewer` - verifies state file is created and updated
+- `TestReviewResumeReview::test_resume_review_config_hash_mismatch_runs_full_pipeline` - verifies stale state is discarded
+
+### Files changed
+- `src/ralph/commands/loop.py` - added `resume_review` param to `loop()` and `_run_review_loop()`, added resume/state-save logic
+- `src/ralph/commands/review.py` - added `resume_review` param to `review()`, added resume/state-save logic
+- `tests/test_review_command.py` - added `TestReviewResumeReview` class with 4 tests
+- `plans/TASKS.json` - marked US-005 as passes: true
+
+### Learnings for future iterations
+- The resume logic is implemented directly in both `_run_review_loop()` (loop.py) and `review()` (review.py) since both have their own reviewer iteration loops
+- State file uses the existing `ReviewState` model from US-004 with `compute_config_hash()` for validation
+- Config hash mismatch causes state to be discarded silently (logged but not errored)
 
 ---
 
-[Review] 2026-01-27 03:45 UTC - test-quality (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
-### Coverage Assessment
-
-| Test File | Source File | Coverage |
-|-----------|-------------|----------|
-| tests/test_language_detection.py | src/ralph/services/language.py | Complete |
-| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | Complete |
-
-### Summary
-
-Both test files provide meaningful, well-structured test coverage:
-
-**test_language_detection.py (8 tests)**
-- All 6 languages tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
-- Subdirectory detection tested for Bicep
-- Empty case tested
-- `has_language()` helper method tested
-- Convenience function `detect_languages()` tested
-
-**test_reviewer_detector.py (17 tests)**
-- Universal reviewers always included (code-simplifier, repo-structure)
-- All conditional reviewers tested (python-code, bicep, github-actions, test-quality, release)
-- Negative cases tested (no workflows dir, empty workflows dir, no changelog)
-- Subdirectory detection tested (Python, Bicep)
-- Both test file patterns tested (test_*.py, *_test.py)
-- Multiple project types combination tested
-- Convenience function `detect_reviewers()` tested
-
-All tests follow good practices:
-- Use `tmp_path` fixture for isolated test environments
-- Clear test names describing scenario and expected outcome
-- Arrange-Act-Assert pattern followed
-- Meaningful assertions that verify behavior, not implementation
-- No anti-patterns detected (no tautological tests, no missing assertions, no framework testing)
-
----
-
-[Review] 2026-01-27 02:56 UTC - test-quality (blocking)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 02:57 UTC - code-simplifier (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-1. **CS-001**: Import Inside Loop - ReviewerResult imported inside loop body
-   - File: src/ralph/commands/review.py:153
-   - Issue: `ReviewerResult` was imported inside a for loop, causing repeated import checks and reducing code clarity.
-   - Suggestion: Move import to top-level imports. **(FIXED)**
-
-### Summary
-
-One issue was found and fixed:
-- Moved `ReviewerResult` import from inside the loop (line 153) to the top-level imports with other ralph.services imports.
-
-All quality checks pass after the fix:
-- pyright: 0 errors
-- ruff check: All checks passed
-- ruff format: 59 files already formatted
-- pytest: 183 passed
-
----
-
-[Review] 2026-01-27 02:57 UTC - code-simplifier (blocking)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 03:01 UTC - python-code (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-1. **PY-001**: Inline Comment - Violated zero inline comments policy
-   - File: src/ralph/commands/review.py:77-186 (16 occurrences)
-   - Issue: Inline comments found throughout the review command implementation.
-   - Suggestion: Remove all inline comments; code should be self-documenting. **(FIXED)**
-
-2. **PY-002**: Inline Comment - Violated zero inline comments policy
-   - File: src/ralph/services/reviewer_detector.py:41-99 (6 occurrences)
-   - Issue: Inline comments found in detect_reviewers() method describing each detection block.
-   - Suggestion: Remove inline comments; method names and docstrings provide sufficient documentation. **(FIXED)**
-
-3. **PY-003**: Inline Comment - Violated zero inline comments policy
-   - File: src/ralph/services/reviewer_config_writer.py:87-110 (5 occurrences)
-   - Issue: Inline comments found in write_reviewer_config() method describing conditional branches.
-   - Suggestion: Remove inline comments; the logic is clear from the code structure. **(FIXED)**
-
-4. **PY-004**: Inline Comment - Violated zero inline comments policy
-   - File: src/ralph/services/language.py:63-69 (2 occurrences)
-   - Issue: Inline comments found in detect() method describing iteration blocks.
-   - Suggestion: Remove inline comments; for-loop structure is self-explanatory. **(FIXED)**
-
-### Summary
-
-All 29 inline comments across 4 files have been removed. The code is now self-documenting through:
-- Clear variable and function names
-- Comprehensive docstrings on all public APIs
-- Well-structured code that follows logical flow
-
-All quality checks pass after fixes:
-- pyright: 0 errors
-- ruff check: All checks passed
-- ruff format: Files already formatted
-- pytest: 26 tests passed
-
----
-
-[Review] 2026-01-27 03:01 UTC - python-code (blocking)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 03:50 UTC - github-actions (warning)
-
-### Verdict: PASSED
-
-### Workflow Coverage
-
-| Workflow Type | Present | File |
-|---------------|---------|------|
-| Lint/Format | ✅ | ci.yml |
-| Unit Tests | ✅ | ci.yml |
-| Build Check | ✅ | ci.yml |
-| Integration Tests | N/A | - |
-| Dependabot | ✅ | dependabot.yml |
-| Security Scan | ✅ | security.yml |
-
-### Findings
-
-(No issues found)
-
-### Summary
-
-All GitHub Actions workflows meet the required standards:
-
-**ci.yml:**
-- Runs lint, format, type check, and tests on PRs to main
-- Uses minimal permissions (`contents: read`)
-- All actions pinned to version tags (v4, v5, v6, v7)
-- Timeout set (15 minutes)
-- Caching enabled for uv
-- Matrix builds for multiple OS (ubuntu, windows) and Python versions (3.11, 3.12, 3.13)
-- Coverage reporting configured with Codecov
-
-**security.yml:**
-- CodeQL analysis runs on PRs, pushes, and weekly schedule
-- Minimal permissions for security scanning
-- Actions pinned to version tags
-- Timeout set (15 minutes)
-
-**dependabot.yml:**
-- Configured for pip and github-actions ecosystems
-- Weekly update schedule
-- Reasonable PR limits (10 for pip, 5 for actions)
-- Dependency grouping for dev dependencies
-
----
-
-[Review] 2026-01-27 03:02 UTC - github-actions (warning)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 14:05 UTC - repo-structure (warning)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
-### Repository Structure Summary
-
-| Category | Status | Details |
-|----------|--------|---------|
-| README.md | Pass | Complete with description, installation, usage, contribution guidelines |
-| .gitignore | Pass | Python stack patterns covered (venv, pycache, IDE, OS files, env) |
-| Secrets | Pass | No secrets in tracked files; .env properly gitignored |
-| Source Dir | Pass | Code in dedicated `src/ralph/` directory |
-| Tests Dir | Pass | `tests/` directory with `test_*.py` naming convention |
-| Config File | Pass | `pyproject.toml` at root |
-| LICENSE | Pass | MIT license present |
-| CHANGELOG.md | Pass | Present with Keep a Changelog format |
-| docs/ | Pass | Directory exists (with .gitkeep) |
-| CI/CD | Pass | `.github/workflows/ci.yml`, `security.yml` |
-| .editorconfig | Pass | Present for consistent formatting |
-
-### Details
-
-**Mandatory Requirements (all passed):**
-1. README.md exists with all required sections (description, installation, usage, contribution link)
-2. .gitignore covers Python patterns: `__pycache__/`, `.venv/`, `.env`, IDE files, OS files
-3. No secrets committed - search found only documentation about handling secrets
-4. Source code organized in `src/ralph/` - not scattered at root
-5. Tests in `tests/` with 15+ test files following `test_*.py` convention
-6. `pyproject.toml` at root with proper hatch build configuration
-
-**Recommended Items (all present):**
-1. LICENSE - MIT license
-2. CHANGELOG.md - comprehensive changelog with Keep a Changelog format
-3. docs/ - directory exists (with .gitkeep placeholder)
-4. CI/CD - GitHub Actions workflows for CI and security scanning
-5. .editorconfig - editor configuration for consistency
-
-**Notes:**
-- No .env.example file, but the project doesn't use environment variables
-- The .gitignore includes `.env` and `.env.*` patterns with `.env.example` exempted
-- Project structure is exemplary for a Python CLI tool
-
----
-
-[Review] 2026-01-27 03:03 UTC - repo-structure (warning)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 13:05 UTC - release (blocking)
-
-### Verdict: NEEDS_WORK
-
-### Findings
-
-1. **RL-001**: Tag Exists - Git tag v2.0.9 already exists
-   - File: pyproject.toml:7
-   - Issue: The version 2.0.9 already has a git tag (v2.0.9). You cannot release the same version twice.
-   - Suggestion: Bump the version to 2.0.10 in both pyproject.toml and src/ralph/__init__.py, and add a new CHANGELOG.md entry for v2.0.10.
-   - **FIXED**: Bumped version to 2.0.10 and added CHANGELOG entry.
-
-2. **RL-002**: Dirty Working Directory - Uncommitted changes present
-   - File: plans/PROGRESS.txt:0
-   - Issue: Working directory has uncommitted changes: plans/PROGRESS.txt, plans/TASKS.json, src/ralph/commands/review.py, src/ralph/services/language.py, src/ralph/services/reviewer_config_writer.py, src/ralph/services/reviewer_detector.py
-   - Suggestion: Commit or stash all changes before release.
-   - **NOTE**: Changes should be committed as part of the release PR.
-
-3. **RL-003**: Archive Cleanup - PROGRESS.txt archive file found
-   - File: plans/PROGRESS.20260127_022755.txt:0
-   - Issue: Found archived PROGRESS file that should be deleted before release.
-   - Suggestion: Delete plans/PROGRESS.20260127_022755.txt or move it out of the plans/ directory.
-   - **FIXED**: Deleted archive file.
-
-4. **RL-004**: Branch Warning - Not on main/master branch
-   - File: .git:0
-   - Issue: Currently on feature branch 'ralph/review-command', not main or master. Releases should typically be made from the main branch.
-   - Suggestion: Merge this branch to main before creating the release, or verify this is intentional.
-   - **NOTE**: This is expected - merge this PR to main before tagging the release.
-
----
-
-[Review] 2026-01-27 13:10 UTC - release (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(All issues resolved)
-
-### Summary
-
-Fixed the following release readiness issues:
-- **RL-001**: Bumped version from 2.0.9 to 2.0.10 in pyproject.toml and src/ralph/__init__.py
-- **RL-003**: Deleted plans/PROGRESS.20260127_022755.txt archive file
-- Added comprehensive CHANGELOG.md entry for v2.0.10 documenting the new `ralph review` command and supporting services
-
-Remaining notes:
-- **RL-002**: Uncommitted changes are expected for a feature branch PR
-- **RL-004**: On feature branch by design - merge to main before creating release tag
-
-Version consistency verified:
-- pyproject.toml: 2.0.10
-- src/ralph/__init__.py: 2.0.10
-- CHANGELOG.md: Entry for [2.0.10] present
-- Git tag v2.0.10: Does not exist (ready for tagging after merge)
-
----
-
-[Review] 2026-01-27 03:05 UTC - release (blocking)
-
-### Verdict: PASSED
----
-
-[Review] 2026-01-27 14:30 UTC - test-quality (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
-### Coverage Assessment
-
-| Test File | Source File | Tests | Coverage |
-|-----------|-------------|-------|----------|
-| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
-| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
-
-### Summary
-
-Both test files provide meaningful, well-structured test coverage with no anti-patterns detected.
-
-**test_language_detection.py (8 tests)**
-- All 6 language detection paths tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
-- Glob-based detection tested for Bicep including subdirectory cases
-- Empty/negative case tested (no markers returns empty set)
-- `has_language()` helper method tested
-- Convenience function `detect_languages()` tested
-
-**test_reviewer_detector.py (17 tests)**
-- Universal reviewers always included (code-simplifier, repo-structure)
-- All conditional reviewers tested with comprehensive assertions:
-  - python-code: name, skill path, level, languages field
-  - bicep: name, skill path, level, languages field
-  - github-actions: name, skill path, level
-  - test-quality: name, skill path, level
-  - release: name, skill path, level
-- Negative cases covered:
-  - No github-actions without workflows dir
-  - No github-actions with empty workflows dir
-  - No release without CHANGELOG.md
-- Subdirectory detection tested (Python, Bicep)
-- Both test file naming conventions tested (test_*.py, *_test.py)
-- Integration test verifies all detections work together
-- Convenience function `detect_reviewers()` tested
-- Baseline case tested (empty project returns only universal reviewers)
-
-**Quality Checklist Results:**
-- [x] All changed test files reviewed
-- [x] Each test has meaningful assertions
-- [x] No anti-patterns detected (tautological, missing assertions, framework testing)
-- [x] Critical path coverage complete
-- [x] Tests are deterministic (use tmp_path fixture)
-- [x] AAA (Arrange-Act-Assert) pattern followed
-- [x] Clear test names describing scenario and outcome
-
----
-
-[Review Loop] 2026-01-27 03:16 UTC - test-quality (blocking): failed after 3 attempts ([Errno 32] Broken pipe)
-
----
-
-[Review] 2026-01-27 03:16 UTC - test-quality (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
-### Coverage Assessment
-
-| Test File | Source File | Tests | Coverage |
-|-----------|-------------|-------|----------|
-| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
-| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
-
-### Summary
-
-Both test files provide meaningful, well-structured test coverage with no anti-patterns detected.
-
-**test_language_detection.py (8 tests)**
-- All 6 language detection paths tested (Python, JavaScript, TypeScript, Go, Rust, Bicep)
-- Marker file detection tested (pyproject.toml, package.json, tsconfig.json, go.mod, Cargo.toml)
-- Glob-based detection tested for Bicep including subdirectory cases
-- Empty/negative case tested (no markers returns empty set)
-- `has_language()` helper method tested
-- Multiple language detection tested
-- Convenience function `detect_languages()` tested
-
-**test_reviewer_detector.py (17 tests)**
-- Universal reviewers always included (code-simplifier, repo-structure)
-- All conditional reviewers tested with comprehensive assertions:
-  - python-code: name, skill path, level, languages field
-  - bicep: name, skill path, level, languages field
-  - github-actions: name, skill path, level
-  - test-quality: name, skill path, level
-  - release: name, skill path, level
-- Negative cases covered:
-  - No github-actions without workflows dir
-  - No github-actions with empty workflows dir
-  - No release without CHANGELOG.md
-- Subdirectory detection tested (Python, Bicep)
-- Both test file naming conventions tested (test_*.py, *_test.py)
-- Integration test verifies all detections work together
-- Convenience function `detect_reviewers()` tested
-- Baseline case tested (empty project returns only universal reviewers)
-
-**Quality Checklist Results:**
-- [x] All changed test files reviewed
-- [x] Each test has meaningful assertions
-- [x] No anti-patterns detected (tautological, missing assertions, framework testing)
-- [x] Critical path coverage complete
-- [x] Tests are deterministic (use tmp_path fixture)
-- [x] AAA (Arrange-Act-Assert) pattern followed
-- [x] Clear test names describing scenario and outcome
-
----
-[Review] 2026-02-06 23:04 UTC - python-code (blocking)
-
-### Verdict: NEEDS_WORK
-
-### Findings
-
-1. **PY-001**: Inline Comment - Non-exception inline comment found
-   - File: src/ralph/commands/review.py:31
-   - Issue: The inline comment `# Mapping of reviewer names to their detection reasons` violates the zero inline comments policy.
-   - Suggestion: Remove the comment and make intent self-evident through naming or module/class docstrings.
-
-2. **PY-002**: Inline Comment - Non-exception inline comments found
-   - File: src/ralph/services/language.py:24
-   - Issue: Inline comments describing `_LANGUAGE_MARKERS` and `_LANGUAGE_PATTERNS` violate the zero inline comments policy.
-   - Suggestion: Remove inline comments and rely on existing docstrings or clearer symbol names.
-
-3. **PY-003**: Inline Comment - Non-exception inline comments found
-   - File: tests/test_reviewer_detector.py:163
-   - Issue: Inline comments in test logic (for example `# Create Python project with tests, GH Actions, and changelog`, `# Universal reviewers`, `# Detected reviewers`) violate the zero inline comments policy.
-   - Suggestion: Remove these comments and let test names/assertion grouping communicate intent.
-
----
-[Review] 2026-02-06 23:07 UTC - code-simplifier (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
----
-[Review] 2026-02-06 23:08 UTC - test-quality (blocking)
-
-### Verdict: PASSED
-
-### Findings
-
-(No issues found)
-
----
+[Ralph Loop] 2026-02-08 06:11 UTC - Iteration 5: US-005 (Implement resumable review logic in review commands) completed
 
 ## 2026-02-08 - US-006
 
-**Story:** Implement --force flag behavior
+**Story:** Handle state file cleanup and config invalidation
 
 ### What was implemented
-- Verified --force flag already wired into review command with typer.Option
-- Force mode re-runs full project detection via ReviewerDetector
-- Compares old config (from CLAUDE.md) with newly detected config using set difference
-- Displays added reviewers (green +) and removed reviewers (red -) before executing review loop
-- Shows "No changes detected" when config is already up to date
-- Falls back to first-run behavior when --force is used with no existing config
-- Overwrites existing RALPH:REVIEWERS section via ReviewerConfigWriter
-- Fixed lint issues in test file (unused import, line length, unused variable)
+- Added state file cleanup (`.ralph-review-state.json` deletion) after review loop completes in both `review.py` and `loop.py`'s `_run_review_loop()`
+- Cleanup runs regardless of whether `--resume-review` was used — any leftover state file is removed
+- Added visible console message when state is discarded due to config hash mismatch: "Review state discarded: reviewer configuration has changed"
+- The config mismatch message appears in both `review.py` and `_run_review_loop()` in `loop.py`
 
 ### Tests written
-- `test_force_re_detects_and_overwrites_config` - Verifies force mode calls write_reviewer_config with new reviewers
-- `test_force_displays_added_reviewers` - Verifies added reviewers shown in output
-- `test_force_displays_removed_reviewers` - Verifies removed reviewers shown in output
-- `test_force_displays_no_changes_when_config_unchanged` - Verifies "No changes detected" message
-- `test_force_with_no_existing_config_behaves_as_first_run` - Verifies fallback to first-run path
-- `test_force_shows_both_added_and_removed` - Verifies both additions and removals displayed
-- `test_force_still_executes_review_loop` - Verifies review loop runs after config update
+- `TestReviewStateCleanup::test_state_file_cleaned_up_on_successful_completion` - verifies state file is deleted after all reviewers pass with `--resume-review`
+- `TestReviewStateCleanup::test_state_file_cleaned_up_without_resume_flag` - verifies cleanup happens even without `--resume-review` flag
+- `TestReviewStateCleanup::test_no_error_when_no_state_file_to_clean` - verifies no error when no state file exists to clean
+- `TestReviewConfigInvalidation::test_config_change_logs_discard_message` - verifies console output includes "reviewer configuration has changed"
+- `TestReviewConfigInvalidation::test_config_change_runs_all_reviewers_from_scratch` - verifies all reviewers run when config hash mismatches
+- Updated `TestReviewResumeReview::test_resume_review_saves_state_after_each_reviewer` to account for post-completion cleanup
 
 ### Files changed
-- `tests/test_review_force.py` - Fixed lint issues (unused pytest import, line length, unused variable)
-- `plans/TASKS.json` - Marked US-006 as passes: true
+- `src/ralph/commands/review.py` - added state file cleanup on completion, added console message on config hash mismatch
+- `src/ralph/commands/loop.py` - added state file cleanup in `_run_review_loop()`, added console message on config hash mismatch
+- `tests/test_review_command.py` - added `TestReviewStateCleanup` (3 tests) and `TestReviewConfigInvalidation` (2 tests), updated 1 existing test
+- `plans/TASKS.json` - marked US-006 as passes: true
 
 ### Learnings for future iterations
-- The --force implementation was already complete from US-004/US-005; this story primarily validated and cleaned up tests
-- Set difference operations cleanly identify added/removed reviewers between old and new configs
+- When adding cleanup logic that removes files created during a loop, existing tests that assert file existence after the loop need to be updated to track intermediate writes (e.g., spy on `save()` calls)
+- The `patch.object(ReviewState, "save", tracking_save)` pattern is useful for verifying intermediate save calls when the file gets cleaned up at the end
 
 ---
 
-[Ralph Loop] 2026-02-08 05:22 UTC - Iteration 1: US-006 (Implement --force flag behavior) completed
-
----
+[Ralph Loop] 2026-02-08 06:15 UTC - Iteration 6: US-006 (Handle state file cleanup and config invalidation) completed
 
 ## 2026-02-08 - US-007
 
-**Story:** Add unit tests for reviewer detection
+**Story:** Add .ralph-review-state.json to init scaffold
 
 ### What was implemented
-- Verified that tests/test_reviewer_detector.py already exists from US-002 with 17 comprehensive tests
-- Confirmed all acceptance criteria are met by existing tests
-- All quality checks pass (pyright, ruff check, ruff format, pytest)
+- Added `create_gitignore()` method to `ScaffoldService` that creates or appends to `.gitignore`
+- The method adds `.ralph-review-state.json` entry (using `REVIEW_STATE_FILENAME` constant)
+- If `.gitignore` already exists, the entry is appended only if not already present
+- Handles edge cases: missing trailing newline, empty file, duplicate prevention
+- Updated `scaffold_all()` to call `create_gitignore()` and include `"gitignore"` in the result dict
+- Imported `REVIEW_STATE_FILENAME` from `ralph.models.review_state`
 
 ### Tests written
-- All tests were written during US-002 implementation:
-  - `test_always_includes_universal_reviewers` - Universal reviewers always present
-  - `test_universal_reviewer_skills_are_correct` - Correct skill paths for universal reviewers
-  - `test_detects_python_project` - Python files trigger python-code reviewer with correct config
-  - `test_detects_python_in_subdirectory` - Subdirectory Python files detected
-  - `test_detects_bicep_project` - Bicep files trigger bicep reviewer with correct config
-  - `test_detects_bicep_in_subdirectory` - Subdirectory Bicep files detected
-  - `test_detects_github_actions_yml` - .yml workflow files trigger github-actions reviewer
-  - `test_detects_github_actions_yaml` - .yaml workflow files trigger github-actions reviewer
-  - `test_no_github_actions_without_workflows_dir` - No false positive without workflows dir
-  - `test_no_github_actions_with_empty_workflows_dir` - No false positive with empty dir
-  - `test_detects_test_files_with_prefix` - test_*.py files trigger test-quality reviewer
-  - `test_detects_test_files_with_suffix` - *_test.py files trigger test-quality reviewer
-  - `test_detects_changelog_adds_release_reviewer` - CHANGELOG.md triggers release reviewer
-  - `test_no_release_without_changelog` - No release reviewer without CHANGELOG.md
-  - `test_detects_multiple_project_types` - All detections work together
-  - `test_detect_reviewers_works` - Convenience function works
-  - `test_empty_project_returns_only_universal` - Empty project baseline
+- `TestCreateGitignore::test_creates_gitignore_when_not_exists` - verifies .gitignore is created with the entry
+- `TestCreateGitignore::test_appends_to_existing_gitignore` - verifies entry is appended when .gitignore exists
+- `TestCreateGitignore::test_does_not_duplicate_entry` - verifies no duplicate when entry already present
+- `TestCreateGitignore::test_appends_with_newline_when_missing_trailing_newline` - verifies newline is added before entry
+- `TestCreateGitignore::test_handles_empty_gitignore` - verifies entry is added to empty .gitignore
+- `TestCreateGitignore::test_returns_gitignore_path` - verifies return value
+- `TestScaffoldAllGitignore::test_scaffold_all_creates_gitignore` - verifies scaffold_all includes gitignore
+- `TestScaffoldAllGitignore::test_scaffold_all_preserves_existing_gitignore` - verifies existing entries are preserved
 
 ### Files changed
-- `plans/TASKS.json` - Marked US-007 as passes: true
-- `plans/PROGRESS.txt` - Appended this entry
+- `src/ralph/services/scaffold.py` - added `create_gitignore()` method, updated `scaffold_all()`
+- `tests/test_scaffold.py` - new file with 8 tests
+- `plans/TASKS.json` - marked US-007 as passes: true
 
 ### Learnings for future iterations
-- When task-planning creates separate testing stories, the implementation story may already include the tests
-- All acceptance criteria should still be explicitly verified even when tests pre-exist
+- The `REVIEW_STATE_FILENAME` constant from `ralph.models.review_state` is reused to keep the gitignore entry in sync with the actual filename
+- When appending to files, check for trailing newline to avoid malformed entries
+- Line-based comparison (`splitlines()`) is more reliable than substring search for gitignore deduplication
 
 ---
 
-[Ralph Loop] 2026-02-08 05:24 UTC - Iteration 2: US-007 (Add unit tests for reviewer detection) completed
+[Ralph Loop] 2026-02-08 - Iteration 7: US-007 (Add .ralph-review-state.json to init scaffold) completed
 
----
+[Ralph Loop] 2026-02-08 06:18 UTC - Iteration 7: US-007 (Add .ralph-review-state.json to init scaffold) completed
 
 ## 2026-02-08 - US-008
 
-**Story:** Add unit tests for CLAUDE.md manipulation
+**Story:** Add codebase context to ralph tasks prompt
 
 ### What was implemented
-- Created `tests/test_reviewer_config_writer.py` with 15 tests for the ReviewerConfigWriter service
-- Tests organized into 4 test classes covering all acceptance criteria
+- Added `_iter_file_tree()` generator function that walks the project directory, excluding common non-source dirs (.git, .venv, __pycache__, node_modules, etc.) with configurable max depth
+- Added `_gather_codebase_summary()` function that produces a budget-capped summary containing a file tree and key file contents (pyproject.toml, CLAUDE.md, README.md, etc.)
+- Extended `_build_prompt_from_skill()` to call `_gather_codebase_summary(Path.cwd())` and include the result in the prompt
+- Added "Instructions for Already-Implemented Detection" section to the prompt instructing Claude to mark stories with `passes: true` when evidence exists in the codebase
+- All codebase scanning is pure filesystem I/O — zero additional Claude API calls
 
 ### Tests written
-- `TestHasReviewerConfig` (3 tests):
-  - `test_returns_false_when_file_missing` - Missing file returns False
-  - `test_returns_false_when_no_markers` - File without markers returns False
-  - `test_returns_true_when_markers_present` - File with markers returns True
-- `TestWriteReviewerConfigNoMarkers` (5 tests):
-  - `test_creates_file_when_missing` - Creates file when it doesn't exist
-  - `test_appends_section_when_no_markers_and_no_project_specific` - Appends at end of file
-  - `test_inserts_before_project_specific_heading` - Inserts before '## Project-Specific Instructions'
-  - `test_preserves_content_before_insertion_point` - Content before insertion preserved
-  - `test_preserves_content_after_insertion_point` - Content after insertion preserved
-- `TestWriteReviewerConfigWithMarkers` (5 tests):
-  - `test_replaces_content_between_markers` - Old config replaced with new
-  - `test_preserves_content_before_markers` - Content before markers untouched
-  - `test_preserves_content_after_markers` - Content after markers untouched
-  - `test_languages_field_preserved_in_output` - Languages field written correctly
-  - `test_reviewer_without_languages_omits_field` - No languages field when None
-- `TestConvenienceFunctions` (2 tests):
-  - `test_has_reviewer_config_function` - Module-level function works
-  - `test_write_reviewer_config_function` - Module-level function works
+- `TestIterFileTree` (5 tests): files/dirs listing, .git/.venv exclusion, max_depth respect, empty dir, egg-info exclusion
+- `TestGatherCodebaseSummary` (6 tests): file tree section, pyproject.toml content, README content, missing key files, large file truncation, return type
+- `TestBuildPromptIncludesCodebaseContext` (5 tests): codebase summary presence, already-implemented instructions, spec content preserved, branch name, file tree from cwd
+- `TestCodebaseContextIntegration` (1 test): end-to-end tasks command sends codebase context to Claude
 
 ### Files changed
-- `tests/test_reviewer_config_writer.py` - New file with 15 tests (created)
-- `plans/TASKS.json` - Marked US-008 as passes: true
-- `plans/PROGRESS.txt` - Appended this entry
+- `src/ralph/commands/tasks.py` - added _EXCLUDED_DIRS, _KEY_FILES, _MAX_SUMMARY_CHARS, _MAX_TREE_DEPTH constants; added _iter_file_tree(), _gather_codebase_summary(); modified _build_prompt_from_skill()
+- `tests/test_tasks_codebase_context.py` - new file with 17 tests
+- `plans/TASKS.json` - marked US-008 as passes: true
 
 ### Learnings for future iterations
-- The ReviewerConfigWriter has three distinct write paths: new file, no markers, and existing markers - each needs its own test coverage
-- Testing content preservation requires checking both before and after the insertion/replacement point
-
-[Ralph Loop] 2026-02-08 05:26 UTC - Iteration 3: US-008 (Add unit tests for CLAUDE.md manipulation) completed
+- Using `Iterator[str]` yield pattern for file tree keeps memory usage low for large directories
+- Budget-capping the codebase summary prevents oversized prompts; 12K chars is a reasonable limit
+- The `_iter_file_tree` function sorts entries with directories first (using `p.is_file()` as sort key) for a cleaner tree display
 
 ---
+
+[Ralph Loop] 2026-02-08 - Iteration 8: US-008 (Add codebase context to ralph tasks prompt) completed
+
+[Ralph Loop] 2026-02-08 06:22 UTC - Iteration 8: US-008 (Add codebase context to ralph tasks prompt) completed
 
 ## 2026-02-08 - US-009
 
-**Story:** Add integration tests for ralph review command
+**Story:** Parse and log already-implemented story detection
 
 ### What was implemented
-- Created `tests/test_review_command.py` with 12 integration tests in 4 test classes
-- Tests cover first-run, subsequent-run, --force, and --strict behaviors end-to-end
-- Uses CliRunner to invoke the review command through the Typer app
-- Mocks external services (ReviewLoopService, detect_reviewers, etc.) to isolate command logic
+- Added `_log_already_implemented()` function to `src/ralph/commands/tasks.py`
+- After parsing TASKS.json output from Claude, counts stories where `passes` is `True`
+- Logs `[Tasks] N stories detected as already implemented` to the console
+- For each already-implemented story, displays the story ID and title
+- Notes on already-implemented stories are retained (function is read-only on the model)
+- Called from `tasks()` after `save_tasks()` and before the "Generated N stories" message
 
 ### Tests written
-- `TestReviewFirstRun` (3 tests):
-  - `test_first_run_detects_and_writes_config` - Verifies first run detects reviewers and writes CLAUDE.md config
-  - `test_first_run_displays_detected_reviewers` - Verifies detected reviewers shown with reasons
-  - `test_first_run_executes_review_loop` - Verifies review loop runs after config written
-- `TestReviewSubsequentRun` (3 tests):
-  - `test_subsequent_run_uses_existing_config` - Verifies existing config is loaded from CLAUDE.md
-  - `test_subsequent_run_suggests_missing_reviewers` - Verifies warnings about reviewers not in config
-  - `test_subsequent_run_no_suggestions_when_config_complete` - Verifies no warnings when config covers all
-- `TestReviewForceFlag` (3 tests):
-  - `test_force_updates_existing_config` - Verifies --force re-detects and overwrites config
-  - `test_force_displays_configuration_changes` - Verifies added/removed reviewers displayed
-  - `test_force_with_no_existing_config_falls_back_to_first_run` - Verifies fallback to first-run
-- `TestReviewStrictFlag` (3 tests):
-  - `test_strict_flag_displayed_in_output` - Verifies strict mode acknowledged in output
-  - `test_strict_flag_passed_to_is_enforced` - Verifies is_enforced called with strict=True
-  - `test_without_strict_flag_is_not_enforced` - Verifies is_enforced called with strict=False
+- `TestLogAlreadyImplemented::test_logs_count_when_stories_detected` - verifies count in summary line (2 of 3 stories)
+- `TestLogAlreadyImplemented::test_logs_each_story_id_and_title` - verifies US-001/US-002 IDs and titles appear
+- `TestLogAlreadyImplemented::test_no_output_when_no_stories_detected` - verifies no output when all stories have passes=False
+- `TestLogAlreadyImplemented::test_notes_are_retained_on_already_implemented_stories` - verifies notes are not mutated
+- `TestLogAlreadyImplemented::test_summary_format_matches_spec` - verifies `[Tasks]` prefix format
 
 ### Files changed
-- `tests/test_review_command.py` - New file with 12 integration tests (created)
-- `plans/TASKS.json` - Marked US-009 as passes: true
-- `plans/PROGRESS.txt` - Appended this entry
+- `src/ralph/commands/tasks.py` - added `_log_already_implemented()` function and call site in `tasks()`
+- `tests/test_tasks_codebase_context.py` - added `TestLogAlreadyImplemented` class with 5 tests, added top-level imports
+- `plans/TASKS.json` - marked US-009 as passes: true
 
 ### Learnings for future iterations
-- Shared helper functions (_make_reviewers, _make_mock_service, _setup_tmp_project) reduce test boilerplate
-- Testing strict flag pass-through requires checking both positional and keyword args since the call signature may vary
+- Rich console output uses `capsys` for testing (not `caplog`) since `console.print()` writes to stdout
+- The `\\[` escape is needed in Rich markup to display a literal `[` bracket (e.g., `\\[Tasks]`)
 
 ---
 
-[Review] 2026-02-08 12:00 UTC - test-quality (blocking)
+[Ralph Loop] 2026-02-08 - Iteration 9: US-009 (Parse and log already-implemented story detection) completed
+
+[Ralph Loop] 2026-02-08 06:25 UTC - Iteration 9: US-009 (Parse and log already-implemented story detection) completed
+
+## 2026-02-08 - US-010
+
+**Story:** Bump version to 2.1.0 and update CHANGELOG
+
+### What was implemented
+- Updated version from `2.0.10` to `2.1.0` in `pyproject.toml`
+- Updated version from `2.0.10` to `2.1.0` in `src/ralph/__init__.py`
+- Added `[2.1.0] - 2026-02-08` changelog entry with sections for all three features:
+  - `--no-fix` flag for audit-mode reviews (US-001 through US-003)
+  - Resumable review pipeline with `--resume-review` (US-004 through US-007)
+  - Already-implemented story detection in `ralph tasks` (US-008 through US-009)
+
+### Tests written
+- No new tests needed (version bump and changelog are documentation-only changes)
+- All 283 existing tests pass
+
+### Files changed
+- `pyproject.toml` - version bumped to 2.1.0
+- `src/ralph/__init__.py` - version bumped to 2.1.0
+- `CHANGELOG.md` - added [2.1.0] section
+- `plans/TASKS.json` - marked US-010 as passes: true
+
+### Learnings for future iterations
+- Version must be updated in both `pyproject.toml` and `src/ralph/__init__.py` to stay in sync
+- Changelog entries should summarize the feature from a user perspective, not list individual stories
+
+---
+
+[Ralph Loop] 2026-02-08 06:26 UTC - Iteration 10: US-010 (Bump version to 2.1.0 and update CHANGELOG) completed
+
+[Review] 2026-02-08 06:38 UTC - test-quality (blocking)
+
+### Verdict: PASSED (all findings fixed)
+
+### Findings
+
+1. **TQ-001**: Redundant Test - Duplicate --no-fix summary tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:227
+   - Issue: `TestNoFixSummaryReviewCommand` (3 tests at lines 227-324) duplicates `TestReviewNoFixSummary` in test_review_command.py (3 tests at lines 339-465). Both test the same CLI output behavior through the review command with near-identical mock setups and assertions (e.g., checking "findings (not fixed)" in output, checking "Findings (not fixed): 2" count, and checking absence without --no-fix).
+   - Suggestion: Remove `TestNoFixSummaryReviewCommand` from test_nofix_and_resume.py since test_review_command.py already provides comprehensive coverage of this behavior. The nofix_and_resume file should focus on the service-layer and loop.py tests that aren't covered elsewhere.
+
+2. **TQ-002**: Redundant Test - Duplicate resume-review tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:530
+   - Issue: `TestResumeSkipsCompletedReviewCommand` (3 tests at lines 530-616) duplicates `TestReviewResumeReview` in test_review_command.py (4 tests at lines 468-559). Both test --resume-review skipping completed reviewers, running all when no state exists, and saving state after each reviewer, using nearly identical mock setups through the review command CLI.
+   - Suggestion: Remove `TestResumeSkipsCompletedReviewCommand` from test_nofix_and_resume.py. The test_review_command.py version has better coverage (4 tests vs 3, including config hash mismatch).
+
+3. **TQ-003**: Redundant Test - Duplicate state cleanup tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:665
+   - Issue: `TestStateCleanupReviewCommand` (3 tests at lines 665-744) duplicates `TestReviewStateCleanup` in test_review_command.py (3 tests at lines 594-682). Both test identical scenarios: cleanup with --resume-review, cleanup without the flag, and no error when state file doesn't exist.
+   - Suggestion: Remove `TestStateCleanupReviewCommand` from test_nofix_and_resume.py since test_review_command.py already covers these scenarios identically.
+
+4. **TQ-004**: Redundant Test - Duplicate config invalidation tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:791
+   - Issue: `TestConfigInvalidationReviewCommand` (2 tests at lines 791-849) duplicates `TestReviewConfigInvalidation` in test_review_command.py (2 tests at lines 685-746). Both test that stale config hash runs all reviewers and that a discard message is logged.
+   - Suggestion: Remove `TestConfigInvalidationReviewCommand` from test_nofix_and_resume.py. The loop.py-specific tests in `TestConfigInvalidationInLoopRunReviewLoop` are the unique value this file adds.
+
+5. **TQ-005**: Redundant Test - Duplicate ReviewState serialization tests across test_nofix_and_resume.py and test_review_state.py
+   - File: tests/test_nofix_and_resume.py:384
+   - Issue: `TestReviewStateSerialisation` (4 tests at lines 384-452) overlaps significantly with `TestSaveAndLoad` and `TestReviewStateModel` in test_review_state.py. For example, `test_round_trip_preserves_all_fields` (line 387) duplicates `test_save_load_round_trip` (test_review_state.py:227) and `test_serialization_round_trip` (test_review_state.py:62). Similarly, `test_load_returns_none_for_truncated_json` duplicates `test_load_invalid_json_returns_none`.
+   - Suggestion: Remove `TestReviewStateSerialisation` from test_nofix_and_resume.py. The test_review_state.py file provides more thorough coverage of the ReviewState model with 16 dedicated tests.
+
+6. **TQ-006**: Redundant Test - Duplicate config hash tests across test_nofix_and_resume.py and test_review_state.py
+   - File: tests/test_nofix_and_resume.py:455
+   - Issue: `TestReviewStateConfigHash` (6 tests at lines 455-522) overlaps with `TestComputeConfigHash` in test_review_state.py (6 tests at lines 80-165). Both test determinism, sensitivity to config changes, and language order normalization. The nofix_and_resume version adds `test_hash_differs_when_name_changes` and `test_hash_none_languages_vs_empty_list`, but the core tests are duplicated.
+   - Suggestion: Move the 2 unique tests (`test_hash_differs_when_name_changes` and `test_hash_none_languages_vs_empty_list`) to test_review_state.py's `TestComputeConfigHash` class, then remove `TestReviewStateConfigHash` from test_nofix_and_resume.py.
+
+7. **TQ-007**: Framework Test - Testing a constant's string value
+   - File: tests/test_review_state.py:252
+   - Issue: `test_filename_value` asserts `REVIEW_STATE_FILENAME == ".ralph-review-state.json"`. This tests that a Python constant equals its defined value, which is testing the language/framework behavior rather than business logic. This test cannot catch a real bug — if the constant value were intentionally changed, the test would just need updating.
+   - Suggestion: Remove `TestReviewStateFilename` class. The constant's value is already exercised by save/load tests that use it.
+
+---
+
+## 2026-02-08 - US-011
+
+**Story:** Add unit tests for --no-fix and resumable review features
+
+### What was implemented
+- Created comprehensive test file `tests/test_nofix_and_resume.py` with 30 tests across 12 test classes
+- Tests cover both `review.py` and `loop.py` code paths (gap identified: `_run_review_loop()` in loop.py was not previously tested for new features)
+- Organised tests by acceptance criteria into 6 sections matching the story requirements
+
+### Tests written
+- **TestNoFixSkipsFixLoopInService** (4 tests): FixLoopService not instantiated with no_fix=True, multiple NEEDS_WORK reviewers, default behavior still invokes fix, log messages per reviewer
+- **TestNoFixSummaryReviewCommand** (3 tests): reviewer name in summary, multiple skipped-fix names, absence without --no-fix
+- **TestNoFixSummaryLoopRunReviewLoop** (1 test): _run_review_loop shows "findings (not fixed)" with reviewer name
+- **TestReviewStateSerialisation** (4 tests): round-trip preserves fields, truncated JSON returns None, save overwrites, valid JSON keys
+- **TestReviewStateConfigHash** (6 tests): deterministic, skill change, name change, reviewer added, language order normalised, None vs empty languages
+- **TestResumeSkipsCompletedReviewCommand** (3 tests): only remaining reviewers run, no state runs all, state saved after each
+- **TestResumeInLoopRunReviewLoop** (1 test): _run_review_loop skips completed reviewers
+- **TestStateCleanupReviewCommand** (3 tests): cleanup with resume, cleanup without resume, no error on missing file
+- **TestStateCleanupInLoopRunReviewLoop** (1 test): state file removed after completion
+- **TestConfigInvalidationReviewCommand** (2 tests): stale hash runs all reviewers, stale hash logs message
+- **TestConfigInvalidationInLoopRunReviewLoop** (2 tests): stale hash runs all, stale hash console message
+
+### Files changed
+- `tests/test_nofix_and_resume.py` - new file, 30 tests
+- `plans/TASKS.json` - marked US-011 as passes: true
+
+### Learnings for future iterations
+- Both `review.py` and `loop.py` implement reviewer iteration independently; tests should cover both paths
+- The `_run_review_loop()` function in loop.py can be tested directly by patching `load_reviewer_configs`, `detect_languages`, and `ReviewLoopService`
+- Rich console output can be captured with a StringIO-backed Console for assertions in unit tests
+
+---
+
+[Review] 2026-02-08 06:43 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 06:44 UTC - code-simplifier (blocking)
 
 ### Verdict: PASSED
 
 ### Findings
 
-1. **TQ-001**: Redundant Test - Duplicate force flag tests across two files
-   - File: tests/test_review_force.py:0
-   - Issue: `test_review_force.py` contains 7 tests for --force behavior that significantly overlap with the 3 --force tests in `test_review_command.py::TestReviewForceFlag`. For example, `test_force_re_detects_and_overwrites_config` duplicates `test_force_updates_existing_config`, and `test_force_with_no_existing_config_behaves_as_first_run` duplicates `test_force_with_no_existing_config_falls_back_to_first_run`. Both files also duplicate the `working_directory` context manager and `_make_reviewers` helper.
-   - Suggestion: Consolidate all --force tests into a single file. Either keep the more granular `test_review_force.py` tests and remove the duplicates from `test_review_command.py::TestReviewForceFlag`, or merge the unique tests from `test_review_force.py` (e.g., `test_force_displays_removed_reviewers`, `test_force_displays_no_changes_when_config_unchanged`, `test_force_shows_both_added_and_removed`, `test_force_still_executes_review_loop`) into `test_review_command.py` and delete `test_review_force.py`. Extract shared helpers (`working_directory`, `_make_reviewers`, `_make_mock_service`) into `conftest.py`.
+1. **CS-001**: Redundant Code - Duplicate guard clauses in should_run_reviewer
+   - File: src/ralph/services/review_loop.py:78
+   - Issue: Two consecutive checks `if reviewer.languages is None: return True` followed by `if not reviewer.languages: return True` are redundant. The second check (`not reviewer.languages`) already handles both `None` and empty list `[]` since both are falsy in Python.
+   - Suggestion: Consolidate into a single `if not reviewer.languages: return True` check. This preserves the exact same behavior while removing the redundant branch.
 
-2. **TQ-002**: Test Maintainability - Duplicated helper functions across test files
-   - File: tests/test_review_force.py:15
-   - Issue: The `working_directory` context manager is duplicated identically in both `test_review_command.py:15` and `test_review_force.py:15`. The `_make_reviewers` helper is duplicated in both files with the same implementation.
-   - Suggestion: Move `working_directory` and `_make_reviewers` into `tests/conftest.py` as shared fixtures/helpers available to all test files.
+2. **CS-002**: Redundant Code - Duplicated review loop logic between loop.py and review.py
+   - File: src/ralph/commands/loop.py:596
+   - Issue: The `_run_review_loop()` function in loop.py (lines 596-725) and the reviewer iteration block in `review()` in review.py (lines 202-323) contain ~130 lines of nearly identical code: language filter checks, resume state loading, no-fix handling, result collection, summary display, and state file cleanup. This duplication was noted in PROGRESS.txt entries for US-003 and US-005 as a known issue.
+   - Suggestion: Extract the shared review execution and summary display logic into a shared function or method (e.g., on ReviewLoopService or a dedicated helper module). Both commands would call this shared implementation, reducing the maintenance burden when adding new review features. This is a significant refactoring opportunity for a future iteration.
 
-### Coverage Assessment
-
-| Test File | Source File | Tests | Coverage |
-|-----------|-------------|-------|----------|
-| tests/test_language_detection.py | src/ralph/services/language.py | 8 | Complete |
-| tests/test_reviewer_detector.py | src/ralph/services/reviewer_detector.py | 17 | Complete |
-| tests/test_reviewer_config_writer.py | src/ralph/services/reviewer_config_writer.py | 15 | Complete |
-| tests/test_review_command.py | src/ralph/commands/review.py | 12 | Complete |
-| tests/test_review_force.py | src/ralph/commands/review.py | 7 | Overlaps with test_review_command.py |
-
-### Summary
-
-All 59 tests across 5 test files have meaningful assertions and test real behavior. No errors found. Two warnings identified:
-
-- **TQ-001** (warning): Significant test duplication between `test_review_force.py` and `test_review_command.py::TestReviewForceFlag` — 3 tests are near-duplicates.
-- **TQ-002** (warning): Helper functions (`working_directory`, `_make_reviewers`) duplicated across test files instead of shared via conftest.
-
-All tests are:
-- Deterministic (use `tmp_path` and mocked dependencies)
-- Well-named with clear scenario descriptions
-- Following AAA (Arrange-Act-Assert) pattern
-- Free of anti-patterns (no tautological tests, no missing assertions, no framework testing)
-- Testing behavior, not implementation details
+3. **CS-003**: Redundant Code - Duplicated test helper functions across test files
+   - File: tests/test_nofix_and_resume.py:31
+   - Issue: The `working_directory` context manager is duplicated in 4 test files (test_review_force.py, test_nofix_and_resume.py, test_review_command.py, test_commands_integration.py). Similarly, `_make_reviewers`, `_make_mock_service`, and `_create_reviewer` helpers are duplicated across 2-3 test files each.
+   - Suggestion: Move shared test helpers to `tests/conftest.py` as fixtures or to a `tests/helpers.py` utility module. This would eliminate ~60 lines of duplication and ensure consistency when helpers need updating.
 
 ---
 
-[Review] 2026-02-08 05:30 UTC - test-quality (blocking)
+[Review] 2026-02-08 06:44 UTC - code-simplifier (blocking)
 
 ### Verdict: PASSED
 ---
 
-[Review] 2026-02-08 12:15 UTC - code-simplifier (blocking)
+[Review] 2026-02-08 06:46 UTC - python-code (blocking)
 
 ### Verdict: PASSED
 
@@ -852,44 +473,12 @@ All tests are:
 
 ---
 
-[Review] 2026-02-08 05:31 UTC - code-simplifier (blocking)
+[Review] 2026-02-08 06:46 UTC - python-code (blocking)
 
 ### Verdict: PASSED
 ---
 
-[Review] 2026-02-08 12:30 UTC - python-code (blocking)
-
-### Verdict: NEEDS_WORK
-
-### Findings
-
-1. **PY-001**: Missing Type Hint - Fixture function lacks return type annotation
-   - File: tests/conftest.py:11
-   - Issue: The `mock_shutil_which` fixture is a generator (uses `yield`) but has no return type annotation. All functions must have complete type hints per the static typing standard.
-   - Suggestion: Add `-> Iterator[None]` return type annotation and import `Iterator` from `collections.abc`. **(FIXED)**
-
-### Summary
-
-One blocking issue found and fixed:
-- **PY-001**: Added `-> Iterator[None]` return type annotation to `mock_shutil_which` fixture in `tests/conftest.py`, with the corresponding `Iterator` import from `collections.abc`.
-
-Additionally, one non-blocking warning noted but not requiring action:
-- The `review()` function in `src/ralph/commands/review.py` is ~183 lines (lines 54-237), exceeding the ~50-line guideline. This is a warning-level quality concern, not a blocking error.
-
-All quality checks pass after the fix:
-- pyright: 0 errors
-- ruff check: All checks passed
-- ruff format: Files already formatted
-- pytest: 217 passed
-
----
-
-[Review] 2026-02-08 05:32 UTC - python-code (blocking)
-
-### Verdict: PASSED
----
-
-[Review] 2026-02-08 15:00 UTC - github-actions (warning)
+[Review] 2026-02-08 06:50 UTC - github-actions (warning)
 
 ### Verdict: PASSED
 
@@ -899,7 +488,7 @@ All quality checks pass after the fix:
 |---------------|---------|------|
 | Lint/Format | ✅ | ci.yml |
 | Unit Tests | ✅ | ci.yml |
-| Build Check | ✅ | ci.yml |
+| Build Check | ✅ | ci.yml (via uv sync) |
 | Integration Tests | N/A | - |
 | Dependabot | ✅ | dependabot.yml |
 | Security Scan | ✅ | security.yml |
@@ -910,12 +499,12 @@ All quality checks pass after the fix:
 
 ---
 
-[Review] 2026-02-08 05:33 UTC - github-actions (warning)
+[Review] 2026-02-08 06:47 UTC - github-actions (warning)
 
 ### Verdict: PASSED
 ---
 
-[Review] 2026-02-08 16:33 UTC - repo-structure (warning)
+[Review] 2026-02-08 17:50 UTC - repo-structure (warning)
 
 ### Verdict: PASSED
 
@@ -925,60 +514,58 @@ All quality checks pass after the fix:
 
 ---
 
-[Review] 2026-02-08 05:34 UTC - repo-structure (warning)
+[Review] 2026-02-08 06:47 UTC - repo-structure (warning)
 
 ### Verdict: PASSED
 ---
 
-[Review] 2026-02-08 18:00 UTC - release (blocking)
+[Review] 2026-02-08 17:55 UTC - release (blocking)
 
 ### Verdict: NEEDS_WORK
 
 ### Findings
 
-1. **RL-001**: Documentation Outdated - `ralph review` command missing from CLAUDE.md commands list
-   - File: CLAUDE.md:148
-   - Issue: The `ralph review` command was added in v2.0.10 but is not listed in the Commands section of CLAUDE.md.
-   - Suggestion: Add `- \`ralph review\` - Run the review pipeline with automatic configuration` to the commands list. **(FIXED)**
-
-2. **RL-002**: Documentation Outdated - `ralph review` command missing from AGENTS.md commands list
-   - File: AGENTS.md:97
-   - Issue: The `ralph review` command was added in v2.0.10 but is not listed in the Commands section of AGENTS.md.
-   - Suggestion: Add `- \`ralph review\` - Run the review pipeline with automatic configuration` to the commands list. **(FIXED)**
-
-3. **RL-003**: Documentation Outdated - `ralph review` command missing from README.md
-   - File: README.md:57
-   - Issue: The `ralph review` command was added in v2.0.10 but is not documented in README.md (commands table or usage section).
-   - Suggestion: Add `ralph review` to the commands table and add a usage section with examples. **(FIXED)**
-
-4. **RL-004**: Pattern Mismatch - Project structure missing `language/bicep/` directory
-   - File: CLAUDE.md:117
-   - Issue: The project structure tree in CLAUDE.md only shows `language/python/` but `language/bicep/` also exists (added in v2.0.8).
-   - Suggestion: Update the tree to show both `language/bicep/` and `language/python/` under `language/`. **(FIXED)**
-
-5. **RL-005**: Pattern Mismatch - AGENTS.md project structure missing `language/bicep/` directory
-   - File: AGENTS.md:63
-   - Issue: Same as RL-004 but in AGENTS.md.
-   - Suggestion: Update the tree to match CLAUDE.md. **(FIXED)**
-
-6. **RL-006**: Documentation Outdated - README.md reviewer skills table incomplete
-   - File: README.md:152
-   - Issue: README.md says "four code review skills" but there are now seven (bicep, code-simplifier, and release were added).
-   - Suggestion: Update the count and add missing reviewer skills to the table. **(FIXED)**
-
-7. **RL-007**: Dirty Working Directory - Uncommitted changes present
+1. **RL-001**: Dirty Working Directory - Uncommitted changes present
    - File: plans/PROGRESS.txt:0
-   - Issue: Working directory has uncommitted changes in plans/PROGRESS.txt and tests/conftest.py.
-   - Suggestion: Commit all changes as part of the release PR. (Expected on feature branch.)
+   - Issue: Working directory has uncommitted changes in 5 files: plans/PROGRESS.txt (staged), plans/SPEC.md, tests/test_nofix_and_resume.py, tests/test_review_state.py, uv.lock (unstaged modified), and plans/PROGRESS.20260208_055328.txt (untracked). All changes must be committed before release.
+   - Suggestion: Stage and commit all pending changes, or discard any that are not intended for the release.
 
-8. **RL-008**: Branch Warning - Not on main/master branch
-   - File: .git:0
-   - Issue: Currently on feature branch 'ralph/review-command', not main or master.
-   - Suggestion: Merge this branch to main before creating the release tag. (Expected for PR workflow.)
+2. **RL-002**: Archive Cleanup - PROGRESS.txt archive file found
+   - File: plans/PROGRESS.20260208_055328.txt:0
+   - Issue: Found archived PROGRESS file that should be deleted before release.
+   - Suggestion: Delete plans/PROGRESS.20260208_055328.txt or move it out of the plans/ directory.
 
 ---
 
-[Review] 2026-02-08 05:37 UTC - release (blocking)
+[Review] 2026-02-08 06:49 UTC - release (blocking)
 
 ### Verdict: PASSED
 ---
+
+## 2026-02-08 - US-012
+
+**Story:** Add unit tests for already-implemented story detection
+
+### What was implemented
+- Created `tests/test_already_implemented.py` with 19 tests across 4 test classes
+- Tests organised by acceptance criteria: codebase context in prompt, counting/logging, message format, normal operation
+- Both unit-level (`_log_already_implemented`, `_build_prompt_from_skill`) and end-to-end (`tasks` CLI command via CliRunner) coverage
+
+### Tests written
+- **TestCodebaseSummaryInPrompt** (5 tests): prompt heading, detection instructions, file tree, key file contents, end-to-end via CLI
+- **TestAlreadyImplementedCounting** (6 tests): 2-of-3 counting, single story, all stories, story ID/title logging, notes retention, end-to-end via CLI
+- **TestSummaryMessageFormat** (4 tests): [Tasks] prefix, full format string, ID:title format, end-to-end via CLI
+- **TestNoStoriesDetected** (4 tests): no output with all passes=False, empty story list, CLI omits message, CLI completes normally
+
+### Files changed
+- `tests/test_already_implemented.py` - new file, 19 tests
+- `plans/TASKS.json` - marked US-012 as passes: true
+- `plans/PROGRESS.txt` - appended this entry
+
+### Learnings for future iterations
+- Shared test helpers (`working_directory`, `_make_story`, `_make_tasks_file`) are duplicated across test files; a future cleanup could extract them to `tests/conftest.py`
+- Rich console output renders `\[Tasks]` as `[Tasks]` in the terminal; `capsys` and `CliRunner.output` both capture the rendered text (no Rich markup)
+
+---
+
+[Ralph CLI] 2026-02-08 06:55 UTC - US-012 (Add unit tests for already-implemented story detection) completed successfully - All stories complete!

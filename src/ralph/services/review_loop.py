@@ -32,6 +32,7 @@ class ReviewerResult(NamedTuple):
         attempts: Number of attempts made (1-3 for blocking reviewers).
         error: Error message if the reviewer failed.
         review_output: Parsed ReviewOutput with verdict and findings when available.
+        fix_skipped: Whether auto-fix was skipped due to --no-fix flag.
     """
 
     reviewer_name: str
@@ -40,6 +41,7 @@ class ReviewerResult(NamedTuple):
     attempts: int
     error: str | None = None
     review_output: ReviewOutput | None = None
+    fix_skipped: bool = False
 
 
 class ReviewLoopService(BaseModel):
@@ -230,6 +232,7 @@ class ReviewLoopService(BaseModel):
         detected_languages: set[Language],
         *,
         strict: bool = False,
+        no_fix: bool = False,
         progress_path: Path | None = None,
         on_fix_step: Callable[[int, int, str], None] | None = None,
     ) -> list[ReviewerResult]:
@@ -237,12 +240,14 @@ class ReviewLoopService(BaseModel):
 
         After each reviewer completes, if the verdict is NEEDS_WORK and the
         reviewer is eligible for auto-fix, the fix loop will automatically
-        run to attempt to resolve findings.
+        run to attempt to resolve findings. When no_fix is True, the fix
+        loop is skipped and findings are reported without code modifications.
 
         Args:
             reviewers: List of reviewer configurations to execute in order.
             detected_languages: Set of languages detected in the project.
             strict: Whether to enforce warning-level reviewers.
+            no_fix: Whether to skip automated fixes for review findings.
             progress_path: Optional path to PROGRESS.txt for logging.
             on_fix_step: Optional callback for fix progress (step, total, finding_id).
                 Called before each fix attempt to enable console output.
@@ -287,22 +292,36 @@ class ReviewLoopService(BaseModel):
                 and result.review_output.findings
                 and self.should_run_fix_loop(reviewer, strict, was_language_filtered=False)
             ):
-                logger.info(
-                    f"Running fix loop for {reviewer.name} "
-                    f"({len(result.review_output.findings)} findings)"
-                )
+                if no_fix:
+                    logger.info("[Fix] Skipped (--no-fix)")
+                    # Replace result with fix_skipped=True
+                    results[-1] = ReviewerResult(
+                        reviewer_name=result.reviewer_name,
+                        success=result.success,
+                        skipped=result.skipped,
+                        attempts=result.attempts,
+                        error=result.error,
+                        review_output=result.review_output,
+                        fix_skipped=True,
+                    )
+                    result = results[-1]
+                else:
+                    logger.info(
+                        f"Running fix loop for {reviewer.name} "
+                        f"({len(result.review_output.findings)} findings)"
+                    )
 
-                fix_service = FixLoopService(
-                    project_root=self.project_root,
-                    reviewer_name=reviewer.name,
-                    verbose=self.verbose,
-                )
+                    fix_service = FixLoopService(
+                        project_root=self.project_root,
+                        reviewer_name=reviewer.name,
+                        verbose=self.verbose,
+                    )
 
-                fix_service.run_fix_loop(
-                    result.review_output.findings,
-                    progress_path=progress_path,
-                    on_fix_step=on_fix_step,
-                )
+                    fix_service.run_fix_loop(
+                        result.review_output.findings,
+                        progress_path=progress_path,
+                        on_fix_step=on_fix_step,
+                    )
 
             if result.success:
                 logger.info(f"Reviewer {reviewer.name} completed successfully")
