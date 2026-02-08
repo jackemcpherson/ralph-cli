@@ -686,3 +686,32 @@
 - Trusted Publishers require both the `id-token: write` permission and a matching GitHub Actions environment name configured in PyPI/TestPyPI
 
 ---
+
+[Ralph Loop] 2026-02-08 07:33 UTC - Iteration 4: US-004 (Create publish workflow with build and TestPyPI jobs) completed
+
+## 2026-02-08 - US-005
+
+**Story:** Add production PyPI publish job to workflow
+
+### What was implemented
+- Added `pypi` job to `.github/workflows/publish.yml` that publishes to production PyPI
+- Job uses `pypa/gh-action-pypi-publish` with Trusted Publishers (OIDC) via `id-token: write` permission
+- Job depends on `testpypi` job completing successfully (`needs: testpypi`)
+- Job uses a separate `pypi` GitHub Actions environment with URL `https://pypi.org/p/ralph-cli` for deployment protection
+- Action version pinned to same full commit SHA as testpypi job (`ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e`)
+- No `repository-url` override needed since production PyPI is the default target
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `pypi` job
+- `plans/TASKS.json` - marked US-005 as passes: true
+
+### Learnings for future iterations
+- Production PyPI is the default target for `pypa/gh-action-pypi-publish` — no `repository-url` is needed (unlike TestPyPI which requires the override)
+- Each publish environment (testpypi, pypi) should have its own `id-token: write` permission block for OIDC
+- Using separate GitHub Actions environments enables deployment protection rules (e.g., manual approval) per target
+
+---

@@ -77,8 +77,8 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pypi job to publish.yml with needs: testpypi, environment: pypi, id-token: write permission, and pypa/gh-action-pypi-publish pinned to full commit SHA. Production PyPI is the default target (no repository-url override)."
     },
     {
       "id": "US-006",
