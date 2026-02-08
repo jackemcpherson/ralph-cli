@@ -107,8 +107,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added ci-check job to publish.yml that polls CI workflow via gh api for the same commit SHA. Build job now depends on ci-check. Three failure modes with ::error annotations: CI not run, CI failed, CI still running after timeout."
     },
     {
       "id": "US-008",

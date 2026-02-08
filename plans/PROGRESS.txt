@@ -750,3 +750,36 @@
 ---
 
 [Ralph Loop] 2026-02-08 - Iteration 6: US-006 (Add GitHub Release creation job to workflow) completed
+
+[Ralph Loop] 2026-02-08 07:37 UTC - Iteration 6: US-006 (Add GitHub Release creation job to workflow) completed
+
+## 2026-02-08 - US-007
+
+**Story:** Gate publish workflow on CI checks passing
+
+### What was implemented
+- Added `ci-check` job to `.github/workflows/publish.yml` as the first job in the pipeline
+- Job uses `gh api` to query the CI workflow (`ci.yml`) runs for the exact commit SHA (`GITHUB_SHA`)
+- Polls up to 30 attempts with 30-second intervals (15-minute total timeout) for CI to complete
+- Three clear failure modes with `::error::` annotations:
+  - CI workflow has not run for the commit
+  - CI workflow completed with a non-success conclusion
+  - CI workflow still running after timeout
+- On success, prints the commit SHA and exits cleanly
+- Added `needs: ci-check` to the `build` job so the entire publish pipeline gates on CI passing
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `ci-check` job, added `needs: ci-check` to `build` job
+- `plans/TASKS.json` - marked US-007 as passes: true
+
+### Learnings for future iterations
+- `gh api` with `--jq` can directly extract specific JSON fields from the GitHub API response
+- `head_sha` query parameter on the workflow runs endpoint filters runs by the exact commit SHA
+- Using `jq -r` on the raw JSON response (separate from `--jq`) provides flexibility for multiple field extraction from the same response
+- The `github.token` in GitHub Actions has read access to workflow runs by default (no extra permissions needed)
+
+---
