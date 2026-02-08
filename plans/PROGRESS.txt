@@ -354,6 +354,49 @@
 
 [Ralph Loop] 2026-02-08 06:26 UTC - Iteration 10: US-010 (Bump version to 2.1.0 and update CHANGELOG) completed
 
+[Review] 2026-02-08 06:38 UTC - test-quality (blocking)
+
+### Verdict: PASSED (all findings fixed)
+
+### Findings
+
+1. **TQ-001**: Redundant Test - Duplicate --no-fix summary tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:227
+   - Issue: `TestNoFixSummaryReviewCommand` (3 tests at lines 227-324) duplicates `TestReviewNoFixSummary` in test_review_command.py (3 tests at lines 339-465). Both test the same CLI output behavior through the review command with near-identical mock setups and assertions (e.g., checking "findings (not fixed)" in output, checking "Findings (not fixed): 2" count, and checking absence without --no-fix).
+   - Suggestion: Remove `TestNoFixSummaryReviewCommand` from test_nofix_and_resume.py since test_review_command.py already provides comprehensive coverage of this behavior. The nofix_and_resume file should focus on the service-layer and loop.py tests that aren't covered elsewhere.
+
+2. **TQ-002**: Redundant Test - Duplicate resume-review tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:530
+   - Issue: `TestResumeSkipsCompletedReviewCommand` (3 tests at lines 530-616) duplicates `TestReviewResumeReview` in test_review_command.py (4 tests at lines 468-559). Both test --resume-review skipping completed reviewers, running all when no state exists, and saving state after each reviewer, using nearly identical mock setups through the review command CLI.
+   - Suggestion: Remove `TestResumeSkipsCompletedReviewCommand` from test_nofix_and_resume.py. The test_review_command.py version has better coverage (4 tests vs 3, including config hash mismatch).
+
+3. **TQ-003**: Redundant Test - Duplicate state cleanup tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:665
+   - Issue: `TestStateCleanupReviewCommand` (3 tests at lines 665-744) duplicates `TestReviewStateCleanup` in test_review_command.py (3 tests at lines 594-682). Both test identical scenarios: cleanup with --resume-review, cleanup without the flag, and no error when state file doesn't exist.
+   - Suggestion: Remove `TestStateCleanupReviewCommand` from test_nofix_and_resume.py since test_review_command.py already covers these scenarios identically.
+
+4. **TQ-004**: Redundant Test - Duplicate config invalidation tests across test_nofix_and_resume.py and test_review_command.py
+   - File: tests/test_nofix_and_resume.py:791
+   - Issue: `TestConfigInvalidationReviewCommand` (2 tests at lines 791-849) duplicates `TestReviewConfigInvalidation` in test_review_command.py (2 tests at lines 685-746). Both test that stale config hash runs all reviewers and that a discard message is logged.
+   - Suggestion: Remove `TestConfigInvalidationReviewCommand` from test_nofix_and_resume.py. The loop.py-specific tests in `TestConfigInvalidationInLoopRunReviewLoop` are the unique value this file adds.
+
+5. **TQ-005**: Redundant Test - Duplicate ReviewState serialization tests across test_nofix_and_resume.py and test_review_state.py
+   - File: tests/test_nofix_and_resume.py:384
+   - Issue: `TestReviewStateSerialisation` (4 tests at lines 384-452) overlaps significantly with `TestSaveAndLoad` and `TestReviewStateModel` in test_review_state.py. For example, `test_round_trip_preserves_all_fields` (line 387) duplicates `test_save_load_round_trip` (test_review_state.py:227) and `test_serialization_round_trip` (test_review_state.py:62). Similarly, `test_load_returns_none_for_truncated_json` duplicates `test_load_invalid_json_returns_none`.
+   - Suggestion: Remove `TestReviewStateSerialisation` from test_nofix_and_resume.py. The test_review_state.py file provides more thorough coverage of the ReviewState model with 16 dedicated tests.
+
+6. **TQ-006**: Redundant Test - Duplicate config hash tests across test_nofix_and_resume.py and test_review_state.py
+   - File: tests/test_nofix_and_resume.py:455
+   - Issue: `TestReviewStateConfigHash` (6 tests at lines 455-522) overlaps with `TestComputeConfigHash` in test_review_state.py (6 tests at lines 80-165). Both test determinism, sensitivity to config changes, and language order normalization. The nofix_and_resume version adds `test_hash_differs_when_name_changes` and `test_hash_none_languages_vs_empty_list`, but the core tests are duplicated.
+   - Suggestion: Move the 2 unique tests (`test_hash_differs_when_name_changes` and `test_hash_none_languages_vs_empty_list`) to test_review_state.py's `TestComputeConfigHash` class, then remove `TestReviewStateConfigHash` from test_nofix_and_resume.py.
+
+7. **TQ-007**: Framework Test - Testing a constant's string value
+   - File: tests/test_review_state.py:252
+   - Issue: `test_filename_value` asserts `REVIEW_STATE_FILENAME == ".ralph-review-state.json"`. This tests that a Python constant equals its defined value, which is testing the language/framework behavior rather than business logic. This test cannot catch a real bug — if the constant value were intentionally changed, the test would just need updating.
+   - Suggestion: Remove `TestReviewStateFilename` class. The constant's value is already exercised by save/load tests that use it.
+
+---
+
 ## 2026-02-08 - US-011
 
 **Story:** Add unit tests for --no-fix and resumable review features
@@ -384,5 +427,143 @@
 - Both `review.py` and `loop.py` implement reviewer iteration independently; tests should cover both paths
 - The `_run_review_loop()` function in loop.py can be tested directly by patching `load_reviewer_configs`, `detect_languages`, and `ReviewLoopService`
 - Rich console output can be captured with a StringIO-backed Console for assertions in unit tests
+
+---
+
+[Review] 2026-02-08 06:43 UTC - test-quality (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 06:44 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+1. **CS-001**: Redundant Code - Duplicate guard clauses in should_run_reviewer
+   - File: src/ralph/services/review_loop.py:78
+   - Issue: Two consecutive checks `if reviewer.languages is None: return True` followed by `if not reviewer.languages: return True` are redundant. The second check (`not reviewer.languages`) already handles both `None` and empty list `[]` since both are falsy in Python.
+   - Suggestion: Consolidate into a single `if not reviewer.languages: return True` check. This preserves the exact same behavior while removing the redundant branch.
+
+2. **CS-002**: Redundant Code - Duplicated review loop logic between loop.py and review.py
+   - File: src/ralph/commands/loop.py:596
+   - Issue: The `_run_review_loop()` function in loop.py (lines 596-725) and the reviewer iteration block in `review()` in review.py (lines 202-323) contain ~130 lines of nearly identical code: language filter checks, resume state loading, no-fix handling, result collection, summary display, and state file cleanup. This duplication was noted in PROGRESS.txt entries for US-003 and US-005 as a known issue.
+   - Suggestion: Extract the shared review execution and summary display logic into a shared function or method (e.g., on ReviewLoopService or a dedicated helper module). Both commands would call this shared implementation, reducing the maintenance burden when adding new review features. This is a significant refactoring opportunity for a future iteration.
+
+3. **CS-003**: Redundant Code - Duplicated test helper functions across test files
+   - File: tests/test_nofix_and_resume.py:31
+   - Issue: The `working_directory` context manager is duplicated in 4 test files (test_review_force.py, test_nofix_and_resume.py, test_review_command.py, test_commands_integration.py). Similarly, `_make_reviewers`, `_make_mock_service`, and `_create_reviewer` helpers are duplicated across 2-3 test files each.
+   - Suggestion: Move shared test helpers to `tests/conftest.py` as fixtures or to a `tests/helpers.py` utility module. This would eliminate ~60 lines of duplication and ensure consistency when helpers need updating.
+
+---
+
+[Review] 2026-02-08 06:44 UTC - code-simplifier (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 06:46 UTC - python-code (blocking)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 06:46 UTC - python-code (blocking)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 06:50 UTC - github-actions (warning)
+
+### Verdict: PASSED
+
+### Workflow Coverage
+
+| Workflow Type | Present | File |
+|---------------|---------|------|
+| Lint/Format | ✅ | ci.yml |
+| Unit Tests | ✅ | ci.yml |
+| Build Check | ✅ | ci.yml (via uv sync) |
+| Integration Tests | N/A | - |
+| Dependabot | ✅ | dependabot.yml |
+| Security Scan | ✅ | security.yml |
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 06:47 UTC - github-actions (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 17:50 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+
+### Findings
+
+(No issues found)
+
+---
+
+[Review] 2026-02-08 06:47 UTC - repo-structure (warning)
+
+### Verdict: PASSED
+---
+
+[Review] 2026-02-08 17:55 UTC - release (blocking)
+
+### Verdict: NEEDS_WORK
+
+### Findings
+
+1. **RL-001**: Dirty Working Directory - Uncommitted changes present
+   - File: plans/PROGRESS.txt:0
+   - Issue: Working directory has uncommitted changes in 5 files: plans/PROGRESS.txt (staged), plans/SPEC.md, tests/test_nofix_and_resume.py, tests/test_review_state.py, uv.lock (unstaged modified), and plans/PROGRESS.20260208_055328.txt (untracked). All changes must be committed before release.
+   - Suggestion: Stage and commit all pending changes, or discard any that are not intended for the release.
+
+2. **RL-002**: Archive Cleanup - PROGRESS.txt archive file found
+   - File: plans/PROGRESS.20260208_055328.txt:0
+   - Issue: Found archived PROGRESS file that should be deleted before release.
+   - Suggestion: Delete plans/PROGRESS.20260208_055328.txt or move it out of the plans/ directory.
+
+---
+
+[Review] 2026-02-08 06:49 UTC - release (blocking)
+
+### Verdict: PASSED
+---
+
+## 2026-02-08 - US-012
+
+**Story:** Add unit tests for already-implemented story detection
+
+### What was implemented
+- Created `tests/test_already_implemented.py` with 19 tests across 4 test classes
+- Tests organised by acceptance criteria: codebase context in prompt, counting/logging, message format, normal operation
+- Both unit-level (`_log_already_implemented`, `_build_prompt_from_skill`) and end-to-end (`tasks` CLI command via CliRunner) coverage
+
+### Tests written
+- **TestCodebaseSummaryInPrompt** (5 tests): prompt heading, detection instructions, file tree, key file contents, end-to-end via CLI
+- **TestAlreadyImplementedCounting** (6 tests): 2-of-3 counting, single story, all stories, story ID/title logging, notes retention, end-to-end via CLI
+- **TestSummaryMessageFormat** (4 tests): [Tasks] prefix, full format string, ID:title format, end-to-end via CLI
+- **TestNoStoriesDetected** (4 tests): no output with all passes=False, empty story list, CLI omits message, CLI completes normally
+
+### Files changed
+- `tests/test_already_implemented.py` - new file, 19 tests
+- `plans/TASKS.json` - marked US-012 as passes: true
+- `plans/PROGRESS.txt` - appended this entry
+
+### Learnings for future iterations
+- Shared test helpers (`working_directory`, `_make_story`, `_make_tasks_file`) are duplicated across test files; a future cleanup could extract them to `tests/conftest.py`
+- Rich console output renders `\[Tasks]` as `[Tasks]` in the terminal; `capsys` and `CliRunner.output` both capture the rendered text (no Rich markup)
 
 ---
