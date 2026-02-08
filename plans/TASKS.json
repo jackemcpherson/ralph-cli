@@ -93,8 +93,8 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added release job to publish.yml with needs: pypi. Uses gh release create with extracted CHANGELOG.md notes, --latest for stable versions and --prerelease for pre-release suffixes. Downloads and attaches dist/ artifacts (sdist + wheel) to the GitHub Release."
     },
     {
       "id": "US-007",

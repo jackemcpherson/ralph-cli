@@ -715,3 +715,38 @@
 - Using separate GitHub Actions environments enables deployment protection rules (e.g., manual approval) per target
 
 ---
+
+[Ralph Loop] 2026-02-08 07:35 UTC - Iteration 5: US-005 (Add production PyPI publish job to workflow) completed
+
+## 2026-02-08 - US-006
+
+**Story:** Add GitHub Release creation job to workflow
+
+### What was implemented
+- Added `release` job to `.github/workflows/publish.yml` with `needs: pypi` dependency
+- Job checks out the repo and extracts the version number from the git tag (strips `v` prefix)
+- Uses `awk` to extract release notes from CHANGELOG.md between the current version header and the next `## [` header
+- Downloads the `python-package-distributions` artifact to `dist/`
+- Determines whether the release is stable or pre-release by checking for pre-release suffixes (a, b, rc, dev, alpha, beta, pre)
+- Creates a GitHub Release using `gh release create` with the tag name as title, extracted notes as body, and `dist/*` as attached assets
+- Stable versions get `--latest` flag, pre-release versions get `--prerelease` flag
+- Uses the existing `contents: write` permission and `github.token` for authentication
+- Action versions reuse the same pinned commit SHAs as other jobs (checkout, download-artifact)
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `release` job
+- `plans/TASKS.json` - marked US-006 as passes: true
+
+### Learnings for future iterations
+- `gh release create` with `--notes-file` is simpler than `softprops/action-gh-release` and avoids pinning another third-party action SHA
+- The `--latest` and `--prerelease` flags on `gh release create` control the "Latest" badge on the GitHub Releases page
+- `awk` with found flag pattern is a clean way to extract sections from markdown between headers
+- `GH_TOKEN` environment variable is the preferred way to authenticate `gh` CLI in Actions (vs `--token` flag)
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 6: US-006 (Add GitHub Release creation job to workflow) completed
