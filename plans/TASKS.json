@@ -123,8 +123,8 @@
         "Script is executable and includes usage documentation in comments"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created scripts/setup-branch-protection.sh using gh api PUT. Requires 1 PR approval, all 6 CI matrix checks + version-check + CodeQL Analysis, strict up-to-date, no force pushes. Script is executable with full usage docs in comments."
     },
     {
       "id": "US-009",

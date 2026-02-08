@@ -783,3 +783,38 @@
 - The `github.token` in GitHub Actions has read access to workflow runs by default (no extra permissions needed)
 
 ---
+
+[Ralph Loop] 2026-02-08 07:39 UTC - Iteration 7: US-007 (Gate publish workflow on CI checks passing) completed
+
+## 2026-02-08 - US-008
+
+**Story:** Create branch protection setup script
+
+### What was implemented
+- Created `scripts/setup-branch-protection.sh` that configures branch protection for main via `gh api`
+- Script accepts optional `OWNER/REPO` argument, defaults to current repo via `gh repo view`
+- Uses `gh api --method PUT repos/{owner}/{repo}/branches/main/protection` with JSON payload
+- Requires at least 1 approving PR review (`required_approving_review_count: 1`)
+- Requires all 8 status checks: 6 CI test matrix combinations, `version-check`, and `CodeQL Analysis`
+- Requires branches to be up to date before merging (`strict: true`)
+- Prevents force pushes (`allow_force_pushes: false`)
+- Enforces rules for administrators (`enforce_admins: true`)
+- Script is executable (`chmod +x`) with comprehensive header comments (usage, args, prerequisites, example)
+
+### Tests written
+- No new tests needed (shell script only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `scripts/setup-branch-protection.sh` - new file, branch protection setup script
+- `plans/TASKS.json` - marked US-008 as passes: true
+
+### Learnings for future iterations
+- GitHub branch protection API uses PUT on `repos/{owner}/{repo}/branches/{branch}/protection`
+- `required_status_checks.strict: true` enforces "require branches to be up to date before merging"
+- Status check context names for matrix jobs follow the pattern `job-name (matrix-value-1, matrix-value-2)`
+- `restrictions: null` is required in the payload (cannot be omitted) to not restrict pushes to specific users/teams
+
+---
+
+[Ralph Loop] 2026-02-08 18:40 UTC - Iteration 8: US-008 (Create branch protection setup script) completed
