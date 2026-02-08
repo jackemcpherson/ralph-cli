@@ -569,3 +569,281 @@
 ---
 
 [Ralph CLI] 2026-02-08 06:55 UTC - US-012 (Add unit tests for already-implemented story detection) completed successfully - All stories complete!
+
+## 2026-02-08 - US-001
+
+**Story:** Add package metadata to pyproject.toml
+
+### What was implemented
+- Added PyPI classifiers for Python 3.11, 3.12, 3.13, MIT license, and Development Tools topics
+- Added `[project.urls]` section with Homepage, Repository, Changelog, and Issue Tracker links pointing to the GitHub repo
+- Verified `uv build` produces valid sdist (`ralph_cli-2.1.0.tar.gz`) and wheel (`ralph_cli-2.1.0-py3-none-any.whl`)
+- Confirmed metadata is embedded correctly in wheel METADATA file
+
+### Tests written
+- No new tests needed (metadata-only change to pyproject.toml; verified via uv build + METADATA inspection)
+- All 312 existing tests pass
+
+### Files changed
+- `pyproject.toml` - added `classifiers` list and `[project.urls]` section
+- `plans/TASKS.json` - marked US-001 as passes: true
+
+### Learnings for future iterations
+- PyPI classifiers must use exact strings from the PyPI classifier list (e.g., "Topic :: Software Development :: Build Tools")
+- `[project.urls]` keys with spaces need quoting in TOML (e.g., `"Issue Tracker"`)
+- `unzip -p` on wheel files can inspect dist-info/METADATA to verify embedded metadata without installing
+
+---
+
+[Ralph Loop] 2026-02-08 07:26 UTC - Iteration 1: US-001 (Add package metadata to pyproject.toml) completed
+
+## 2026-02-08 - US-002
+
+**Story:** Add version consistency check to CI
+
+### What was implemented
+- Added `version-check` job to `.github/workflows/ci.yml` that runs on push to main and PRs targeting main
+- Job extracts version from `pyproject.toml` using a python3 one-liner with regex
+- Job extracts `__version__` from `src/ralph/__init__.py` using a python3 one-liner with regex
+- Job checks `CHANGELOG.md` for a `## [X.Y.Z]` header matching the pyproject.toml version using `grep -qF`
+- Final verification step compares all three and fails with `::error` annotations identifying exactly which files mismatch
+- Job runs without installing project dependencies (only python3 stdlib and grep)
+
+### Tests written
+- No new tests needed (CI workflow YAML change only; verified by lint/format checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/ci.yml` - added `version-check` job
+- `plans/TASKS.json` - marked US-002 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions `::error file=<path>::<message>` annotations surface directly on PR file diffs
+- Python3 is available on `ubuntu-latest` runners without any setup step
+- Using `grep -qF` for fixed-string matching avoids regex escaping issues with brackets in changelog headers
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 2: US-002 (Add version consistency check to CI) completed
+
+[Ralph Loop] 2026-02-08 07:28 UTC - Iteration 2: US-002 (Add version consistency check to CI) completed
+
+## 2026-02-08 - US-003
+
+**Story:** Add tag-version validation to version check
+
+### What was implemented
+- Extended CI push trigger to also fire on tag pushes matching `v*`
+- Added "Verify tag matches pyproject.toml version" step to the version-check job
+- Step uses `if: startsWith(github.ref, 'refs/tags/v')` so it runs only on tag pushes
+- On tag runs, strips the `v` prefix from `GITHUB_REF` and compares to the pyproject.toml version extracted earlier
+- On mismatch, fails with a `::error::` annotation clearly showing the tag vs pyproject.toml values
+- On non-tag runs (push to main, PRs), the step is skipped entirely (passes silently)
+
+### Tests written
+- No new tests needed (CI workflow YAML change only; verified by lint/format/typecheck/test checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/ci.yml` - added `tags: ['v*']` to push trigger, added tag validation step
+- `plans/TASKS.json` - marked US-003 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions `if: startsWith(github.ref, 'refs/tags/v')` is the clean way to conditionally run steps only on tag pushes
+- `${GITHUB_REF#refs/tags/v}` shell parameter expansion strips the prefix to get the bare version number
+- The existing `steps.pyproject.outputs.version` output can be reused in subsequent steps without re-extraction
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 3: US-003 (Add tag-version validation to version check) completed
+
+[Ralph Loop] 2026-02-08 07:30 UTC - Iteration 3: US-003 (Add tag-version validation to version check) completed
+
+## 2026-02-08 - US-004
+
+**Story:** Create publish workflow with build and TestPyPI jobs
+
+### What was implemented
+- Created `.github/workflows/publish.yml` triggered on tag pushes matching `v*`
+- Set workflow-level permissions to `id-token: write` (for OIDC) and `contents: write` (for releases)
+- Added `build` job that installs uv, runs `uv build`, and uploads `dist/` via `actions/upload-artifact`
+- Added `testpypi` job with `needs: build` that downloads artifacts and publishes to TestPyPI using `pypa/gh-action-pypi-publish` with Trusted Publishers (OIDC)
+- testpypi job uses a `testpypi` GitHub Actions environment with URL pointing to `https://test.pypi.org/p/ralph-cli`
+- testpypi job declares its own `id-token: write` permission for OIDC token generation
+- All 5 action versions pinned to full 40-character commit SHAs with version comments
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - new file, publish workflow with build and testpypi jobs
+- `plans/TASKS.json` - marked US-004 as passes: true
+
+### Learnings for future iterations
+- GitHub Actions annotated tags need dereferencing via `git/tags/<sha>` API to get the actual commit SHA for pinning
+- The `pypa/gh-action-pypi-publish` action uses `release/v1` as its tag namespace, with specific versions like `v1.13.0`
+- Trusted Publishers require both the `id-token: write` permission and a matching GitHub Actions environment name configured in PyPI/TestPyPI
+
+---
+
+[Ralph Loop] 2026-02-08 07:33 UTC - Iteration 4: US-004 (Create publish workflow with build and TestPyPI jobs) completed
+
+## 2026-02-08 - US-005
+
+**Story:** Add production PyPI publish job to workflow
+
+### What was implemented
+- Added `pypi` job to `.github/workflows/publish.yml` that publishes to production PyPI
+- Job uses `pypa/gh-action-pypi-publish` with Trusted Publishers (OIDC) via `id-token: write` permission
+- Job depends on `testpypi` job completing successfully (`needs: testpypi`)
+- Job uses a separate `pypi` GitHub Actions environment with URL `https://pypi.org/p/ralph-cli` for deployment protection
+- Action version pinned to same full commit SHA as testpypi job (`ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e`)
+- No `repository-url` override needed since production PyPI is the default target
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `pypi` job
+- `plans/TASKS.json` - marked US-005 as passes: true
+
+### Learnings for future iterations
+- Production PyPI is the default target for `pypa/gh-action-pypi-publish` — no `repository-url` is needed (unlike TestPyPI which requires the override)
+- Each publish environment (testpypi, pypi) should have its own `id-token: write` permission block for OIDC
+- Using separate GitHub Actions environments enables deployment protection rules (e.g., manual approval) per target
+
+---
+
+[Ralph Loop] 2026-02-08 07:35 UTC - Iteration 5: US-005 (Add production PyPI publish job to workflow) completed
+
+## 2026-02-08 - US-006
+
+**Story:** Add GitHub Release creation job to workflow
+
+### What was implemented
+- Added `release` job to `.github/workflows/publish.yml` with `needs: pypi` dependency
+- Job checks out the repo and extracts the version number from the git tag (strips `v` prefix)
+- Uses `awk` to extract release notes from CHANGELOG.md between the current version header and the next `## [` header
+- Downloads the `python-package-distributions` artifact to `dist/`
+- Determines whether the release is stable or pre-release by checking for pre-release suffixes (a, b, rc, dev, alpha, beta, pre)
+- Creates a GitHub Release using `gh release create` with the tag name as title, extracted notes as body, and `dist/*` as attached assets
+- Stable versions get `--latest` flag, pre-release versions get `--prerelease` flag
+- Uses the existing `contents: write` permission and `github.token` for authentication
+- Action versions reuse the same pinned commit SHAs as other jobs (checkout, download-artifact)
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `release` job
+- `plans/TASKS.json` - marked US-006 as passes: true
+
+### Learnings for future iterations
+- `gh release create` with `--notes-file` is simpler than `softprops/action-gh-release` and avoids pinning another third-party action SHA
+- The `--latest` and `--prerelease` flags on `gh release create` control the "Latest" badge on the GitHub Releases page
+- `awk` with found flag pattern is a clean way to extract sections from markdown between headers
+- `GH_TOKEN` environment variable is the preferred way to authenticate `gh` CLI in Actions (vs `--token` flag)
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 6: US-006 (Add GitHub Release creation job to workflow) completed
+
+[Ralph Loop] 2026-02-08 07:37 UTC - Iteration 6: US-006 (Add GitHub Release creation job to workflow) completed
+
+## 2026-02-08 - US-007
+
+**Story:** Gate publish workflow on CI checks passing
+
+### What was implemented
+- Added `ci-check` job to `.github/workflows/publish.yml` as the first job in the pipeline
+- Job uses `gh api` to query the CI workflow (`ci.yml`) runs for the exact commit SHA (`GITHUB_SHA`)
+- Polls up to 30 attempts with 30-second intervals (15-minute total timeout) for CI to complete
+- Three clear failure modes with `::error::` annotations:
+  - CI workflow has not run for the commit
+  - CI workflow completed with a non-success conclusion
+  - CI workflow still running after timeout
+- On success, prints the commit SHA and exits cleanly
+- Added `needs: ci-check` to the `build` job so the entire publish pipeline gates on CI passing
+
+### Tests written
+- No new tests needed (GitHub Actions workflow YAML change only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `.github/workflows/publish.yml` - added `ci-check` job, added `needs: ci-check` to `build` job
+- `plans/TASKS.json` - marked US-007 as passes: true
+
+### Learnings for future iterations
+- `gh api` with `--jq` can directly extract specific JSON fields from the GitHub API response
+- `head_sha` query parameter on the workflow runs endpoint filters runs by the exact commit SHA
+- Using `jq -r` on the raw JSON response (separate from `--jq`) provides flexibility for multiple field extraction from the same response
+- The `github.token` in GitHub Actions has read access to workflow runs by default (no extra permissions needed)
+
+---
+
+[Ralph Loop] 2026-02-08 07:39 UTC - Iteration 7: US-007 (Gate publish workflow on CI checks passing) completed
+
+## 2026-02-08 - US-008
+
+**Story:** Create branch protection setup script
+
+### What was implemented
+- Created `scripts/setup-branch-protection.sh` that configures branch protection for main via `gh api`
+- Script accepts optional `OWNER/REPO` argument, defaults to current repo via `gh repo view`
+- Uses `gh api --method PUT repos/{owner}/{repo}/branches/main/protection` with JSON payload
+- Requires at least 1 approving PR review (`required_approving_review_count: 1`)
+- Requires all 8 status checks: 6 CI test matrix combinations, `version-check`, and `CodeQL Analysis`
+- Requires branches to be up to date before merging (`strict: true`)
+- Prevents force pushes (`allow_force_pushes: false`)
+- Enforces rules for administrators (`enforce_admins: true`)
+- Script is executable (`chmod +x`) with comprehensive header comments (usage, args, prerequisites, example)
+
+### Tests written
+- No new tests needed (shell script only; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `scripts/setup-branch-protection.sh` - new file, branch protection setup script
+- `plans/TASKS.json` - marked US-008 as passes: true
+
+### Learnings for future iterations
+- GitHub branch protection API uses PUT on `repos/{owner}/{repo}/branches/{branch}/protection`
+- `required_status_checks.strict: true` enforces "require branches to be up to date before merging"
+- Status check context names for matrix jobs follow the pattern `job-name (matrix-value-1, matrix-value-2)`
+- `restrictions: null` is required in the payload (cannot be omitted) to not restrict pushes to specific users/teams
+
+---
+
+[Ralph Loop] 2026-02-08 18:40 UTC - Iteration 8: US-008 (Create branch protection setup script) completed
+
+[Ralph Loop] 2026-02-08 07:41 UTC - Iteration 8: US-008 (Create branch protection setup script) completed
+
+## 2026-02-08 - US-009
+
+**Story:** Document Trusted Publisher setup steps
+
+### What was implemented
+- Created `PUBLISHING.md` with complete Trusted Publisher setup documentation
+- Documented PyPI configuration: project name (`ralph-cli`), owner (`jackemcpherson`), repo (`ralph-cli`), workflow (`publish.yml`), environment (`pypi`)
+- Documented TestPyPI configuration separately with its own environment name (`testpypi`)
+- Included a quick-start checklist covering project creation, Trusted Publisher setup, environment creation, and first tag push
+- Added sections for how the pipeline works, GitHub Actions environment setup, triggering a release, and troubleshooting common issues
+- Added references to PyPI Trusted Publishers docs, pypa/gh-action-pypi-publish, and GitHub OIDC docs
+
+### Tests written
+- No new tests needed (documentation-only change; verified by all 4 quality checks passing)
+- All 312 existing tests pass
+
+### Files changed
+- `PUBLISHING.md` - new file, Trusted Publisher setup guide
+- `plans/TASKS.json` - marked US-009 as passes: true
+
+### Learnings for future iterations
+- Trusted Publisher configuration requires exact match on all 5 fields (project name, owner, repo, workflow name, environment name)
+- PyPI and TestPyPI are independent registries; each needs its own Trusted Publisher entry
+- The environment name in the workflow YAML must match the environment name configured in the Trusted Publisher on PyPI/TestPyPI
+
+---

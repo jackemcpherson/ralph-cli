@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -10,6 +11,90 @@ permissions:
   contents: read
 
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version from pyproject.toml
+        id: pyproject
+        run: |
+          version=$(python3 -c "
+          import re, pathlib
+          text = pathlib.Path('pyproject.toml').read_text()
+          m = re.search(r'^version\s*=\s*\"([^\"]+)\"', text, re.MULTILINE)
+          print(m.group(1) if m else '')
+          ")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Extract version from __init__.py
+        id: init
+        run: |
+          version=$(python3 -c "
+          import re, pathlib
+          text = pathlib.Path('src/ralph/__init__.py').read_text()
+          m = re.search(r'^__version__\s*=\s*\"([^\"]+)\"', text, re.MULTILINE)
+          print(m.group(1) if m else '')
+          ")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check CHANGELOG.md contains version entry
+        id: changelog
+        run: |
+          version="${{ steps.pyproject.outputs.version }}"
+          if grep -qF "## [$version]" CHANGELOG.md; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify version consistency
+        run: |
+          pyproject="${{ steps.pyproject.outputs.version }}"
+          init="${{ steps.init.outputs.version }}"
+          changelog="${{ steps.changelog.outputs.found }}"
+          errors=0
+
+          if [ -z "$pyproject" ]; then
+            echo "::error file=pyproject.toml::Could not extract version from pyproject.toml"
+            errors=1
+          fi
+
+          if [ "$pyproject" != "$init" ]; then
+            echo "::error file=src/ralph/__init__.py::Version mismatch: pyproject.toml has '$pyproject' but __init__.py has '$init'"
+            errors=1
+          fi
+
+          if [ "$changelog" != "true" ]; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md is missing an entry for version '$pyproject' (expected '## [$pyproject]')"
+            errors=1
+          fi
+
+          if [ "$errors" -ne 0 ]; then
+            echo ""
+            echo "Version consistency check failed. Ensure these files agree:"
+            echo "  - pyproject.toml  version = \"$pyproject\""
+            echo "  - src/ralph/__init__.py  __version__ = \"$init\""
+            echo "  - CHANGELOG.md   ## [$pyproject]  ($changelog)"
+            exit 1
+          fi
+
+          echo "Version consistency check passed: $pyproject"
+
+      - name: Verify tag matches pyproject.toml version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          pyproject="${{ steps.pyproject.outputs.version }}"
+
+          if [ "$tag" != "$pyproject" ]; then
+            echo "::error::Git tag 'v$tag' does not match pyproject.toml version '$pyproject'"
+            exit 1
+          fi
+
+          echo "Tag validation passed: v$tag matches pyproject.toml version $pyproject"
+
   test:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
