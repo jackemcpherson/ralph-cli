@@ -216,3 +216,41 @@
 - The `patch.object(ReviewState, "save", tracking_save)` pattern is useful for verifying intermediate save calls when the file gets cleaned up at the end
 
 ---
+
+[Ralph Loop] 2026-02-08 06:15 UTC - Iteration 6: US-006 (Handle state file cleanup and config invalidation) completed
+
+## 2026-02-08 - US-007
+
+**Story:** Add .ralph-review-state.json to init scaffold
+
+### What was implemented
+- Added `create_gitignore()` method to `ScaffoldService` that creates or appends to `.gitignore`
+- The method adds `.ralph-review-state.json` entry (using `REVIEW_STATE_FILENAME` constant)
+- If `.gitignore` already exists, the entry is appended only if not already present
+- Handles edge cases: missing trailing newline, empty file, duplicate prevention
+- Updated `scaffold_all()` to call `create_gitignore()` and include `"gitignore"` in the result dict
+- Imported `REVIEW_STATE_FILENAME` from `ralph.models.review_state`
+
+### Tests written
+- `TestCreateGitignore::test_creates_gitignore_when_not_exists` - verifies .gitignore is created with the entry
+- `TestCreateGitignore::test_appends_to_existing_gitignore` - verifies entry is appended when .gitignore exists
+- `TestCreateGitignore::test_does_not_duplicate_entry` - verifies no duplicate when entry already present
+- `TestCreateGitignore::test_appends_with_newline_when_missing_trailing_newline` - verifies newline is added before entry
+- `TestCreateGitignore::test_handles_empty_gitignore` - verifies entry is added to empty .gitignore
+- `TestCreateGitignore::test_returns_gitignore_path` - verifies return value
+- `TestScaffoldAllGitignore::test_scaffold_all_creates_gitignore` - verifies scaffold_all includes gitignore
+- `TestScaffoldAllGitignore::test_scaffold_all_preserves_existing_gitignore` - verifies existing entries are preserved
+
+### Files changed
+- `src/ralph/services/scaffold.py` - added `create_gitignore()` method, updated `scaffold_all()`
+- `tests/test_scaffold.py` - new file with 8 tests
+- `plans/TASKS.json` - marked US-007 as passes: true
+
+### Learnings for future iterations
+- The `REVIEW_STATE_FILENAME` constant from `ralph.models.review_state` is reused to keep the gitignore entry in sync with the actual filename
+- When appending to files, check for trailing newline to avoid malformed entries
+- Line-based comparison (`splitlines()`) is more reliable than substring search for gitignore deduplication
+
+---
+
+[Ralph Loop] 2026-02-08 - Iteration 7: US-007 (Add .ralph-review-state.json to init scaffold) completed

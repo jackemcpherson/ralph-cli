@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from ralph.models.review_state import REVIEW_STATE_FILENAME
 from ralph.utils import ensure_dir, write_file
 
 logger = logging.getLogger(__name__)
@@ -383,6 +384,29 @@ This project uses the Ralph autonomous iteration pattern.
         write_file(agents_md_path, content)
         return agents_md_path
 
+    def create_gitignore(self) -> Path:
+        """Create or append to .gitignore with Ralph-specific entries.
+
+        If .gitignore already exists, appends the review state entry
+        only if it is not already present. If .gitignore does not exist,
+        creates it with the entry.
+
+        Returns:
+            Path to the .gitignore file.
+        """
+        gitignore_path = self.project_root / ".gitignore"
+        entry = REVIEW_STATE_FILENAME
+
+        if gitignore_path.exists():
+            content = gitignore_path.read_text(encoding="utf-8")
+            if entry not in content.splitlines():
+                suffix = "" if content.endswith("\n") or content == "" else "\n"
+                gitignore_path.write_text(content + suffix + entry + "\n", encoding="utf-8")
+        else:
+            write_file(gitignore_path, entry + "\n")
+
+        return gitignore_path
+
     def scaffold_all(
         self, project_name: str | None = None, skip_changelog: bool = False
     ) -> dict[str, Path]:
@@ -404,6 +428,7 @@ This project uses the Ralph autonomous iteration pattern.
             "progress": self.create_progress_placeholder(),
             "claude_md": self.create_claude_md(project_name),
             "agents_md": self.create_agents_md(project_name),
+            "gitignore": self.create_gitignore(),
         }
 
         if not skip_changelog:

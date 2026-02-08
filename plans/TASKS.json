@@ -110,8 +110,8 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added create_gitignore() to ScaffoldService. Creates or appends .ralph-review-state.json to .gitignore. scaffold_all() includes gitignore in results."
     },
     {
       "id": "US-008",
