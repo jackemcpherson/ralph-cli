@@ -14,17 +14,34 @@ A Python CLI tool that implements the Ralph autonomous iteration pattern for Cla
 
 ## Installation
 
+### Homebrew (macOS)
+
+```bash
+brew tap jackemcpherson/tap
+brew install ralph-cli
+```
+
+### PyPI
+
+```bash
+pip install ralph-cli
+# or
+uv pip install ralph-cli
+```
+
+### From Source
+
 Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv) package manager.
 
 ```bash
-# Clone the repository
 git clone https://github.com/jackemcpherson/ralph-cli.git
 cd ralph-cli
-
-# Install with dev dependencies
 uv pip install -e ".[dev]"
+```
 
-# Verify installation
+Verify installation:
+
+```bash
 ralph --version
 ```
 

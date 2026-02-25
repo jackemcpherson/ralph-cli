@@ -1,0 +1,61 @@
+name: Update Homebrew Formula
+
+on:
+  workflow_run:
+    workflows: ["Publish"]
+    types: [completed]
+
+jobs:
+  update-formula:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          tag="${{ github.event.workflow_run.head_branch }}"
+          version="${tag#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Get PyPI package info
+        id: pypi
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          # Wait briefly for PyPI to propagate
+          sleep 30
+          # Fetch package metadata from PyPI
+          url=$(curl -sL "https://pypi.org/pypi/ralph-cli/${version}/json" \
+            | jq -r '.urls[] | select(.packagetype == "sdist") | .url')
+          sha256=$(curl -sL "https://pypi.org/pypi/ralph-cli/${version}/json" \
+            | jq -r '.urls[] | select(.packagetype == "sdist") | .digests.sha256')
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: jackemcpherson/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update formula
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          url="${{ steps.pypi.outputs.url }}"
+          sha256="${{ steps.pypi.outputs.sha256 }}"
+
+          # Update version, url, and sha256 in the formula
+          sed -i "s|url \"https://files.pythonhosted.org/.*ralph_cli.*\.tar\.gz\"|url \"${url}\"|" Formula/ralph-cli.rb
+          # Update the sha256 on the line immediately after the main url
+          sed -i "/url \".*ralph_cli.*\"/{ n; s/sha256 \".*\"/sha256 \"${sha256}\"/; }" Formula/ralph-cli.rb
+
+      - name: Commit and push
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/ralph-cli.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update ralph-cli to ${version}"
+          git push
