@@ -12,6 +12,17 @@ A Python CLI tool that implements the Ralph autonomous iteration pattern for Cla
 - **Skills Management**: Sync custom Claude Code skills to your system
 - **Code Review Skills**: Built-in reviewers for Python, repo structure, GitHub Actions, and tests
 
+## How It Works
+
+Ralph automates the full cycle from idea to implemented code using Claude Code:
+
+1. **Define** — Write a PRD or spec describing what you want built (`ralph prd` helps you do this interactively with Claude)
+2. **Plan** — Convert the spec into prioritised user stories with acceptance criteria (`ralph tasks plans/SPEC.md`)
+3. **Build** — Ralph picks the next incomplete story, hands it to Claude Code, and runs your quality checks (typecheck, lint, tests). If checks fail, it retries automatically. On success, it commits and moves to the next story (`ralph loop`)
+4. **Review** — Run automated code reviewers across the finished work (`ralph review`)
+
+Each iteration appends to `plans/PROGRESS.txt` so you have a full log of what was done and why. Quality checks and reviewers are configured in `CLAUDE.md`, so Ralph enforces your project's standards on every story.
+
 ## Installation
 
 ### Homebrew (macOS)
