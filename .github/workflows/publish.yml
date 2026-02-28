@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.2
 
       - name: Install uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7
@@ -135,7 +135,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.2
 
       - name: Extract version from tag
         id: version
