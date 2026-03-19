@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.2.1] - 2026-03-19
+
+### Fixed
+
+- `UnicodeDecodeError` on Windows when non-ASCII characters appear in subprocess output (#67)
+  - Explicitly set `encoding='utf-8'` and `errors='replace'` on all subprocess calls in `ClaudeService`
+
 ## [2.2.0] - 2026-02-08
 
 ### Added
