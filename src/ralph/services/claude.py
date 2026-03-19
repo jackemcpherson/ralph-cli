@@ -193,6 +193,8 @@ without asking for confirmation or permission."""
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
 
             if stream:
@@ -249,6 +251,8 @@ without asking for confirmation or permission."""
                 args,
                 cwd=self.working_dir,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
             return result.returncode
         except FileNotFoundError as e:
