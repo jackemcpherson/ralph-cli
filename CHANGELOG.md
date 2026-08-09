@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Release tagging:** After merging a release PR, create a git tag matching the version (e.g., `git tag v1.2.6 && git push origin v1.2.6`).
 
+## [2.2.2] - 2026-08-09
+
+### Changed
+
+- Ralph CLI is retired. No further releases or maintenance are planned.
+
 ## [2.2.1] - 2026-03-19
 
 ### Fixed

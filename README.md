@@ -1,5 +1,10 @@
 # Ralph CLI
 
+> [!IMPORTANT]
+> Ralph CLI is retired. Version 2.2.2 is the final release; no further
+> maintenance, security updates, or releases are planned. The documentation
+> below is preserved for historical reference.
+
 A Python CLI tool that implements the Ralph autonomous iteration pattern for Claude Code. Ralph enables AI-driven development by breaking down specifications into user stories and executing them autonomously.
 
 ## Features
